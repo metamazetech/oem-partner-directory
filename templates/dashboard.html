@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - {{ portal_settings['portal_name'] }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.3">
+    <link rel="icon" type="image/x-icon" href="{% if portal_settings['favicon'] %}{{ url_for('uploaded_file', filename=portal_settings['favicon']) }}{% else %}{{ url_for('static', filename='favicon.ico') }}{% endif %}">
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
+    <script>
+        window.BASE_URL = "{{ url_for('dashboard') }}";
+        window.USER_PREFERENCES = {{ session.get('dashboard_layout', '{}') | safe }};
+        window.USER_THEME = "{{ session.get('theme', 'theme-slate-dark') }}";
+    </script>
+</head>
+<body class="{{ session.get('theme', 'theme-slate-dark') }}">
+    <div class="app-container">
+        
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-container" style="display: flex; align-items: center; justify-content: center; max-width: 100%; padding: 6px 0; text-decoration: none; gap: 0.4rem;">
+                    <a href="{{ url_for('dashboard') }}" style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.25rem; color: var(--text-primary); letter-spacing: -0.03em; text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
+                        {% if portal_settings['portal_logo'] %}
+                            <img src="{{ url_for('uploaded_file', filename=portal_settings['portal_logo']) }}" style="max-height: 40px; max-width: 100%; object-fit: contain;" alt="Logo">
+                        {% else %}
+                            <span>📂</span> {{ portal_settings['portal_name'] }}
+                        {% endif %}
+                    </a>
+                    <span style="font-size: 0.6rem; color: var(--text-muted); background: rgba(255,255,255,0.05); border: 1px solid var(--border-glass); padding: 0.1rem 0.3rem; border-radius: 4px; font-weight: 700; vertical-align: middle;">v2.0.0</span>
+                </div>
+                <button id="mobile-nav-toggle" class="mobile-toggle-btn">☰</button>
+            </div>
+            
+            <div class="nav-container">
+                <nav>
+                    <ul class="nav-menu">
+                        <li class="nav-item active">
+                            <a href="{{ url_for('dashboard') }}">
+                                <span>📊</span> Dashboard
+                            </a>
+                        </li>
+                        {% if session['role'] == 'admin' %}
+                        <li class="nav-item">
+                            <a href="{{ url_for('admin_panel') }}" id="btn-admin-tour">
+                                <span>🛡️</span> Admin Panel
+                            </a>
+                        </li>
+                        {% endif %}
+                        <li class="nav-item">
+                            <a href="{{ url_for('logout') }}" style="color: #fca5a5;">
+                                <span>🚪</span> Sign Out
+                            </a>
+                        </li>
+                    </ul>
+                    
+                    <div class="sidebar-section-title">
+                        <span class="sidebar-title">🏷️ OEM Categories</span>
+                    </div>
+                    <ul class="nav-menu">
+                        {% for group in oem_groups %}
+                            <li class="nav-item category-item" data-category="{{ group['name'] }}">
+                                <a href="javascript:void(0)" onclick="filterByCategory('{{ group['name'] }}')">
+                                    <span>{{ group['icon'] }}</span> {{ group['name'] }}
+                                </a>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </nav>
+            </div>
+            
+            <div class="user-profile" style="display: flex; align-items: center; gap: 0.75rem; width: 100%; padding: 1.25rem 0 0 0; border-top: 1px solid var(--border-glass);">
+                <div class="user-avatar" style="position: relative;">
+                    {{ session['username'][0].upper() }}
+                    <a href="javascript:void(0)" onclick="openModal('preferences-modal')" style="position: absolute; bottom: -5px; right: -5px; background: var(--primary); font-size: 0.65rem; padding: 0.15rem; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; text-decoration: none; border: 1px solid var(--border-glass);" title="Personalize Portal Layout & Theme">⚙️</a>
+                </div>
+                <div class="user-info">
+                    <span class="user-name">{{ session['username'] }}</span>
+                    <span class="user-role">{{ session['role'] }}</span>
+                </div>
+            </div>
+        </aside>
+        
+        <!-- Main Content Area -->
+        <main class="main-content">
+            
+            <div class="header-bar">
+                <div>
+                    <h1 class="page-title">OEM & Distributor Directory</h1>
+                    <p style="color: var(--text-secondary); margin-top: 0.25rem;">Manage professional relationships and check vendor portfolio catalogs.</p>
+                </div>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <!-- Dropdown for More options (CSV actions) -->
+                    <div class="dropdown-actions" style="position: relative; display: inline-block;">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="toggleActionsDropdown(event)" style="padding: 0.45rem 0.85rem; font-size: 0.8rem; border-radius: 6px; display: inline-flex; align-items: center; gap: 0.25rem;">
+                            ⚙️ More <span style="font-size: 0.6rem;">▼</span>
+                        </button>
+                        <div id="actions-dropdown-menu" class="glass-card" style="display: none; position: absolute; right: 0; top: 110%; z-index: 1000; min-width: 160px; padding: 0.5rem; flex-direction: column; gap: 0.25rem; border: 1px solid var(--border-glass-hover); box-shadow: 0 10px 25px rgba(0,0,0,0.5); background: rgba(15, 23, 42, 0.95); border-radius: 8px;">
+                            <!-- CSV Import -->
+                            {% if user_role != 'viewer' %}
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('csv-import-file').click(); closeActionsDropdown();" style="width: 100%; text-align: left; justify-content: flex-start; padding: 0.45rem 0.75rem; font-size: 0.78rem; border: none; background: transparent; color: white;">
+                                    📤 Import CSV
+                                </button>
+                                <form id="csv-import-form" action="{{ url_for('import_csv') }}" method="POST" enctype="multipart/form-data" style="display:none;">
+                                    <input type="file" id="csv-import-file" name="csv_file" accept=".csv">
+                                </form>
+                                <a href="{{ url_for('download_import_template') }}" class="btn btn-secondary btn-sm" style="width: 100%; text-align: left; justify-content: flex-start; padding: 0.45rem 0.75rem; font-size: 0.78rem; border: none; background: transparent; text-decoration: none; color: white;" title="Download Template">
+                                    📋 Template
+                                </a>
+                            {% endif %}
+                            
+                            <!-- CSV Export -->
+                            {% if user_role == 'viewer' %}
+                                <button class="btn btn-secondary btn-sm" style="width: 100%; text-align: left; justify-content: flex-start; padding: 0.45rem 0.75rem; font-size: 0.78rem; border: none; background: transparent; opacity: 0.5; cursor: not-allowed; color: white;" disabled title="Exporting is disabled for View-only users.">
+                                    📥 Export CSV
+                                </button>
+                            {% else %}
+                                <a href="{{ url_for('export_csv') }}" class="btn btn-secondary btn-sm" style="width: 100%; text-align: left; justify-content: flex-start; padding: 0.45rem 0.75rem; font-size: 0.78rem; border: none; background: transparent; text-decoration: none; color: white;">
+                                    📥 Export CSV
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% if user_role != 'viewer' %}
+                        <button class="btn btn-primary" onclick="openModal('add-contact-modal')" style="padding: 0.45rem 0.85rem; font-size: 0.8rem; border-radius: 6px; white-space: nowrap;">
+                            <span>➕</span> Add Partner
+                        </button>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Statistical Cards -->
+            <section class="stats-grid">
+                <div class="stat-card">
+                    <div>
+                        <span class="stat-label">Total Partners</span>
+                        <div class="stat-number">{{ stats['total'] }}</div>
+                    </div>
+                    <div class="stat-icon" style="color: var(--primary);">👥</div>
+                </div>
+                <div class="stat-card">
+                    <div>
+                        <span class="stat-label">OEMs</span>
+                        <div class="stat-number">{{ stats['oems'] }}</div>
+                    </div>
+                    <div class="stat-icon" style="color: var(--color-oem);">🏢</div>
+                </div>
+                <div class="stat-card">
+                    <div>
+                        <span class="stat-label">Distributors</span>
+                        <div class="stat-number">{{ stats['distributors'] }}</div>
+                    </div>
+                    <div class="stat-icon" style="color: var(--color-distributor);">🚚</div>
+                </div>
+                <div class="stat-card">
+                    <div>
+                        <span class="stat-label">Interactions</span>
+                        <div class="stat-number">{{ stats['interactions'] }}</div>
+                    </div>
+                    <div class="stat-icon" style="color: var(--secondary);">📝</div>
+                </div>
+            </section>
+            
+            <!-- Dashboard Layout Grid -->
+            <div class="dashboard-layout-grid">
+                
+                <!-- Left Column: Search & Partners Directory -->
+                <div>
+                    <!-- Search & Filter Controls -->
+                    <section class="search-bar-container" style="flex-wrap: wrap; gap: 0.75rem;">
+                        <div class="search-input-wrapper" style="flex: 1; min-width: 250px;">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" id="search-input" class="form-control" placeholder="Search by company, group, contact, products...">
+                        </div>
+                        <div style="width: 140px;">
+                            <select id="type-filter" class="form-control">
+                                <option value="all">All Types</option>
+                                <option value="OEM">OEMs</option>
+                                <option value="Distributor">Distributors</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="expandAllCategories()" style="font-size: 0.75rem; padding: 0.45rem 0.85rem; border-radius: 6px; display: inline-flex; align-items: center; gap: 0.25rem;">
+                                ➕ Expand All
+                            </button>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="collapseAllCategories()" style="font-size: 0.75rem; padding: 0.45rem 0.85rem; border-radius: 6px; display: inline-flex; align-items: center; gap: 0.25rem;">
+                                ➖ Collapse All
+                            </button>
+                            <div style="width: 170px;">
+                                <select id="group-filter" class="form-control" style="font-size: 0.85rem; padding: 0.45rem 1.5rem 0.45rem 0.75rem; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-glass); color: white;" onchange="filterDirectoryByGroup(this.value)">
+                                    <option value="all">All Groups</option>
+                                    {% for group in oem_groups %}
+                                        <option value="{{ group['name'] }}">{{ group['icon'] }} {{ group['name'] }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </section>
+                    
+                    <!-- Directory Cards Grouped by Collapsible Accordion Categories -->
+                    <section id="directory-accordion-container">
+                        {% if contacts %}
+                            {% for group in oem_groups %}
+                                {% set group_contacts = [] %}
+                                {% for contact in contacts %}
+                                    {% if contact['group_name'] == group['name'] %}
+                                        {% set _ = group_contacts.append(contact) %}
+                                    {% endif %}
+                                {% endfor %}
+                                
+                                {% if group_contacts|length > 0 %}
+                                    <div class="category-group" data-category-group-name="{{ group['name'] }}">
+                                        <div class="category-header" onclick="toggleCategoryAccordion('cat-group-{{ loop.index }}')">
+                                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                                <span class="category-icon">{{ group['icon'] }}</span>
+                                                <span class="category-name">{{ group['name'] }}</span>
+                                                <span class="category-count" id="count-cat-group-{{ loop.index }}">{{ group_contacts|length }}</span>
+                                            </div>
+                                            <span class="accordion-arrow">▼</span>
+                                        </div>
+                                        <div id="cat-group-{{ loop.index }}" class="category-content contacts-grid" style="display: none;">
+                                            {% for contact in group_contacts %}
+                                                <!-- Contact Card -->
+                                                <div class="contact-card" 
+                                                     data-company="{{ contact['company_name'] }}" 
+                                                     data-name="{{ contact['name'] }}" 
+                                                     data-type="{{ contact['type'] }}"
+                                                     data-group="{{ contact['group_name'] or 'Other' }}"
+                                                     data-portfolio="{{ (contact['group_name'] or '') ~ ' ' ~ (contact['fetched_products'] or '') ~ ' ' ~ (contact['fetched_services'] or '') ~ ' ' ~ (contact['custom_products'] or '') ~ ' ' ~ (contact['custom_services'] or '') }}"
+                                                     onclick="window.location.href='{{ url_for('contact_detail', contact_id=contact['id']) }}'">
+                                                    
+                                                    <div>
+                                                        <div style="display: flex; gap: 0.75rem; align-items: center; margin-bottom: 0.75rem;">
+                                                            {% if contact['company_logo'] %}
+                                                                <img src="{{ url_for('uploaded_file', filename=contact['company_logo']) }}" alt="Logo" style="width: 38px; height: 38px; border-radius: 8px; object-fit: contain; background: rgba(255,255,255,0.04); border: 1px solid var(--border-glass);">
+                                                            {% else %}
+                                                                <div style="width: 38px; height: 38px; border-radius: 8px; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.25); display: flex; align-items: center; justify-content: center; font-weight: 800; color: var(--primary); font-size: 1.1rem; font-family: var(--font-heading);">
+                                                                    {{ contact['company_name'][0].upper() }}
+                                                                </div>
+                                                            {% endif %}
+                                                            <div style="flex: 1; min-width: 0;">
+                                                                <h3 class="contact-company" style="margin-bottom: 0.15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 1.05rem;">{{ contact['company_name'] }}</h3>
+                                                                <div style="display: flex; gap: 0.25rem; flex-wrap: wrap;">
+                                                                    <span class="badge {{ 'badge-oem' if contact['type'] == 'OEM' else 'badge-distributor' }}">
+                                                                        {{ contact['type'] }}
+                                                                    </span>
+                                                                    {% if contact['group_name'] %}
+                                                                        <span class="badge" style="background: rgba(255,255,255,0.06); color: var(--text-secondary); border: 1px solid var(--border-glass);" onclick="event.stopPropagation(); filterByCategory('{{ contact['group_name'] }}')">
+                                                                            {{ contact['group_name'] }}
+                                                                        </span>
+                                                                    {% endif %}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="contact-name">
+                                                            👤 {{ contact['name'] }} {% if contact['designation'] %}({{ contact['designation'] }}){% endif %}
+                                                        </div>
+                                                        <div class="contact-details">
+                                                            {% if contact['email'] %}
+                                                                <div class="contact-detail-item">
+                                                                    <span>✉️</span> {{ contact['email'] }}
+                                                                </div>
+                                                            {% endif %}
+                                                            {% if contact['phone'] %}
+                                                                <div class="contact-detail-item" onclick="event.stopPropagation();">
+                                                                    <span>📞</span> 
+                                                                    <a href="https://wa.me/{{ contact['phone']|to_digits }}" target="_blank" style="color: var(--text-secondary); text-decoration: none;" title="Chat on WhatsApp">
+                                                                        {{ contact['phone'] }} 💬
+                                                                    </a>
+                                                                </div>
+                                                            {% endif %}
+                                                            {% if contact['website'] %}
+                                                                <div class="contact-detail-item">
+                                                                    <span>🌐</span> {{ contact['website'] }}
+                                                                </div>
+                                                            {% endif %}
+                                                        </div>
+                                                    </div>
+                                                    <div class="contact-card-footer">
+                                                        <span>Added by: {{ contact['created_by_name'] }}</span>
+                                                        <span>{{ contact['created_at'].split(' ')[0] }}</span>
+                                                    </div>
+                                                </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                        {% else %}
+                            <div class="glass-card" style="text-align: center; padding: 3rem 1.5rem; border-radius: 16px;">
+                                <span style="font-size: 2.5rem; display: block; margin-bottom: 1rem;">🔍</span>
+                                <h3 style="margin-bottom: 0.5rem; font-size: 1.15rem; color: var(--text-primary);">No Vendor Partners Found</h3>
+                                <p style="color: var(--text-muted); font-size: 0.85rem;">Click "Add Partner" to register your first supplier directory entry.</p>
+                            </div>
+                        {% endif %}
+                    </section>
+                </div>
+                
+                <!-- Right Column: Reminders & Tasks Panel -->
+                <aside class="glass-card" id="reminders-panel-tour" style="margin-bottom: 0;">
+                    <h2 class="card-title" style="margin-bottom: 0.5rem;">📅 Reminders & Follow-ups</h2>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.5rem;">Relationship follow-up tasks due for execution.</p>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 1rem;">
+                        {% if reminders %}
+                            {% for r in reminders %}
+                                <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-glass); border-radius: 12px; padding: 1rem; position: relative;">
+                                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem; gap: 0.5rem;">
+                                        <a href="{{ url_for('contact_detail', contact_id=r['contact_id']) }}" style="font-weight: 700; color: var(--text-primary); font-size: 0.9rem; text-decoration: none;">
+                                            {{ r['company_name'] }} 🔗
+                                        </a>
+                                        
+                                        <!-- Follow-up Due Badge -->
+                                        {% if r['followup_date'] < today_str %}
+                                            <span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.3); font-size: 0.65rem; padding: 0.1rem 0.35rem;">Overdue</span>
+                                        {% elif r['followup_date'] == today_str %}
+                                            <span class="badge" style="background: rgba(245, 158, 11, 0.15); color: var(--color-warning); border: 1px solid rgba(245, 158, 11, 0.3); font-size: 0.65rem; padding: 0.1rem 0.35rem;">Today</span>
+                                        {% else %}
+                                            <span class="badge" style="background: rgba(59, 130, 246, 0.15); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.3); font-size: 0.65rem; padding: 0.1rem 0.35rem;">Upcoming</span>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4; margin-bottom: 0.75rem;">
+                                        <strong>Task:</strong> {{ r['task'] or 'Follow up relationship' }}
+                                    </p>
+                                    
+                                    <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.03); padding-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted);">
+                                        <span>📅 Due: {{ r['followup_date'] }}</span>
+                                        <form action="{{ url_for('complete_followup', interaction_id=r['id']) }}" method="POST" style="margin: 0;">
+                                            <button type="submit" class="btn btn-secondary btn-sm" style="padding: 0.25rem 0.5rem; font-size: 0.65rem; background: rgba(16, 185, 129, 0.1); color: var(--color-oem); border-color: rgba(16, 185, 129, 0.2); border-radius: 4px;">✓ Done</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <div style="text-align: center; padding: 2rem 1rem; border: 1px dashed var(--border-glass); border-radius: 12px; color: var(--text-muted); font-size: 0.8rem;">
+                                All caught up! No pending follow-ups.
+                            </div>
+                        {% endif %}
+                    </div>
+                </aside>
+                
+            </div>
+            
+        </main>
+    </div>
+    
+    <!-- Add Contact Modal -->
+    <div id="add-contact-modal" class="modal-backdrop">
+        <div class="modal-content">
+            <button class="modal-close">&times;</button>
+            <h2 class="card-title" style="font-size: 1.5rem; margin-bottom: 1.5rem;">Add New Vendor Partner</h2>
+            
+            <!-- Entry Mode Selector Tabs -->
+            <div class="add-mode-selector" style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-glass); padding-bottom: 1rem;">
+                <button type="button" id="btn-mode-manual" class="btn btn-primary" onclick="switchAddMode('manual')" style="flex: 1; padding: 0.55rem; font-size: 0.85rem; border-radius: 6px;">
+                    ✍️ Manual Entry
+                </button>
+                <button type="button" id="btn-mode-scan" class="btn btn-secondary" onclick="switchAddMode('scan')" style="flex: 1; padding: 0.55rem; font-size: 0.85rem; border-radius: 6px;">
+                    📸 Scan Business Card
+                </button>
+            </div>
+            
+            <form action="{{ url_for('add_contact') }}" method="POST" enctype="multipart/form-data">
+                
+                <!-- Scanner Panel (Hidden by default) -->
+                <div id="add-mode-scan-panel" style="display: none; background: rgba(15, 23, 42, 0.4); border: 1px solid var(--border-glass); padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem;">
+                    <h4 style="font-size: 0.9rem; font-weight: 700; color: white; margin-bottom: 0.5rem;">Choose Scan Method:</h4>
+                    <p style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 1.25rem;">Extract contact info automatically using QR Codes or OCR character scanning.</p>
+                    
+                    <!-- Multi-Language Selector for OCR -->
+                    <div class="form-group" style="margin-bottom: 1.25rem; text-align: left;">
+                        <label class="form-label" for="ocr-lang-select" style="font-size: 0.8rem; font-weight: 600; color: var(--primary);">Card Text Language (for OCR):</label>
+                        <select id="ocr-lang-select" class="form-control" style="font-size: 0.85rem; padding: 0.5rem; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-glass); color: white;">
+                            <option value="eng">English (Default)</option>
+                            <option value="eng+hin">English + Hindi (हिंदी)</option>
+                            <option value="eng+ara">English + Arabic (العربية)</option>
+                            <option value="eng+spa">English + Spanish (Español)</option>
+                            <option value="eng+deu">English + German (Deutsch)</option>
+                            <option value="eng+fra">English + French (Français)</option>
+                        </select>
+                    </div>
+
+                    <div class="dashboard-layout-grid" style="grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 0.5rem;">
+                        <!-- QR Code Column -->
+                        <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-glass); padding: 1.25rem; border-radius: 10px; text-align: center; display: flex; flex-direction: column; justify-content: space-between; gap: 0.75rem;">
+                            <div>
+                                <span style="font-size: 1.8rem; display: block; margin-bottom: 0.25rem;">📱</span>
+                                <span style="font-size: 0.85rem; font-weight: 700; color: white; display: block;">QR Code Reader</span>
+                                <small style="font-size: 0.7rem; color: var(--text-muted); display: block; margin-top: 0.25rem;">Scan printed vCards containing digital info.</small>
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem;">
+                                <button type="button" class="btn btn-secondary btn-sm" id="btn-scan-qr-camera" style="font-size: 0.78rem; padding: 0.45rem;">
+                                    📷 Scan via Camera
+                                </button>
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('qr-file-upload-input').click()" style="font-size: 0.78rem; padding: 0.45rem;">
+                                    📁 Upload QR Image
+                                </button>
+                                <input type="file" id="qr-file-upload-input" accept="image/*" style="display: none;" onchange="handleQRScanFile(this)">
+                                <input type="file" id="qr-camera-upload-input" accept="image/*" capture="environment" style="display: none;" onchange="handleQRScanFile(this)">
+                            </div>
+                        </div>
+                        
+                        <!-- OCR Text Scan Column -->
+                        <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-glass); padding: 1.25rem; border-radius: 10px; text-align: center; display: flex; flex-direction: column; justify-content: space-between; gap: 0.75rem;">
+                            <div>
+                                <span style="font-size: 1.8rem; display: block; margin-bottom: 0.25rem;">📇</span>
+                                <span style="font-size: 0.85rem; font-weight: 700; color: white; display: block;">OCR Text Scanner</span>
+                                <small style="font-size: 0.7rem; color: var(--text-muted); display: block; margin-top: 0.25rem;">Convert photo card details to text.</small>
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem;">
+                                <button type="button" class="btn btn-secondary btn-sm" id="btn-scan-ocr-camera" style="font-size: 0.78rem; padding: 0.45rem;">
+                                    📷 Scan via Camera
+                                </button>
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('ocr-file-upload-input').click()" style="font-size: 0.78rem; padding: 0.45rem;">
+                                    📁 Upload Card Image
+                                </button>
+                                <input type="file" id="ocr-file-upload-input" accept="image/*" style="display: none;" onchange="handleOCRScanFile(this)">
+                                <input type="file" id="ocr-camera-upload-input" accept="image/*" capture="environment" style="display: none;" onchange="handleOCRScanFile(this)">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- OCR Status Loader Indicator -->
+                    <div id="ocr-scan-status-indicator" style="display: none; padding: 1rem; border-radius: 8px; text-align: center; background: rgba(99, 102, 241, 0.1); border: 1px dashed rgba(99, 102, 241, 0.3); margin-top: 1rem;">
+                        <span class="spinner" style="display: inline-block; vertical-align: middle; margin-right: 0.75rem; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.1); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite;"></span>
+                        <span id="ocr-scan-status-text" style="vertical-align: middle; color: white; font-size: 0.8rem; font-weight: 600;">Processing card image...</span>
+                    </div>
+                </div>
+                
+                <!-- Manual Form Fields Container -->
+                <div id="manual-entry-form-fields">
+                    <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label" for="company_name">Company Name*</label>
+                        <input type="text" id="company_name" name="company_name" class="form-control" placeholder="e.g. Cisco Systems" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="type">Partner Type*</label>
+                        <select id="type" name="type" class="form-control">
+                            <option value="OEM">OEM</option>
+                            <option value="Distributor">Distributor</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="group_name">OEM/Distributor Group*</label>
+                        <select id="group_name" name="group_name" class="form-control">
+                            {% for group in oem_groups %}
+                                <option value="{{ group['name'] }}">{{ group['icon'] }} {{ group['name'] }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Contact Persons List -->
+                <div style="border-top: 1px solid var(--border-glass); margin-top: 1.5rem; padding-top: 1.25rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h4 style="font-size: 0.85rem; font-weight: 700; text-transform: uppercase; color: var(--primary); letter-spacing: 0.05em;">Contact Persons</h4>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="addContactRow('add-contact-persons-container')">➕ Add Contact</button>
+                    </div>
+                    
+                    <div id="add-contact-persons-container">
+                        <div class="contact-person-row" style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-glass); padding: 1rem; border-radius: 8px; margin-bottom: 1rem; position: relative;">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">Contact Person Name*</label>
+                                    <input type="text" name="contact_name[]" class="form-control" placeholder="e.g. Rahul Sharma" required>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Designation</label>
+                                    <input type="text" name="contact_designation[]" class="form-control" placeholder="e.g. Channel Manager">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">Email</label>
+                                    <input type="email" name="contact_email[]" class="form-control" placeholder="rahul@cisco.com">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Phone / Mobile</label>
+                                    <input type="text" name="contact_phone[]" class="form-control" placeholder="+91 98765 43210">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Visiting Card Scans (Part of Add Contact) -->
+                <div class="form-row" style="border-top: 1px solid var(--border-glass); margin-top: 1.5rem; padding-top: 1.25rem;">
+                    <div class="form-group">
+                        <label class="form-label" for="add_visiting_card_front">Front Visiting Card Image</label>
+                        <input type="file" id="add_visiting_card_front" name="visiting_card_front" class="form-control" accept="image/*">
+                        <small style="color:var(--text-muted); font-size:0.72rem; display:block; margin-top:0.25rem;">ℹ️ Uploading a card photo will auto-fill the form fields via OCR/QR scan.</small>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="add_visiting_card_back">Back Visiting Card Image</label>
+                        <input type="file" id="add_visiting_card_back" name="visiting_card_back" class="form-control" accept="image/*">
+                    </div>
+                </div>
+                
+                <div class="form-group" style="display: flex; gap: 1rem; align-items: flex-end;">
+                    <div style="flex: 1;">
+                        <label class="form-label" for="website">Website URL (for auto-scraping portfolio)</label>
+                        <input type="text" id="website" name="website" class="form-control" placeholder="https://www.cisco.com">
+                    </div>
+                    <div id="company-logo-container" style="width: 48px; height: 48px; border-radius: 12px; border: 1px dashed var(--border-glass); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; background: rgba(255,255,255,0.02); overflow: hidden; object-fit: contain;">
+                        🌐
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="address">Office Address</label>
+                    <textarea id="address" name="address" class="form-control" rows="2" placeholder="Corporate office details..."></textarea>
+                </div>
+                
+                <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 2rem;">
+                    <button type="button" class="btn btn-secondary btn-close-modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Vendor</button>
+                </div>
+            </div> <!-- End #manual-entry-form-fields -->
+            </form>
+        </div>
+    </div>
+
+    <!-- Preferences / Customize Dashboard Modal -->
+    <div id="preferences-modal" class="modal-backdrop">
+        <div class="modal-content" style="max-width: 450px;">
+            <button class="modal-close">&times;</button>
+            <h2 class="card-title" style="font-size: 1.4rem; margin-bottom: 1.25rem;">🎨 Personalize Portal</h2>
+            
+            <form id="preferences-form" action="javascript:void(0)">
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label class="form-label" for="pref-theme">Interface Theme</label>
+                    <select id="pref-theme" class="form-control" style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-glass); color: white;">
+                        <option value="theme-slate-dark">Slate Dark (Default)</option>
+                        <option value="theme-cyberpunk">Cyberpunk Neon ⚡</option>
+                        <option value="theme-forest">Emerald Forest 🌿</option>
+                        <option value="theme-ocean">Ocean Breeze 🌊</option>
+                        <option value="theme-sunset">Sunset Orange 🌅</option>
+                        <option value="theme-light">Classic Light ☀️</option>
+                    </select>
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label class="form-label" style="display: block; margin-bottom: 0.5rem;">Dashboard Columns Layout</label>
+                    <div style="display: flex; gap: 1rem; margin-top: 0.25rem;">
+                        <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; cursor: pointer;">
+                            <input type="radio" name="dash_cols" value="1" id="cols-1"> Single Column
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; cursor: pointer;">
+                            <input type="radio" name="dash_cols" value="2" id="cols-2"> Two Columns (Default)
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label class="form-label" style="display: block; margin-bottom: 0.5rem;">Widgets Visibility</label>
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.25rem;">
+                        <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; cursor: pointer;">
+                            <input type="checkbox" id="show-stats" checked> Show Analytics Stats Header
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; cursor: pointer;">
+                            <input type="checkbox" id="show-reminders" checked> Show Reminders Task Column
+                        </label>
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem;">
+                    <button type="button" class="btn btn-secondary btn-close-modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveUserPreferences()">Save Settings</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Unified Camera Scanner Overlay Container -->
+    <div id="qr-scanner-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:2000; align-items:center; justify-content:center; flex-direction:column; gap:1.5rem;">
+        <h3 id="scanner-title" style="color:white; margin:0; font-family:'Outfit', sans-serif;">Point Camera at Visiting Card QR Code</h3>
+        <div style="position:relative; width:320px; height:320px; border-radius:16px; overflow:hidden; border:3px solid var(--primary); box-shadow:0 0 20px var(--primary);">
+            <video id="qr-video" style="width:100%; height:100%; object-fit:cover;" autoplay playsinline></video>
+            <canvas id="qr-canvas" style="display:none;"></canvas>
+            <!-- Scan Boundary target outline -->
+            <div style="position:absolute; top:40px; left:40px; width:240px; height:240px; border:2px dashed rgba(255,255,255,0.7); pointer-events:none; border-radius:12px;"></div>
+        </div>
+        <div id="scanner-instructions" style="color:var(--text-muted); font-size:0.85rem; text-align:center; padding:0 1rem; font-family:'Outfit', sans-serif;">
+            Position the QR code inside the dashed square area.
+        </div>
+        <div style="display: flex; gap: 1rem;">
+            <button type="button" class="btn btn-secondary" id="btn-close-qr-scanner" style="padding:0.6rem 1.5rem; border-radius:8px;">Cancel Scan</button>
+            <button type="button" class="btn btn-primary" id="btn-capture-ocr" style="display:none; padding:0.6rem 1.5rem; border-radius:8px;">📸 Capture & OCR</button>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

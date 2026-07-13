@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - {{ portal_settings['portal_name'] }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.3">
+    <link rel="icon" type="image/x-icon" href="{% if portal_settings['favicon'] %}{{ url_for('uploaded_file', filename=portal_settings['favicon']) }}{% else %}{{ url_for('static', filename='favicon.ico') }}{% endif %}">
+    <script>
+        window.BASE_URL = "{{ url_for('dashboard') }}";
+    </script>
+</head>
+<body class="{{ session.get('theme', 'theme-slate-dark') }}">
+    <div class="app-container">
+        
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-container" style="display: flex; align-items: center; justify-content: center; max-width: 100%; padding: 6px 0; text-decoration: none; gap: 0.4rem;">
+                    <a href="{{ url_for('dashboard') }}" style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.25rem; color: var(--text-primary); letter-spacing: -0.03em; text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
+                        {% if portal_settings['portal_logo'] %}
+                            <img src="{{ url_for('uploaded_file', filename=portal_settings['portal_logo']) }}" style="max-height: 40px; max-width: 100%; object-fit: contain;" alt="Logo">
+                        {% else %}
+                            <span>📂</span> {{ portal_settings['portal_name'] }}
+                        {% endif %}
+                    </a>
+                    <span style="font-size: 0.6rem; color: var(--text-muted); background: rgba(255,255,255,0.05); border: 1px solid var(--border-glass); padding: 0.1rem 0.3rem; border-radius: 4px; font-weight: 700; vertical-align: middle;">v2.0.0</span>
+                </div>
+                <button id="mobile-nav-toggle" class="mobile-toggle-btn">☰</button>
+            </div>
+            
+            <div class="nav-container">
+                <nav>
+                    <ul class="nav-menu">
+                        <li class="nav-item">
+                            <a href="{{ url_for('dashboard') }}">
+                                <span>📊</span> Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item active">
+                            <a href="{{ url_for('admin_panel') }}">
+                                <span>🛡️</span> Admin Panel
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="{{ url_for('logout') }}" style="color: #fca5a5;">
+                                <span>🚪</span> Sign Out
+                            </a>
+                        </li>
+                    </ul>
+                    
+                    <!-- OEM Categories Grouping Section -->
+                    <div class="sidebar-section-title" style="font-size:0.72rem; text-transform:uppercase; color:var(--text-muted); font-weight:700; margin-top:2rem; margin-bottom:0.75rem; letter-spacing:0.05em; padding-left:1rem; font-family:var(--font-heading);">
+                        OEM Categories
+                    </div>
+                    <ul class="nav-menu">
+                        {% for group in oem_groups %}
+                            <li class="nav-item category-item" data-category="{{ group['name'] }}">
+                                <a href="javascript:void(0)" onclick="filterByCategory('{{ group['name'] }}')">
+                                    <span>{{ group['icon'] }}</span> {{ group['name'] }}
+                                </a>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </nav>
+            </div>
+            
+            <div class="user-profile">
+                <div class="user-avatar" style="position: relative;">
+                    {{ session['username'][0].upper() }}
+                    <a href="{{ url_for('dashboard') }}?preferences=1" style="position: absolute; bottom: -5px; right: -5px; background: var(--primary); font-size: 0.65rem; padding: 0.15rem; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; text-decoration: none; border: 1px solid var(--border-glass);" title="Personalize Portal Layout & Theme">⚙️</a>
+                </div>
+                <div class="user-info">
+                    <span class="user-name">{{ session['username'] }}</span>
+                    <span class="user-role">{{ session['role'] }}</span>
+                </div>
+            </div>
+        </aside>
+        
+        <!-- Main Content Area -->
+        <main class="main-content">
+            
+            <div class="header-bar">
+                <div>
+                    <h1 class="page-title">Admin Operations Panel</h1>
+                    <p style="color: var(--text-secondary); margin-top: 0.25rem;">Approve team members, edit roles, and view security audit trails.</p>
+                </div>
+            </div>
+            
+            <!-- Flash messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert-message alert-{{ 'error' if category == 'error' else 'success' }}" style="margin-bottom: 2rem;">
+                            {% if category == 'error' %}⚠️{% else %}✓{% endif %}
+                            <span>{{ message }}</span>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
+            <!-- User Management Card -->
+            <div class="glass-card">
+                <h2 class="card-title">👥 Team Member Privileges & Approvals</h2>
+                <div class="custom-table-container">
+                    <table class="custom-table">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Email</th>
+                                <th>Role & OEM Groups (All / comma-separated list)</th>
+                                <th>Current Status</th>
+                                <th style="text-align: right;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if users %}
+                                {% for u in users %}
+                                    {% if u['id'] != session['user_id'] %} <!-- Hide current admin from editing self -->
+                                        <tr>
+                                            <td style="font-weight: 600; color: var(--text-primary);">{{ u['username'] }}</td>
+                                            <td>{{ u['email'] }}</td>
+                                            <td>
+                                                <form action="{{ url_for('update_user', user_id=u['id']) }}" method="POST" style="margin:0; display:flex; gap:0.5rem; align-items:center;">
+                                                    <select name="role" class="form-control" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; width: 95px; height: auto;">
+                                                        <option value="viewer" {{ 'selected' if u['role'] == 'viewer' }}>viewer</option>
+                                                        <option value="user" {{ 'selected' if u['role'] == 'user' }}>user</option>
+                                                        <option value="admin" {{ 'selected' if u['role'] == 'admin' }}>admin</option>
+                                                    </select>
+                                                    <input type="text" name="allowed_groups" class="form-control" value="{{ u['allowed_groups'] or 'All' }}" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; width: 140px; height: auto;" placeholder="e.g. Camera, Networking">
+                                                    <button type="submit" class="btn btn-secondary btn-sm" style="padding:0.25rem 0.5rem; font-size:0.75rem; border-radius:4px; height: auto;">Save</button>
+                                                </form>
+                                            </td>
+                                            <td>
+                                                <span class="badge {% if u['status'] == 'approved' %}badge-approved{% elif u['status'] == 'pending' %}badge-pending{% else %}badge-danger{% endif %}">
+                                                    {{ u['status'] }}
+                                                </span>
+                                            </td>
+                                            <td style="text-align: right; display: flex; justify-content: flex-end; gap: 0.35rem; align-items: center;">
+                                                {% if u['status'] == 'pending' or u['status'] == 'rejected' %}
+                                                    <form action="{{ url_for('approve_user', user_id=u['id']) }}" method="POST" style="margin:0;">
+                                                        <button type="submit" class="btn btn-primary btn-sm" style="padding: 0.3rem 0.5rem; font-size: 0.75rem; border-radius: 4px;">Approve</button>
+                                                    </form>
+                                                {% endif %}
+                                                {% if u['status'] == 'pending' or u['status'] == 'approved' %}
+                                                    <form action="{{ url_for('reject_user', user_id=u['id']) }}" method="POST" style="margin:0;">
+                                                        <button type="submit" class="btn btn-secondary btn-sm" style="padding: 0.3rem 0.5rem; font-size: 0.75rem; color: #fca5a5; border-radius: 4px;">Reject</button>
+                                                    </form>
+                                                {% endif %}
+                                                <form action="{{ url_for('delete_user', user_id=u['id']) }}" method="POST" onsubmit="return confirmMathPuzzle(event);" style="margin:0;">
+                                                    <button type="submit" class="btn btn-danger btn-sm" style="padding: 0.3rem 0.5rem; font-size: 0.75rem; border-radius: 4px;">Delete</button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2rem;">No other team members found.</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- OEM Categories Management Card -->
+            <div class="glass-card no-border-top">
+                <h2 class="card-title">📁 Manage OEM Categories & Groups</h2>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.5rem;">Add new classifications or delete existing categories (except default fallbacks).</p>
+                
+                <div class="dashboard-layout-grid" style="grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+                    <!-- Left: Current Categories List -->
+                    <div>
+                        <div class="custom-table-container" style="max-height: 250px; overflow-y: auto;">
+                            <table class="custom-table">
+                                <thead>
+                                    <tr>
+                                        <th>Icon</th>
+                                        <th>Category Name</th>
+                                        <th style="text-align: right;">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for group in oem_groups %}
+                                        <tr>
+                                            <td style="font-size: 1.2rem;">{{ group['icon'] }}</td>
+                                            <td style="font-weight: 600; color: var(--text-primary);">{{ group['name'] }}</td>
+                                            <td style="text-align: right;">
+                                                {% if group['name'].lower() != 'other' %}
+                                                    <form action="{{ url_for('admin_delete_category', group_id=group['id']) }}" method="POST" style="margin:0;" onsubmit="return confirmMathPuzzle(event);">
+                                                        <button type="submit" class="btn btn-danger btn-sm" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; border-radius: 4px;">Delete</button>
+                                                    </form>
+                                                {% else %}
+                                                    <span style="font-size: 0.75rem; color: var(--text-muted);">Core System</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Right: Add Category Form -->
+                    <div>
+                        <form action="{{ url_for('admin_add_category') }}" method="POST">
+                            <div class="form-group" style="margin-bottom: 1rem;">
+                                <label class="form-label" for="cat_name">Category Name*</label>
+                                <input type="text" id="cat_name" name="name" class="form-control" placeholder="e.g. CyberSecurity" required>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 1rem;">
+                                <label class="form-label" for="cat_icon">Emoji Icon*</label>
+                                <select id="cat_icon" name="icon" class="form-control">
+                                    <option value="🖥️">🖥️ Computer / Hardware</option>
+                                    <option value="❄️">❄️ Air Conditioning / AC</option>
+                                    <option value="🛡️">🛡️ Cyber Security / Firewall</option>
+                                    <option value="🌐">🌐 Networking / Infrastructure</option>
+                                    <option value="📷">📷 Surveillance / Camera</option>
+                                    <option value="💾">💾 Server / Storage</option>
+                                    <option value="☁️">☁️ Software / Cloud</option>
+                                    <option value="🔌">🔌 Cables / Electricity</option>
+                                    <option value="📢">📢 Audio / Video / Broadcast</option>
+                                    <option value="⚙️">⚙️ Automation / Control</option>
+                                    <option value="🔋">🔋 Power / Battery / UPS</option>
+                                    <option value="💡">💡 Smart Home / Lighting</option>
+                                    <option value="📠">📠 Printers / Scanner</option>
+                                    <option value="📱">📱 Mobile / Telecom</option>
+                                    <option value="🤝">🤝 Services / Consulting</option>
+                                    <option value="🛠️">🛠️ Tools / Maintenance</option>
+                                    <option value="📦">📦 Logistics / Packing</option>
+                                    <option value="🔒">🔒 Access Control / Locks</option>
+                                    <option value="🧯">🧯 Fire Safety / Alarms</option>
+                                    <option value="📁">📁 Category / Folder</option>
+                                </select>
+                            </div>
+                            <div style="display: flex; justify-content: flex-end; margin-top: 1rem;">
+                                <button type="submit" class="btn btn-primary btn-sm">Add Category</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Create User Card -->
+            <div class="glass-card no-border-top">
+                <h2 class="card-title">➕ Create User Account</h2>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.5rem;">Instantly create and approve a new team member account.</p>
+                
+                <form action="{{ url_for('admin_create_user') }}" method="POST">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="new_username">Username*</label>
+                            <input type="text" id="new_username" name="username" class="form-control" placeholder="e.g. jdoe" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="new_email">Email Address*</label>
+                            <input type="email" id="new_email" name="email" class="form-control" placeholder="e.g. john@nextnode.com" required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="new_password">Password*</label>
+                            <input type="password" id="new_password" name="password" class="form-control" placeholder="Choose a secure password" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="new_role">Assigned Role*</label>
+                            <select id="new_role" name="role" class="form-control">
+                                <option value="viewer">Pre-Sales Viewer (viewer)</option>
+                                <option value="user">Pre-Sales Manager / Engineer (user)</option>
+                                <option value="admin">Administrator (admin)</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: flex-end; margin-top: 1.5rem;">
+                        <button type="submit" class="btn btn-primary">Create User Account</button>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- 🎨 Portal Whitelabel Customization Card -->
+            <div class="glass-card no-border-top">
+                <h2 class="card-title">🎨 Whitelabel Branding & Customization</h2>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.5rem;">Customize the directory's branding elements (portal name, favicon, and brand logo image).</p>
+                
+                <form action="{{ url_for('update_settings') }}" method="POST" enctype="multipart/form-data">
+                    <div class="form-group" style="margin-bottom: 1.25rem;">
+                        <label class="form-label" for="portal_name">Portal Name*</label>
+                        <input type="text" id="portal_name" name="portal_name" class="form-control" value="{{ portal_settings['portal_name'] }}" placeholder="e.g. OEM Directory" required>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="portal_logo">Portal Brand Logo (PNG/JPG/SVG)</label>
+                            <input type="file" id="portal_logo" name="portal_logo" class="form-control" accept="image/*, image/svg+xml">
+                            {% if portal_settings['portal_logo'] %}
+                                <div style="margin-top: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                                    <small style="color: var(--text-secondary);">Current Logo:</small>
+                                    <img src="{{ url_for('uploaded_file', filename=portal_settings['portal_logo']) }}" style="max-height: 30px; border-radius: 4px; border: 1px solid var(--border-glass);">
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="favicon">Favicon Icon (.ICO / .PNG)</label>
+                            <input type="file" id="favicon" name="favicon" class="form-control" accept="image/x-icon, image/png">
+                            {% if portal_settings['favicon'] %}
+                                <div style="margin-top: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                                    <small style="color: var(--text-secondary);">Current Favicon:</small>
+                                    <img src="{{ url_for('uploaded_file', filename=portal_settings['favicon']) }}" style="width: 20px; height: 20px; border-radius: 4px; border: 1px solid var(--border-glass);">
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: flex-end; margin-top: 1.5rem;">
+                        <button type="submit" class="btn btn-primary">Save Branding Settings</button>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- Audit Logs Card -->
+            <div class="glass-card no-border-top">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 1rem;">
+                    <h2 class="card-title" style="margin-bottom: 0;">📜 System Audit Trail</h2>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <a href="{{ url_for('export_logs_text') }}" class="btn btn-secondary btn-sm" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem;">
+                            📄 Export Plain Text
+                        </a>
+                        <a href="{{ url_for('export_logs_csv') }}" class="btn btn-secondary btn-sm" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem;">
+                            📊 Export Excel (CSV)
+                        </a>
+                    </div>
+                </div>
+                <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:1.5rem;">Chronological log of changes, profile scrapes, and security settings.</p>
+                
+                <div class="custom-table-container">
+                    <table class="custom-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 20%;">Timestamp</th>
+                                <th style="width: 15%;">Operator</th>
+                                <th style="width: 25%;">Action Type</th>
+                                <th style="width: 40%;">Log Detail</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if audit_logs %}
+                                {% for log in audit_logs %}
+                                    <tr>
+                                        <td style="font-family: monospace; font-size: 0.8rem; color: var(--text-secondary);">{{ log['created_at'] }}</td>
+                                        <td style="font-weight: 500;">{{ log['username'] or 'SYSTEM' }}</td>
+                                        <td>
+                                            <span style="font-size: 0.8rem; font-weight: 700; color: var(--primary);">
+                                                {{ log['action'] }}
+                                            </span>
+                                        </td>
+                                        <td style="color: var(--text-secondary); font-size: 0.85rem;">{{ log['details'] }}</td>
+                                    </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 2rem;">No audit logs found.</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- ✉️ Email Connectivity & Authentication Services Card -->
+            <div class="glass-card no-border-top" style="margin-top: 2rem;">
+                <h2 class="card-title">✉️ Email Connectivity & Password Services</h2>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.5rem;">
+                    Configure inbound/outbound mail server connectivity (SMTP, POP3, IMAP) to enable automated alerts and reset-password services.
+                </p>
+                
+                <form action="{{ url_for('update_email_settings') }}" method="POST">
+                    <div class="form-group" style="margin-bottom: 1.25rem; display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.02); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--border-glass);">
+                        <div>
+                            <span style="font-weight: 600; display: block; font-size: 0.9rem;">Enable Forgot Password Link</span>
+                            <small style="color: var(--text-muted); font-size: 0.75rem;">Show a "Forgot Password" link on the portal login screen.</small>
+                        </div>
+                        <label class="switch-container" style="position: relative; display: inline-block; width: 44px; height: 22px;">
+                            <input type="checkbox" name="forgot_password_enabled" value="true" {% if portal_settings.get('forgot_password_enabled') == 'true' %}checked{% endif %} id="forgot_password_enabled" style="display: none;">
+                            <span class="slider" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: {% if portal_settings.get('forgot_password_enabled') == 'true' %}var(--primary){% else %}rgba(255,255,255,0.05){% endif %}; border: 1px solid var(--border-glass); border-radius: 20px; transition: 0.3s; display: flex; align-items: center; padding: 2px;">
+                                <span class="slider-knob" style="display: block; width: 16px; height: 16px; border-radius: 50%; background-color: #ffffff; transition: 0.3s; transform: translateX({% if portal_settings.get('forgot_password_enabled') == 'true' %}20px{% else %}0px{% endif %});"></span>
+                            </span>
+                        </label>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="email_service_type">Protocol / Service Type</label>
+                            <select class="form-control" id="email_service_type" name="email_service_type">
+                                <option value="smtp" {% if portal_settings.get('email_service_type') == 'smtp' %}selected{% endif %}>SMTP (Outbound Resets/Alerts)</option>
+                                <option value="imap" {% if portal_settings.get('email_service_type') == 'imap' %}selected{% endif %}>IMAP (Inbound Mail Scopes)</option>
+                                <option value="pop3" {% if portal_settings.get('email_service_type') == 'pop3' %}selected{% endif %}>POP3 (Legacy Inbound Mail)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="email_server">Mail Server Address</label>
+                            <input type="text" id="email_server" name="email_server" class="form-control" value="{{ portal_settings.get('email_server') or '' }}" placeholder="e.g. mail.yourserver.com">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="email_port">Server Port</label>
+                            <input type="number" id="email_port" name="email_port" class="form-control" value="{{ portal_settings.get('email_port') or '587' }}" placeholder="e.g. 587, 993, 995">
+                        </div>
+                        <div class="form-group" style="display: flex; align-items: flex-end; padding-bottom: 0.5rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; user-select: none;">
+                                <input type="checkbox" name="email_ssl" value="true" {% if portal_settings.get('email_ssl') == 'true' %}checked{% endif %} style="accent-color: var(--primary); width: 16px; height: 16px;">
+                                Use SSL/TLS Encryption
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="email_username">Connection Username / Email</label>
+                            <input type="text" id="email_username" name="email_username" class="form-control" value="{{ portal_settings.get('email_username') or '' }}" placeholder="e.g. alerts@company.com">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="email_password">Connection Password</label>
+                            <input type="password" id="email_password" name="email_password" class="form-control" value="{{ portal_settings.get('email_password') or '' }}" placeholder="••••••••••••">
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem;">
+                        <button type="submit" class="btn btn-primary">Save Connection Settings</button>
+                    </div>
+                </form>
+                
+                <script>
+                    document.getElementById('forgot_password_enabled').addEventListener('change', function() {
+                        const knob = this.nextElementSibling.firstElementChild;
+                        if (this.checked) {
+                            knob.style.transform = 'translateX(20px)';
+                            this.nextElementSibling.style.backgroundColor = 'var(--primary)';
+                        } else {
+                            knob.style.transform = 'translateX(0px)';
+                            this.nextElementSibling.style.backgroundColor = 'rgba(255,255,255,0.05)';
+                        }
+                    });
+                </script>
+            </div>
+            
+            <!-- ⚠️ Danger Zone / Reset Portal Card -->
+            <div class="glass-card no-border-top" style="border: 1px solid rgba(239, 68, 68, 0.25); background: rgba(239, 68, 68, 0.02); margin-top: 2rem;">
+                <h2 class="card-title" style="color: #fca5a5; margin-bottom: 0.5rem;">⚠️ Danger Zone - Reset Database</h2>
+                <p style="font-size: 0.85rem; color: #fca5a5; margin-bottom: 1.5rem;">
+                    Perform a full factory reset of the directory. This will permanently delete all partner profiles, team contact logs, interactions history, custom categories, and uploaded business cards/logos. User accounts are preserved.
+                </p>
+                
+                <form action="{{ url_for('reset_portal') }}" method="POST" onsubmit="return confirmMathPuzzle(event);" style="margin: 0; display: flex; justify-content: flex-end;">
+                    <button type="submit" class="btn btn-danger" style="background: rgba(239, 68, 68, 0.25); border-color: rgba(239, 68, 68, 0.5); color: white;">
+                        💥 Factory Reset Portal
+                    </button>
+                </form>
+            </div>
+            
+        </main>
+    </div>
+    
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

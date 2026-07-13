@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - {{ portal_settings['portal_name'] }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.3">
+    <link rel="icon" type="image/x-icon" href="{% if portal_settings['favicon'] %}{{ url_for('uploaded_file', filename=portal_settings['favicon']) }}{% else %}{{ url_for('static', filename='favicon.ico') }}{% endif %}">
+    <style>
+        .tabs-header {
+            display: flex;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--border-glass);
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 0.75rem;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-family: var(--font-heading);
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            text-align: center;
+            transition: var(--transition);
+        }
+        .tab-btn.active {
+            color: white;
+            border-bottom: 2px solid var(--primary);
+        }
+        .form-section {
+            display: none;
+        }
+        .form-section.active {
+            display: block;
+        }
+    </style>
+</head>
+<body class="{{ session.get('theme', 'theme-slate-dark') }}">
+    <div class="auth-container">
+        <div class="auth-card">
+            <div class="auth-header" style="margin-bottom: 2rem;">
+                <div style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.8rem; color: white; letter-spacing: -0.03em; margin-bottom: 0.5rem; display: inline-flex; align-items: center; gap: 0.75rem;">
+                    {% if portal_settings['portal_logo'] %}
+                        <img src="{{ url_for('uploaded_file', filename=portal_settings['portal_logo']) }}" style="max-height: 45px; max-width: 100%; object-fit: contain;" alt="Logo">
+                    {% else %}
+                        <span>📂</span> {{ portal_settings['portal_name'] }}
+                    {% endif %}
+                </div>
+                <p class="auth-subtitle">Pre-Sales Relationship & Portfolio Database</p>
+            </div>
+
+            <!-- Flash messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert-message alert-{{ 'error' if category == 'error' else 'success' }}">
+                            {% if category == 'error' %}⚠️{% else %}✓{% endif %}
+                            <span>{{ message }}</span>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
+            <div class="auth-tabs">
+                <button class="tab-btn active" onclick="switchTab('login')">Log In</button>
+                <button class="tab-btn" onclick="switchTab('register')">Register Request</button>
+            </div>
+
+            <!-- Login Form Section -->
+            <div id="login-section" class="form-section active">
+                <form action="{{ url_for('login') }}" method="POST">
+                    <div class="form-group">
+                        <label class="form-label" for="username">Username</label>
+                        <input type="text" id="username" name="username" class="form-control" placeholder="Enter username" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label" for="password">Password*</label>
+                        <input type="password" id="password" name="password" class="form-control" placeholder="Enter password" required>
+                    </div>
+                    
+                    {% if portal_settings.get('forgot_password_enabled') == 'true' %}
+                        <div style="text-align: right; margin-top: -0.5rem; margin-bottom: 1rem;">
+                            <a href="javascript:void(0)" onclick="openForgotPasswordModal()" style="font-size: 0.8rem; color: var(--primary); text-decoration: none; font-weight: 500;">
+                                Forgot Password?
+                            </a>
+                        </div>
+                    {% endif %}
+                    
+                    <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;">
+                        Log In
+                    </button>
+                </form>
+            </div>
+
+            <!-- Registration Request Form Section -->
+            <div id="register-section" class="form-section">
+                <form action="{{ url_for('register') }}" method="POST">
+                    <div class="form-group">
+                        <label class="form-label" for="reg-username">Username*</label>
+                        <input type="text" id="reg-username" name="username" class="form-control" placeholder="Choose a username" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="reg-email">Email Address*</label>
+                        <input type="email" id="reg-email" name="email" class="form-control" placeholder="you@company.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="reg-password">Password*</label>
+                        <input type="password" id="reg-password" name="password" class="form-control" placeholder="Create a password" required>
+                    </div>
+
+                    
+                    <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
+                        Request Registration
+                    </button>
+                </form>
+                <div class="auth-footer" style="margin-top: 1rem; font-size: 0.8rem; color: var(--text-muted);">
+                    * Newly registered users require administrator activation before they can log in.
+                </div>
+            </div>
+            
+        </div>
+    </div>
+
+    <script>
+        function switchTab(tab) {
+            const tabs = document.querySelectorAll('.tab-btn');
+            const sections = document.querySelectorAll('.form-section');
+            
+            tabs.forEach(t => t.classList.remove('active'));
+            sections.forEach(s => s.classList.remove('active'));
+            
+            if (tab === 'login') {
+                tabs[0].classList.add('active');
+                document.getElementById('login-section').classContent = ''; // clear error logs
+                document.getElementById('login-section').classList.add('active');
+            } else {
+                tabs[1].classList.add('active');
+                document.getElementById('register-section').classList.add('active');
+            }
+        }
+        
+        function openForgotPasswordModal() {
+            document.getElementById('forgot-password-modal').style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        }
+        function closeForgotPasswordModal() {
+            document.getElementById('forgot-password-modal').style.display = 'none';
+            document.body.style.overflow = 'auto';
+        }
+    </script>
+    
+    <!-- Forgot Password Modal -->
+    <div id="forgot-password-modal" class="modal-backdrop" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(11, 15, 25, 0.85); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; z-index: 1000;">
+        <div class="modal-content" style="background: rgba(15, 23, 42, 0.95); border: 1px solid var(--border-glass); border-radius: 20px; width: 100%; max-width: 400px; padding: 2rem; box-shadow: 0 20px 40px rgba(0,0,0,0.5); position: relative;">
+            <button onclick="closeForgotPasswordModal()" style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; color: var(--text-secondary); font-size: 1.5rem; cursor: pointer; line-height: 1;">&times;</button>
+            <h2 class="card-title" style="font-size: 1.35rem; margin-bottom: 0.5rem; color: var(--text-primary);">🔑 Reset Password Request</h2>
+            <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.5rem;">Enter your registered account email. If the email is configured, we will send password recovery instructions.</p>
+            
+            <form action="{{ url_for('forgot_password') }}" method="POST">
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label class="form-label" for="reset-email">Email Address*</label>
+                    <input type="email" id="reset-email" name="email" class="form-control" placeholder="username@company.com" required style="color: var(--text-primary);">
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Send Reset Verification</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

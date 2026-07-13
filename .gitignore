@@ -1,0 +1,32 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Virtual Environment
+venv/
+Venv/
+ENV/
+env/
+.env
+.venv
+
+# Database (keeps schema clean, excludes local run data)
+*.db
+*.sqlite3
+
+# Uploaded vendor cards and logos (prevents private files uploads)
+uploads/*
+!uploads/.gitkeep
+
+# IDEs and editors
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

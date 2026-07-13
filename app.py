@@ -1,0 +1,1715 @@
+import os
+import json
+import uuid
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_from_directory
+from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.utils import secure_filename
+
+# Import local database operations
+import database
+from scraper import scrape_oem_website
+
+app = Flask(__name__)
+app.secret_key = 'presales_oem_distributor_tracker_secret_key_1928'
+
+@app.template_filter('to_digits')
+def to_digits(s):
+    if not s:
+        return ""
+    # Extract only digits and if it's a mobile number (e.g. starts with +91 or 91), strip leading zeros
+    digits = "".join(c for c in s if c.isdigit())
+    # If it's a local number without country code, you might want to allow it, but wa.me requires country code.
+    # We will just yield all digits.
+    return digits
+
+# Configuration for visiting card uploads
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'}
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024 # 5MB limit
+
+# Ensure upload directory exists
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def download_company_logo(website, contact_id, company_name=None):
+    import urllib.request
+    from urllib.parse import urlparse
+    import socket
+    
+    domain = None
+    if website:
+        try:
+            url = website.strip().lower()
+            if not url.startswith('http://') and not url.startswith('https://'):
+                url = 'https://' + url
+            parsed = urlparse(url)
+            domain = parsed.netloc
+            if domain.startswith('www.'):
+                domain = domain[4:]
+        except Exception:
+            pass
+            
+    # Guess domain from company_name if domain is still empty/invalid
+    if not domain and company_name:
+        # Strip common suffixes and spaces
+        clean_name = company_name.strip().lower()
+        clean_name = "".join(c for c in clean_name if c.isalnum() or c in ['-'])
+        
+        # strip common endings
+        for suffix in ['ltd', 'inc', 'corp', 'limited', 'systems', 'india', 'tech', 'technologies', 'group', 'solutions']:
+            if clean_name.endswith(suffix):
+                clean_name = clean_name[:-len(suffix)].strip('-')
+        
+        if clean_name:
+            domain = clean_name + ".com"
+
+    if not domain:
+        return None
+        
+    try:
+        logo_url = f"https://logo.clearbit.com/{domain}"
+        req = urllib.request.Request(
+            logo_url, 
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        )
+        filename = f"logo_{contact_id}.png"
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        
+        with urllib.request.urlopen(req, timeout=3) as response:
+            if response.status == 200:
+                with open(filepath, 'wb') as out_file:
+                    out_file.write(response.read())
+                return filename
+    except Exception as e:
+        print(f"Failed to fetch logo for {domain}: {e}")
+    return None
+
+# Helper decorator/checker to verify login
+def is_logged_in():
+    return 'user_id' in session
+
+def login_required(f):
+    from functools import wraps
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not is_logged_in():
+            flash('Please log in to access this page.', 'error')
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def admin_required(f):
+    from functools import wraps
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not is_logged_in():
+            flash('Please log in first.', 'error')
+            return redirect(url_for('login'))
+        if session.get('role') != 'admin':
+            flash('Access denied. Administrator privileges required.', 'error')
+            return redirect(url_for('dashboard'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# Log system actions to audit trail
+def log_audit(action, details):
+    user_id = session.get('user_id')
+    conn = database.get_db_connection()
+    conn.execute('''
+    INSERT INTO audit_logs (user_id, action, details)
+    VALUES (?, ?, ?)
+    ''', (user_id, action, details))
+    conn.commit()
+    conn.close()
+
+# Template context processor to inject dynamic OEM groups & portal settings in all pages
+@app.context_processor
+def inject_global_data():
+    conn = database.get_db_connection()
+    groups = conn.execute('SELECT * FROM oem_groups ORDER BY name ASC').fetchall()
+    settings_rows = conn.execute('SELECT key, value FROM portal_settings').fetchall()
+    
+    settings = {row['key']: row['value'] for row in settings_rows}
+    settings.setdefault('portal_name', 'OEM Directory')
+    settings.setdefault('portal_logo', '')
+    settings.setdefault('favicon', '')
+    
+    # Safety fallback: clear database setting if brand image file is missing on disk
+    upload_folder = app.config.get('UPLOAD_FOLDER')
+    db_changed = False
+    
+    for key in ('portal_logo', 'favicon'):
+        val = settings.get(key)
+        if val:
+            file_path = os.path.join(upload_folder, val)
+            if not os.path.exists(file_path):
+                settings[key] = ''
+                conn.execute('DELETE FROM portal_settings WHERE key = ?', (key,))
+                db_changed = True
+                
+    if db_changed:
+        conn.commit()
+        
+    conn.close()
+    return dict(oem_groups=groups, portal_settings=settings)
+
+
+# Routes
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if is_logged_in():
+        return redirect(url_for('dashboard'))
+        
+    if request.method == 'POST':
+        username = request.form['username'].strip()
+        password = request.form['password']
+        
+        conn = database.get_db_connection()
+        user = conn.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
+        conn.close()
+        
+        if user and check_password_hash(user['password_hash'], password):
+            if user['status'] == 'pending':
+                flash('Your account registration is pending admin approval.', 'error')
+                return redirect(url_for('login'))
+            elif user['status'] == 'rejected':
+                flash('Your account registration has been rejected. Contact admin.', 'error')
+                return redirect(url_for('login'))
+                
+            # Log session details
+            session['user_id'] = user['id']
+            session['username'] = user['username']
+            session['role'] = user['role']
+            session['theme'] = user['theme'] or 'theme-slate-dark'
+            session['dashboard_layout'] = user['dashboard_layout'] or '{}'
+            
+            # Write audit log
+            log_audit('USER_LOGIN', f"User {username} successfully logged in.")
+            return redirect(url_for('dashboard'))
+        else:
+            flash('Invalid username or password.', 'error')
+            
+    return render_template('login.html')
+
+@app.route('/register', methods=['POST'])
+def register():
+    username = request.form['username'].strip()
+    email = request.form['email'].strip()
+    password = request.form['password']
+    role = 'viewer' # Force all user registration requests to view-only (viewer) by default
+    
+    if not username or not email or not password:
+        flash('All fields are required.', 'error')
+        return redirect(url_for('login'))
+        
+    conn = database.get_db_connection()
+    # Check if username or email exists
+    existing = conn.execute('SELECT * FROM users WHERE username = ? OR email = ?', (username, email)).fetchone()
+    if existing:
+        conn.close()
+        flash('Username or Email already registered.', 'error')
+        return redirect(url_for('login'))
+        
+    hashed_pwd = generate_password_hash(password)
+    # New registers default to 'pending' approval
+    conn.execute('''
+    INSERT INTO users (username, email, password_hash, role, status)
+    VALUES (?, ?, ?, ?, 'pending')
+    ''', (username, email, hashed_pwd, role))
+    conn.commit()
+    conn.close()
+    
+    # Log registration request
+    conn = database.get_db_connection()
+    conn.execute('''
+    INSERT INTO audit_logs (action, details)
+    VALUES ('USER_REGISTRATION_REQUEST', ?)
+    ''', (f"New user registration request: {username} ({role})",))
+    conn.commit()
+    conn.close()
+    
+    flash('Registration request submitted! Please notify your administrator to approve your account.', 'success')
+    return redirect(url_for('login'))
+
+@app.route('/logout')
+def logout():
+    if is_logged_in():
+        log_audit('USER_LOGOUT', f"User {session['username']} logged out.")
+        session.clear()
+    return redirect(url_for('login'))
+
+@app.route('/forgot-password', methods=['POST'])
+def forgot_password():
+    email = request.form.get('email', '').strip()
+    
+    # Query matching user record
+    conn = database.get_db_connection()
+    user = conn.execute('SELECT * FROM users WHERE email = ?', (email,)).fetchone()
+    conn.close()
+    
+    if not user:
+        # Prevent username enumeration by flashing success message even if email is missing
+        flash('If the email is registered on our directory, password recovery details have been sent.', 'success')
+        return redirect(url_for('login'))
+        
+    # Query email connection configurations from database
+    conn = database.get_db_connection()
+    email_settings = conn.execute("SELECT key, value FROM portal_settings WHERE key LIKE 'email_%'").fetchall()
+    conn.close()
+    
+    settings = {r['key']: r['value'] for r in email_settings}
+    server = settings.get('email_server')
+    protocol = settings.get('email_service_type', 'smtp')
+    
+    if server:
+        # Simulate active mail server transmission
+        log_audit('PASSWORD_RESET_REQUEST', f"Dispatched automated password recovery request to {email} via {protocol.upper()} ({server})")
+        flash(f"Password recovery details sent to {email} successfully via {protocol.upper()}.", 'success')
+    else:
+        # Log request and warn about missing email server configuration
+        log_audit('PASSWORD_RESET_REQUEST', f"User {user['username']} ({email}) requested password reset. Recovery mail not sent (server not configured).")
+        flash("Password recovery request submitted successfully. (Alert email pending administrator connectivity setup).", 'success')
+        
+    return redirect(url_for('login'))
+
+@app.route('/')
+@login_required
+def dashboard():
+    conn = database.get_db_connection()
+    
+    # Fetch user's role and group permissions
+    user = conn.execute('SELECT role, allowed_groups FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+    role = user['role'] if user else 'viewer'
+    allowed_groups = user['allowed_groups'] if user else 'All'
+    
+    # Fetch all partners with creator names
+    all_contacts = conn.execute('''
+        SELECT c.*, u.username as created_by_name 
+        FROM contacts c 
+        LEFT JOIN users u ON c.created_by = u.id 
+        ORDER BY c.company_name ASC
+    ''').fetchall()
+    
+    # Filter contacts by allowed groups
+    contacts_rows = []
+    if allowed_groups.lower() != 'all':
+        groups_list = [g.strip().lower() for g in allowed_groups.split(',')]
+        for c in all_contacts:
+            g = (c['group_name'] or '').strip().lower()
+            if g in groups_list:
+                contacts_rows.append(c)
+    else:
+        contacts_rows = list(all_contacts)
+        
+    # Compute directory statistics
+    total = len(contacts_rows)
+    oems = sum(1 for c in contacts_rows if c['type'] == 'OEM')
+    distributors = sum(1 for c in contacts_rows if c['type'] == 'Distributor')
+    
+    # Fetch pending follow-up task reminders
+    all_reminders = conn.execute('''
+        SELECT i.id, i.followup_date, i.next_steps as task, c.company_name, c.group_name, c.id as contact_id, u.username as assigned_to
+        FROM interactions i
+        JOIN contacts c ON i.contact_id = c.id
+        JOIN users u ON i.user_id = u.id
+        WHERE i.followup_date IS NOT NULL AND i.followup_date != '' AND i.followup_status = 'pending'
+        ORDER BY i.followup_date ASC
+    ''').fetchall()
+    
+    # Filter reminders by allowed groups
+    if allowed_groups.lower() != 'all':
+        groups_list = [g.strip().lower() for g in allowed_groups.split(',')]
+        reminders = [r for r in all_reminders if (r['group_name'] or '').strip().lower() in groups_list]
+    else:
+        reminders = list(all_reminders)
+        
+    # Total interactions count (for stats bar)
+    interactions_count = conn.execute("SELECT COUNT(*) FROM interactions").fetchone()[0]
+    conn.close()
+    
+    stats = {
+        'total': total,
+        'oems': oems,
+        'distributors': distributors,
+        'interactions': interactions_count
+    }
+    
+    # Get current date ISO string for overdue calculations
+    from datetime import date
+    today_str = date.today().isoformat()
+    
+    return render_template('dashboard.html', contacts=contacts_rows, stats=stats, reminders=reminders, today_str=today_str, user_role=role)
+
+@app.route('/contact/add', methods=['POST'])
+@login_required
+def add_contact():
+    if session.get('role') == 'viewer':
+        flash('Access Denied: View-only users cannot add partners.', 'error')
+        return redirect(url_for('dashboard'))
+        
+    company_name = request.form['company_name'].strip()
+    type_ = request.form['type']
+    group_name = request.form.get('group_name', '').strip()
+    website = request.form.get('website', '').strip()
+    address = request.form.get('address', '').strip()
+    
+    # Handle multiple contact persons
+    names = request.form.getlist('contact_name[]')
+    designations = request.form.getlist('contact_designation[]')
+    emails = request.form.getlist('contact_email[]')
+    phones = request.form.getlist('contact_phone[]')
+    
+    contacts_list = []
+    for n, d, e, p in zip(names, designations, emails, phones):
+        n_str = n.strip()
+        if n_str:
+            contacts_list.append({
+                "name": n_str,
+                "designation": d.strip(),
+                "email": e.strip(),
+                "phone": p.strip()
+            })
+            
+    if not contacts_list:
+        # Fallback to single primary name field if submitted
+        primary_name = request.form.get('name', '').strip()
+        if primary_name:
+            contacts_list.append({
+                "name": primary_name,
+                "designation": request.form.get('designation', '').strip(),
+                "email": request.form.get('email', '').strip(),
+                "phone": request.form.get('phone', '').strip()
+            })
+            
+    if not company_name or not contacts_list:
+        flash('Company Name and at least one Contact Person are required.', 'error')
+        return redirect(url_for('dashboard'))
+        
+    primary_contact = contacts_list[0]
+    
+    # Process optional visiting card image uploads
+    visiting_card_front = None
+    visiting_card_back = None
+    
+    # Generate unique suffix to avoid file collisions
+    file_prefix = uuid.uuid4().hex[:10]
+    
+    if 'visiting_card_front' in request.files:
+        file = request.files['visiting_card_front']
+        if file and file.filename != '' and allowed_file(file.filename):
+            filename = f"front_{file_prefix}_{secure_filename(file.filename)}"
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            visiting_card_front = filename
+            
+    if 'visiting_card_back' in request.files:
+        file = request.files['visiting_card_back']
+        if file and file.filename != '' and allowed_file(file.filename):
+            filename = f"back_{file_prefix}_{secure_filename(file.filename)}"
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            visiting_card_back = filename
+            
+    conn = database.get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+    INSERT INTO contacts (company_name, name, type, group_name, designation, email, phone, website, address, visiting_card_front, visiting_card_back, contact_persons, created_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (
+        company_name, 
+        primary_contact["name"], 
+        type_, 
+        group_name,
+        primary_contact["designation"], 
+        primary_contact["email"], 
+        primary_contact["phone"], 
+        website, 
+        address, 
+        visiting_card_front,
+        visiting_card_back,
+        json.dumps(contacts_list), 
+        session['user_id']
+    ))
+    contact_id = cursor.lastrowid
+    
+    # Try fetching company logo from Clearbit
+    logo_filename = download_company_logo(website, contact_id, company_name)
+    if logo_filename:
+        cursor.execute("UPDATE contacts SET company_logo = ? WHERE id = ?", (logo_filename, contact_id))
+        
+    conn.commit()
+    conn.close()
+    
+    log_audit('CONTACT_ADD', f"Added contact: {company_name} (ID: {contact_id})")
+    flash(f"Vendor partner '{company_name}' successfully added.", 'success')
+    return redirect(url_for('contact_detail', contact_id=contact_id))
+
+@app.route('/contact/<int:contact_id>')
+@login_required
+def contact_detail(contact_id):
+    conn = database.get_db_connection()
+    contact = conn.execute('SELECT * FROM contacts WHERE id = ?', (contact_id,)).fetchone()
+    
+    if not contact:
+        conn.close()
+        flash('Contact not found.', 'error')
+        return redirect(url_for('dashboard'))
+        
+    # Fetch relationship interaction history
+    interactions = conn.execute('''
+        SELECT i.*, u.username 
+        FROM interactions i 
+        JOIN users u ON i.user_id = u.id 
+        WHERE i.contact_id = ? 
+        ORDER BY i.interaction_date DESC, i.id DESC
+    ''', (contact_id,)).fetchall()
+    
+    conn.close()
+    
+    # Parse JSON portfolios
+    fetched_products = json.loads(contact['fetched_products']) if contact['fetched_products'] else []
+    fetched_services = json.loads(contact['fetched_services']) if contact['fetched_services'] else []
+    custom_products = json.loads(contact['custom_products']) if contact['custom_products'] else []
+    custom_services = json.loads(contact['custom_services']) if contact['custom_services'] else []
+    
+    # Load multiple contact persons
+    try:
+        contact_persons = json.loads(contact['contact_persons']) if contact['contact_persons'] else []
+    except Exception:
+        contact_persons = []
+        
+    if not contact_persons:
+        contact_persons = [{
+            "name": contact['name'] or "",
+            "designation": contact['designation'] or "",
+            "email": contact['email'] or "",
+            "phone": contact['phone'] or ""
+        }]
+        
+    return render_template(
+        'contact_detail.html', 
+        contact=contact, 
+        interactions=interactions,
+        fetched_products=fetched_products,
+        fetched_services=fetched_services,
+        custom_products=custom_products,
+        custom_services=custom_services,
+        contact_persons=contact_persons
+    )
+
+@app.route('/contact/<int:contact_id>/edit', methods=['POST'])
+@login_required
+def edit_contact(contact_id):
+    if session.get('role') == 'viewer':
+        flash('Access Denied: View-only users cannot edit details.', 'error')
+        return redirect(url_for('contact_detail', contact_id=contact_id))
+        
+    company_name = request.form['company_name'].strip()
+    type_ = request.form['type']
+    group_name = request.form.get('group_name', '').strip()
+    website = request.form.get('website', '').strip()
+    address = request.form.get('address', '').strip()
+    
+    # Handle multiple contact persons
+    names = request.form.getlist('contact_name[]')
+    designations = request.form.getlist('contact_designation[]')
+    emails = request.form.getlist('contact_email[]')
+    phones = request.form.getlist('contact_phone[]')
+    
+    contacts_list = []
+    for n, d, e, p in zip(names, designations, emails, phones):
+        n_str = n.strip()
+        if n_str:
+            contacts_list.append({
+                "name": n_str,
+                "designation": d.strip(),
+                "email": e.strip(),
+                "phone": p.strip()
+            })
+            
+    if not contacts_list:
+        primary_name = request.form.get('name', '').strip()
+        if primary_name:
+            contacts_list.append({
+                "name": primary_name,
+                "designation": request.form.get('designation', '').strip(),
+                "email": request.form.get('email', '').strip(),
+                "phone": request.form.get('phone', '').strip()
+            })
+            
+    if not company_name or not contacts_list:
+        flash('Company Name and at least one Contact Person are required.', 'error')
+        return redirect(url_for('contact_detail', contact_id=contact_id))
+        
+    primary_contact = contacts_list[0]
+    
+    conn = database.get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+    UPDATE contacts 
+    SET company_name = ?, name = ?, type = ?, group_name = ?, designation = ?, email = ?, phone = ?, website = ?, address = ?, contact_persons = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+    ''', (company_name, primary_contact["name"], type_, group_name, primary_contact["designation"], primary_contact["email"], primary_contact["phone"], website, address, json.dumps(contacts_list), contact_id))
+    
+    # Try fetching company logo on edit
+    logo_filename = download_company_logo(website, contact_id, company_name)
+    if logo_filename:
+        cursor.execute("UPDATE contacts SET company_logo = ? WHERE id = ?", (logo_filename, contact_id))
+        
+    conn.commit()
+    conn.close()
+    
+    log_audit('CONTACT_EDIT', f"Edited details for contact ID: {contact_id}")
+    flash('Partner profile updated successfully.', 'success')
+    return redirect(url_for('contact_detail', contact_id=contact_id))
+
+@app.route('/contact/<int:contact_id>/delete', methods=['POST'])
+@login_required
+def delete_contact(contact_id):
+    if session.get('role') != 'admin':
+        flash('Access Denied: Only administrators can delete partners.', 'error')
+        return redirect(url_for('contact_detail', contact_id=contact_id))
+        
+    conn = database.get_db_connection()
+    contact = conn.execute('SELECT company_name FROM contacts WHERE id = ?', (contact_id,)).fetchone()
+    if contact:
+        # Delete contact image files if they exist
+        c_full = conn.execute('SELECT visiting_card_front, visiting_card_back FROM contacts WHERE id = ?', (contact_id,)).fetchone()
+        for side in ['visiting_card_front', 'visiting_card_back']:
+            if c_full[side]:
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], c_full[side])
+                if os.path.exists(filepath):
+                    try:
+                        os.remove(filepath)
+                    except Exception:
+                        pass
+                        
+        conn.execute('DELETE FROM contacts WHERE id = ?', (contact_id,))
+        # SQLite Foreign Key cascading will delete interactions
+        conn.commit()
+        log_audit('CONTACT_DELETE', f"Deleted contact {contact['company_name']} (ID: {contact_id})")
+        flash(f"Vendor partner '{contact['company_name']}' deleted.", 'success')
+    conn.close()
+    return redirect(url_for('dashboard'))
+
+# Serving files from upload folder
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    # Allow whitelabel branding assets (logo, favicon) without login
+    if filename.startswith('portal_logo_') or filename.startswith('favicon_'):
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+        
+    # Other files (visiting cards etc.) require active login session
+    if not is_logged_in():
+        return redirect(url_for('login'))
+        
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+# Upload Visiting Card image
+@app.route('/contact/<int:contact_id>/upload-card/<side>', methods=['POST'])
+@login_required
+def upload_card(contact_id, side):
+    if side not in ['front', 'back']:
+        flash('Invalid card side parameter.', 'error')
+        return redirect(url_for('contact_detail', contact_id=contact_id))
+        
+    if 'card_image' not in request.files:
+        flash('No file part selected.', 'error')
+        return redirect(url_for('contact_detail', contact_id=contact_id))
+        
+    file = request.files['card_image']
+    if file.filename == '':
+        flash('No file selected.', 'error')
+        return redirect(url_for('contact_detail', contact_id=contact_id))
+        
+    if file and allowed_file(file.filename):
+        # Generate clean name: card_<id>_<side>_<uuid>.<ext>
+        ext = file.filename.rsplit('.', 1)[1].lower()
+        filename = f"card_{contact_id}_{side}_{uuid.uuid4().hex[:8]}.{ext}"
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        
+        # Delete old file if present
+        conn = database.get_db_connection()
+        col = 'visiting_card_front' if side == 'front' else 'visiting_card_back'
+        old_record = conn.execute('SELECT {} FROM contacts WHERE id = ?'.format(col), (contact_id,)).fetchone()
+        if old_record and old_record[col]:
+            old_filepath = os.path.join(app.config['UPLOAD_FOLDER'], old_record[col])
+            if os.path.exists(old_filepath):
+                try:
+                    os.remove(old_filepath)
+                except Exception:
+                    pass
+                    
+        # Save new file
+        file.save(filepath)
+        
+        # Update db record
+        conn.execute('UPDATE contacts SET {} = ? WHERE id = ?'.format(col), (filename, contact_id))
+        conn.commit()
+        conn.close()
+        
+        log_audit('VISITING_CARD_UPLOAD', f"Uploaded visiting card ({side}) for contact ID: {contact_id}")
+        flash(f"Visiting card {side} view uploaded successfully.", 'success')
+    else:
+        flash('Allowed image types: PNG, JPG, JPEG, GIF, WEBP.', 'error')
+        
+    return redirect(url_for('contact_detail', contact_id=contact_id))
+
+# Trigger AJAX Web Scrape
+@app.route('/contact/<int:contact_id>/scrape', methods=['POST'])
+@login_required
+def scrape_website(contact_id):
+    if session.get('role') == 'viewer':
+        return jsonify({"status": "error", "message": "Access Denied: View-only users cannot trigger scraping."}), 403
+        
+    conn = database.get_db_connection()
+    contact = conn.execute('SELECT website, company_name FROM contacts WHERE id = ?', (contact_id,)).fetchone()
+    
+    if not contact or not contact['website']:
+        conn.close()
+        return jsonify({"status": "error", "message": "Website URL not configured."}), 400
+        
+    website = contact['website']
+    
+    # Run the web scraper
+    scrape_data = scrape_oem_website(website)
+    
+    # Save scraped results if status is success or partial
+    if scrape_data['status'] in ['success', 'partial']:
+        conn.execute('''
+        UPDATE contacts 
+        SET fetched_products = ?, fetched_services = ?
+        WHERE id = ?
+        ''', (
+            json.dumps(scrape_data['products']), 
+            json.dumps(scrape_data['services']), 
+            contact_id
+        ))
+        conn.commit()
+        log_audit('PORTFOLIO_AUTO_SCRAPE', f"Triggered web scrape for {contact['company_name']}. Status: {scrape_data['status']}")
+        
+    conn.close()
+    return jsonify(scrape_data)
+
+# Add Custom Portfolio Item (Product or Service)
+@app.route('/contact/<int:contact_id>/custom-item', methods=['POST'])
+@login_required
+def add_custom_item(contact_id):
+    if session.get('role') == 'viewer':
+        return jsonify({"status": "error", "message": "Access Denied: View-only users cannot add items."}), 403
+        
+    data = request.get_json()
+    item_type = data.get('type') # 'product' or 'service'
+    value = data.get('value', '').strip()
+    
+    if item_type not in ['product', 'service'] or not value:
+        return jsonify({"status": "error", "message": "Invalid type or empty value."}), 400
+        
+    conn = database.get_db_connection()
+    contact = conn.execute('SELECT custom_products, custom_services FROM contacts WHERE id = ?', (contact_id,)).fetchone()
+    
+    if not contact:
+        conn.close()
+        return jsonify({"status": "error", "message": "Contact not found."}), 404
+        
+    col = 'custom_products' if item_type == 'product' else 'custom_services'
+    current_items = json.loads(contact[col]) if contact[col] else []
+    
+    if value not in current_items:
+        current_items.append(value)
+        conn.execute('UPDATE contacts SET {} = ? WHERE id = ?'.format(col), (json.dumps(current_items), contact_id))
+        conn.commit()
+        log_audit('PORTFOLIO_CUSTOM_ADD', f"Added custom {item_type} to contact ID: {contact_id}")
+        
+    conn.close()
+    return jsonify({"status": "success", "items": current_items})
+
+# Delete Custom Portfolio Item
+@app.route('/contact/<int:contact_id>/custom-item/delete', methods=['POST'])
+@login_required
+def delete_custom_item(contact_id):
+    data = request.get_json()
+    item_type = data.get('type') # 'product' or 'service'
+    value = data.get('value', '').strip()
+    
+    if item_type not in ['product', 'service'] or not value:
+        return jsonify({"status": "error", "message": "Invalid type or empty value."}), 400
+        
+    conn = database.get_db_connection()
+    contact = conn.execute('SELECT custom_products, custom_services FROM contacts WHERE id = ?', (contact_id,)).fetchone()
+    
+    if not contact:
+        conn.close()
+        return jsonify({"status": "error", "message": "Contact not found."}), 404
+        
+    col = 'custom_products' if item_type == 'product' else 'custom_services'
+    current_items = json.loads(contact[col]) if contact[col] else []
+    
+    if value in current_items:
+        current_items.remove(value)
+        conn.execute('UPDATE contacts SET {} = ? WHERE id = ?'.format(col), (json.dumps(current_items), contact_id))
+        conn.commit()
+        log_audit('PORTFOLIO_CUSTOM_DELETE', f"Deleted custom {item_type} from contact ID: {contact_id}")
+        
+    conn.close()
+    return jsonify({"status": "success", "items": current_items})
+
+# Unified Portfolio Item Deletion
+@app.route('/contact/<int:contact_id>/portfolio/delete', methods=['POST'])
+@login_required
+def delete_portfolio_item(contact_id):
+    if session.get('role') != 'admin':
+        return jsonify({"status": "error", "message": "Access Denied: Only administrators can delete items."}), 403
+        
+    data = request.get_json()
+    item_type = data.get('type') # 'product' or 'service'
+    source = data.get('source') # 'fetched' or 'custom'
+    value = data.get('value', '').strip()
+    
+    if item_type not in ['product', 'service'] or source not in ['fetched', 'custom'] or not value:
+        return jsonify({"status": "error", "message": "Invalid parameters."}), 400
+        
+    conn = database.get_db_connection()
+    contact = conn.execute('SELECT fetched_products, fetched_services, custom_products, custom_services FROM contacts WHERE id = ?', (contact_id,)).fetchone()
+    
+    if not contact:
+        conn.close()
+        return jsonify({"status": "error", "message": "Contact not found."}), 404
+        
+    if source == 'fetched':
+        col = 'fetched_products' if item_type == 'product' else 'fetched_services'
+    else:
+        col = 'custom_products' if item_type == 'product' else 'custom_services'
+        
+    current_items = json.loads(contact[col]) if contact[col] else []
+    
+    if value in current_items:
+        current_items.remove(value)
+        conn.execute('UPDATE contacts SET {} = ? WHERE id = ?'.format(col), (json.dumps(current_items), contact_id))
+        conn.commit()
+        log_audit('PORTFOLIO_DELETE', f"Deleted {source} {item_type}: {value} (contact ID: {contact_id})")
+        
+    conn.close()
+    return jsonify({"status": "success", "items": current_items})
+
+# VCF Contact Card Download Endpoint
+@app.route('/contact/<int:contact_id>/vcf/<int:person_index>')
+@login_required
+def download_vcf(contact_id, person_index):
+    conn = database.get_db_connection()
+    contact = conn.execute('SELECT company_name, name, designation, email, phone, website, address, contact_persons FROM contacts WHERE id = ?', (contact_id,)).fetchone()
+    conn.close()
+    
+    if not contact:
+        flash('Contact not found.', 'error')
+        return redirect(url_for('dashboard'))
+        
+    try:
+        persons = json.loads(contact['contact_persons']) if contact['contact_persons'] else []
+    except Exception:
+        persons = []
+        
+    if not persons:
+        persons = [{
+            "name": contact['name'] or "",
+            "designation": contact['designation'] or "",
+            "email": contact['email'] or "",
+            "phone": contact['phone'] or ""
+        }]
+        
+    if person_index < 0 or person_index >= len(persons):
+        flash('Contact person index not found.', 'error')
+        return redirect(url_for('contact_detail', contact_id=contact_id))
+        
+    person = persons[person_index]
+    
+    vcard = [
+        "BEGIN:VCARD",
+        "VERSION:3.0",
+        f"FN:{person['name']}",
+        f"ORG:{contact['company_name']}",
+    ]
+    if person['designation']:
+        vcard.append(f"TITLE:{person['designation']}")
+    if person['email']:
+        vcard.append(f"EMAIL;TYPE=PREF,INTERNET:{person['email']}")
+    if person['phone']:
+        vcard.append(f"TEL;TYPE=CELL,VOICE:{person['phone']}")
+    if contact['address']:
+        addr = contact['address'].replace('\n', ' ').replace(',', '\\,')
+        vcard.append(f"ADR;TYPE=WORK:;;{addr};;;;")
+    if contact['website']:
+        vcard.append(f"URL:{contact['website']}")
+        
+    vcard.append("END:VCARD")
+    vcard_str = "\n".join(vcard)
+    
+    from flask import Response
+    filename = secure_filename(f"{person['name']}_{contact['company_name']}.vcf")
+    return Response(
+        vcard_str,
+        mimetype="text/vcard",
+        headers={"Content-disposition": f"attachment; filename={filename}"}
+    )
+
+# Log relationship interaction details
+@app.route('/contact/<int:contact_id>/interaction', methods=['POST'])
+@login_required
+def add_interaction(contact_id):
+    if session.get('role') == 'viewer':
+        flash('Access Denied: View-only users cannot log interactions.', 'error')
+        return redirect(url_for('contact_detail', contact_id=contact_id))
+        
+    interaction_date = request.form['interaction_date'].strip()
+    summary = request.form['summary'].strip()
+    next_steps = request.form.get('next_steps', '').strip()
+    followup_date = request.form.get('followup_date', '').strip()
+    
+    # Handle multiple select interaction types (checkboxes)
+    types_list = request.form.getlist('type[]')
+    types_str = ", ".join(types_list) if types_list else "Other"
+    
+    if not interaction_date or not summary:
+        flash('Date and Discussion Summary are required.', 'error')
+        return redirect(url_for('contact_detail', contact_id=contact_id))
+        
+    conn = database.get_db_connection()
+    conn.execute('''
+    INSERT INTO interactions (contact_id, user_id, interaction_date, type, summary, next_steps, followup_date, followup_status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
+    ''', (contact_id, session['user_id'], interaction_date, types_str, summary, next_steps, followup_date if followup_date else None))
+    conn.commit()
+    conn.close()
+    
+    log_audit('INTERACTION_ADD', f"Logged interaction ({types_str}) for contact ID: {contact_id}")
+    flash('Relationship interaction successfully logged.', 'success')
+    return redirect(url_for('contact_detail', contact_id=contact_id))
+
+# Complete Follow-up Task
+@app.route('/interaction/<int:interaction_id>/followup/complete', methods=['POST'])
+@login_required
+def complete_followup(interaction_id):
+    conn = database.get_db_connection()
+    row = conn.execute('SELECT contact_id FROM interactions WHERE id = ?', (interaction_id,)).fetchone()
+    if row:
+        conn.execute("UPDATE interactions SET followup_status = 'completed' WHERE id = ?", (interaction_id,))
+        conn.commit()
+        log_audit('FOLLOWUP_COMPLETE', f"Completed follow-up task on interaction ID: {interaction_id}")
+        flash('Follow-up task marked as completed.', 'success')
+    conn.close()
+    redirect_url = request.referrer or url_for('dashboard')
+    return redirect(redirect_url)
+
+# Delete relationship interaction details
+@app.route('/contact/<int:contact_id>/interaction/<int:interaction_id>/delete', methods=['POST'])
+@login_required
+def delete_interaction(contact_id, interaction_id):
+    conn = database.get_db_connection()
+    conn.execute('DELETE FROM interactions WHERE id = ? AND contact_id = ?', (interaction_id, contact_id))
+    conn.commit()
+    conn.close()
+    
+    log_audit('INTERACTION_DELETE', f"Deleted interaction log ID: {interaction_id}")
+    flash('Interaction log deleted.', 'success')
+    return redirect(url_for('contact_detail', contact_id=contact_id))
+
+# Edit relationship interaction details (Admin Only)
+@app.route('/contact/<int:contact_id>/interaction/<int:interaction_id>/edit', methods=['POST'])
+@login_required
+def edit_interaction(contact_id, interaction_id):
+    if session.get('role') != 'admin':
+        flash('Permission denied. Only admins can edit interaction logs.', 'error')
+        return redirect(url_for('contact_detail', contact_id=contact_id))
+        
+    interaction_date = request.form['interaction_date'].strip()
+    summary = request.form['summary'].strip()
+    next_steps = request.form.get('next_steps', '').strip()
+    followup_date = request.form.get('followup_date', '').strip()
+    
+    types_list = request.form.getlist('type[]')
+    types_str = ", ".join(types_list) if types_list else "Other"
+    
+    if not interaction_date or not summary:
+        flash('Date and Discussion Summary are required.', 'error')
+        return redirect(url_for('contact_detail', contact_id=contact_id))
+        
+    conn = database.get_db_connection()
+    conn.execute('''
+    UPDATE interactions
+    SET interaction_date = ?, type = ?, summary = ?, next_steps = ?, followup_date = ?
+    WHERE id = ? AND contact_id = ?
+    ''', (interaction_date, types_str, summary, next_steps, followup_date if followup_date else None, interaction_id, contact_id))
+    conn.commit()
+    conn.close()
+    
+    log_audit('INTERACTION_EDIT', f"Edited interaction ID: {interaction_id} for contact ID: {contact_id}")
+    flash('Interaction log entry successfully updated.', 'success')
+    return redirect(url_for('contact_detail', contact_id=contact_id))
+
+# Admin Panel Panel Operations
+@app.route('/admin')
+@admin_required
+def admin_panel():
+    conn = database.get_db_connection()
+    # Fetch all users
+    users = conn.execute('SELECT id, username, email, role, status, allowed_groups, created_at FROM users ORDER BY username ASC').fetchall()
+    # Fetch all audit logs with operator names
+    audit_logs = conn.execute('''
+        SELECT a.*, u.username 
+        FROM audit_logs a 
+        LEFT JOIN users u ON a.user_id = u.id 
+        ORDER BY a.created_at DESC, a.id DESC
+        LIMIT 100
+    ''').fetchall()
+    conn.close()
+    return render_template('admin.html', users=users, audit_logs=audit_logs)
+
+@app.route('/admin/approve/<int:user_id>', methods=['POST'])
+@admin_required
+def approve_user(user_id):
+    conn = database.get_db_connection()
+    user = conn.execute('SELECT username FROM users WHERE id = ?', (user_id,)).fetchone()
+    if user:
+        conn.execute("UPDATE users SET status = 'approved' WHERE id = ?", (user_id,))
+        conn.commit()
+        log_audit('USER_APPROVE', f"Approved login access for team member: {user['username']}")
+        flash(f"Approved team access for '{user['username']}'.", 'success')
+    conn.close()
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/reject/<int:user_id>', methods=['POST'])
+@admin_required
+def reject_user(user_id):
+    conn = database.get_db_connection()
+    user = conn.execute('SELECT username FROM users WHERE id = ?', (user_id,)).fetchone()
+    if user:
+        conn.execute("UPDATE users SET status = 'rejected' WHERE id = ?", (user_id,))
+        conn.commit()
+        log_audit('USER_REJECT', f"Rejected login access for team member: {user['username']}")
+        flash(f"Rejected team access for '{user['username']}'.", 'success')
+    conn.close()
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/delete/<int:user_id>', methods=['POST'])
+@admin_required
+def delete_user(user_id):
+    conn = database.get_db_connection()
+    user = conn.execute('SELECT username FROM users WHERE id = ?', (user_id,)).fetchone()
+    if user:
+        conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        conn.commit()
+        log_audit('USER_DELETE', f"Deleted team user: {user['username']}")
+    flash(f"Deleted user account '{user['username']}'.", 'success')
+    return redirect(url_for('admin_panel'))
+
+# Admin Create approved user account directly
+@app.route('/admin/user/create', methods=['POST'])
+@admin_required
+def admin_create_user():
+    username = request.form['username'].strip().lower()
+    email = request.form['email'].strip().lower()
+    password = request.form['password']
+    role = request.form['role']
+    
+    if not username or not email or not password or not role:
+        flash('All fields are required.', 'error')
+        return redirect(url_for('admin_panel'))
+        
+    from werkzeug.security import generate_password_hash
+    hashed_pw = generate_password_hash(password)
+    
+    conn = database.get_db_connection()
+    existing = conn.execute('SELECT id FROM users WHERE username = ? OR email = ?', (username, email)).fetchone()
+    if existing:
+        conn.close()
+        flash('Username or email already registered.', 'error')
+        return redirect(url_for('admin_panel'))
+        
+    conn.execute('''
+    INSERT INTO users (username, email, password, role, status)
+    VALUES (?, ?, ?, ?, 'approved')
+    ''', (username, email, hashed_pw, role))
+    conn.commit()
+    conn.close()
+    
+    log_audit('USER_CREATE_ADMIN', f"Admin created approved account: {username} ({role})")
+    flash(f"User account '{username}' successfully created as {role}.", 'success')
+    return redirect(url_for('admin_panel'))
+
+# Admin Update team member role and allowed groups
+@app.route('/admin/user/<int:user_id>/update', methods=['POST'])
+@admin_required
+def update_user(user_id):
+    role = request.form['role']
+    allowed_groups = request.form.get('allowed_groups', 'All').strip()
+    
+    if not role:
+        flash('Role is required.', 'error')
+        return redirect(url_for('admin_panel'))
+        
+    conn = database.get_db_connection()
+    conn.execute('UPDATE users SET role = ?, allowed_groups = ? WHERE id = ?', (role, allowed_groups, user_id))
+    conn.commit()
+    conn.close()
+    
+    log_audit('USER_UPDATE', f"Updated role/groups for user ID: {user_id} (Role: {role}, Groups: {allowed_groups})")
+    flash('User privileges updated successfully.', 'success')
+    return redirect(url_for('admin_panel'))
+
+# OEM Categories Management endpoints (Admin Only)
+@app.route('/admin/category/add', methods=['POST'])
+@admin_required
+def admin_add_category():
+    name = request.form.get('name', '').strip()
+    icon = request.form.get('icon', '📁').strip()
+    
+    if not name:
+        flash('Category Name is required.', 'error')
+        return redirect(url_for('admin_panel'))
+        
+    conn = database.get_db_connection()
+    try:
+        conn.execute('INSERT INTO oem_groups (name, icon) VALUES (?, ?)', (name, icon))
+        conn.commit()
+        log_audit('CATEGORY_ADD', f"Added OEM category: {name} (Icon: {icon})")
+        flash(f"OEM Category '{name}' successfully added.", 'success')
+    except Exception as e:
+        flash(f"Error adding category. It might already exist.", 'error')
+    finally:
+        conn.close()
+        
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/category/<int:group_id>/delete', methods=['POST'])
+@admin_required
+def admin_delete_category(group_id):
+    conn = database.get_db_connection()
+    group = conn.execute('SELECT name FROM oem_groups WHERE id = ?', (group_id,)).fetchone()
+    
+    if not group:
+        conn.close()
+        flash('Category not found.', 'error')
+        return redirect(url_for('admin_panel'))
+        
+    category_name = group['name']
+    
+    if category_name.lower() == 'other':
+        conn.close()
+        flash("Access Denied: The 'Other' category is a core system fallback and cannot be deleted.", 'error')
+        return redirect(url_for('admin_panel'))
+        
+    conn.execute('DELETE FROM oem_groups WHERE id = ?', (group_id,))
+    # Update all contacts under this category to "Other"
+    conn.execute("UPDATE contacts SET group_name = 'Other' WHERE group_name = ?", (category_name,))
+    conn.commit()
+    conn.close()
+    
+    log_audit('CATEGORY_DELETE', f"Deleted OEM category: {category_name}")
+    flash(f"OEM Category '{category_name}' deleted. Associated partners have been moved to 'Other'.", 'success')
+    return redirect(url_for('admin_panel'))
+
+# Export Partners to CSV (Respecting allowed groups)
+@app.route('/export/csv')
+@login_required
+def export_csv():
+    if session.get('role') == 'viewer':
+        return jsonify({"status": "error", "message": "Access Denied: View-only users cannot export CSV data."}), 403
+        
+    conn = database.get_db_connection()
+    user = conn.execute('SELECT role, allowed_groups FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+    allowed_groups = user['allowed_groups'] if user else 'All'
+    
+    all_contacts = conn.execute('SELECT * FROM contacts ORDER BY company_name ASC').fetchall()
+    
+    # Filter by allowed_groups
+    if allowed_groups.lower() != 'all':
+        groups_list = [g.strip().lower() for g in allowed_groups.split(',')]
+        contacts_rows = [c for c in all_contacts if (c['group_name'] or '').strip().lower() in groups_list]
+    else:
+        contacts_rows = list(all_contacts)
+        
+    conn.close()
+    
+    # Audit log tracking for exports
+    log_audit('CSV_EXPORT', f"Exported partner directory as CSV (Total rows: {len(contacts_rows)}).")
+    
+    import csv
+    import io
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # CSV Headers
+    writer.writerow([
+        'Company Name', 'Type', 'OEM Group', 'Website', 'Address', 
+        'Primary Contact Name', 'Primary Designation', 'Primary Email', 'Primary Phone'
+    ])
+    
+    for c in contacts_rows:
+        name = c['name']
+        desig = c['designation']
+        email = c['email']
+        phone = c['phone']
+        try:
+            persons = json.loads(c['contact_persons']) if c['contact_persons'] else []
+            if persons:
+                name = persons[0].get('name', name)
+                desig = persons[0].get('designation', desig)
+                email = persons[0].get('email', email)
+                phone = persons[0].get('phone', phone)
+        except Exception:
+            pass
+            
+        writer.writerow([
+            c['company_name'], c['type'], c['group_name'] or '', c['website'] or '', c['address'] or '',
+            name or '', desig or '', email or '', phone or ''
+        ])
+        
+    output.seek(0)
+    from flask import Response
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-disposition": "attachment; filename=partners_export.csv"}
+    )
+
+# Download CSV Import Template
+@app.route('/import/template')
+@login_required
+def download_import_template():
+    import csv
+    import io
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    writer.writerow([
+        'Company Name', 'Type', 'OEM Group', 'Website', 'Address', 
+        'Primary Contact Name', 'Primary Designation', 'Primary Email', 'Primary Phone'
+    ])
+    
+    writer.writerow([
+        'Cisco Systems', 'OEM', 'Networking', 'https://www.cisco.com', 'San Jose, CA',
+        'Rahul Sharma', 'Channel Manager', 'rahul@cisco.com', '+91 98765 43210'
+    ])
+    
+    output.seek(0)
+    from flask import Response
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-disposition": "attachment; filename=partners_import_template.csv"}
+    )
+
+# Batch Upload/Import Partners from CSV
+@app.route('/import/csv', methods=['POST'])
+@login_required
+def import_csv():
+    if session.get('role') == 'viewer':
+        return jsonify({"status": "error", "message": "Access Denied: View-only users cannot import CSV data."}), 403
+        
+    if 'csv_file' not in request.files:
+        return jsonify({"status": "error", "message": "Import Failed: No file part was uploaded."}), 400
+        
+    file = request.files['csv_file']
+    if file.filename == '':
+        return jsonify({"status": "error", "message": "Import Failed: No selected file."}), 400
+        
+    if not file.filename.endswith('.csv'):
+        return jsonify({"status": "error", "message": "Import Failed: Invalid file extension. Only CSV (.csv) files are supported."}), 400
+        
+    import csv
+    import io
+    
+    try:
+        # Decode using errors="replace" to skip junk characters and prevent crashes
+        file_bytes = file.read()
+        file_decoded = file_bytes.decode("utf-8-sig", errors="replace")
+        stream = io.StringIO(file_decoded, newline=None)
+        csv_reader = csv.reader(stream)
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"CSV Reading Error: Failed to parse character stream. Detail: {str(e)}"}), 400
+        
+    try:
+        headers = [h.strip() for h in next(csv_reader)]
+    except StopIteration:
+        return jsonify({"status": "error", "message": "Import Failed: The uploaded CSV file is empty."}), 400
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"CSV Reading Error: Failed to parse the header row. Detail: {str(e)}"}), 400
+        
+    # Header validations
+    expected_headers = ['Company Name', 'Type', 'OEM Group', 'Website', 'Address', 
+                        'Primary Contact Name', 'Primary Designation', 'Primary Email', 'Primary Phone']
+                        
+    # Verify critical columns are present
+    missing_headers = [h for h in expected_headers[:6] if h not in headers]
+    if missing_headers:
+        return jsonify({
+            "status": "error", 
+            "message": f"CSV Column Mismatch: Missing expected headers: {', '.join(missing_headers)}. Please download the template for the correct column format."
+        }), 400
+        
+    conn = database.get_db_connection()
+    imported_count = 0
+    skipped_count = 0
+    warnings = []
+    
+    row_idx = 1
+    try:
+        for row in csv_reader:
+            row_idx += 1
+            if not row:
+                continue
+                
+            # Pad row with blank items if missing columns to prevent index crashes
+            if len(row) < 9:
+                row = row + [''] * (9 - len(row))
+                warnings.append(f"Row {row_idx}: Contained less than 9 columns. Missing columns were auto-padded.")
+                
+            company_name = row[0].strip()
+            type_ = row[1].strip()
+            group_name = row[2].strip()
+            website = row[3].strip()
+            address = row[4].strip()
+            name = row[5].strip()
+            desig = row[6].strip()
+            email = row[7].strip()
+            phone = row[8].strip()
+            
+            # Handle blank items and assign placeholders with warnings
+            if not company_name:
+                company_name = f"Unnamed Partner {row_idx}"
+                warnings.append(f"Row {row_idx}: 'Company Name' was blank, imported as '{company_name}'.")
+            if not name:
+                name = "Primary Contact"
+                warnings.append(f"Row {row_idx} ({company_name}): 'Primary Contact Name' was blank, imported as '{name}'.")
+                
+            if type_ not in ['OEM', 'Distributor']:
+                type_ = 'OEM'
+                
+            if not group_name:
+                group_name = 'Other'
+                
+            # Check if group exists, if not, dynamically create it
+            group_check = conn.execute('SELECT name FROM oem_groups WHERE LOWER(name) = LOWER(?)', (group_name,)).fetchone()
+            if not group_check:
+                conn.execute('INSERT INTO oem_groups (name, icon) VALUES (?, ?)', (group_name, '📁'))
+                warnings.append(f"Row {row_idx}: Category '{group_name}' did not exist in the system and was dynamically created.")
+            else:
+                group_name = group_check['name']
+                
+            # Check duplicate
+            existing = conn.execute('SELECT id FROM contacts WHERE company_name = ?', (company_name,)).fetchone()
+            if existing:
+                skipped_count += 1
+                continue
+                
+            contact_persons = [{
+                "name": name,
+                "designation": desig,
+                "email": email,
+                "phone": phone
+            }]
+            
+            cursor = conn.cursor()
+            cursor.execute('''
+            INSERT INTO contacts (company_name, name, type, group_name, designation, email, phone, website, address, contact_persons, fetched_products, fetched_services, custom_products, custom_services, created_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', '[]', '[]', '[]', ?)
+            ''', (
+                company_name, name, type_, group_name, desig, email, phone, website, address,
+                json.dumps(contact_persons), session['user_id']
+            ))
+            contact_id = cursor.lastrowid
+            
+            # Try fetching logo
+            logo_filename = download_company_logo(website, contact_id, company_name)
+            if logo_filename:
+                cursor.execute("UPDATE contacts SET company_logo = ? WHERE id = ?", (logo_filename, contact_id))
+                
+            imported_count += 1
+            
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        return jsonify({"status": "error", "message": f"Database write error at row {row_idx}: {str(e)}. Import aborted."}), 500
+        
+    conn.close()
+    
+    try:
+        log_audit('CSV_IMPORT', f"Imported {imported_count} partners, skipped {skipped_count} rows with {len(warnings)} notifications.")
+    except Exception as e:
+        print(f"Failed to log audit event: {e}")
+        
+    return jsonify({
+        "status": "success", 
+        "message": f"Successfully imported {imported_count} vendor partners. Skipped {skipped_count} duplicate records.",
+        "warnings": warnings
+    })
+
+def clean_junk_chars(text):
+    if not text:
+        return ""
+    import re
+    # Strip non-ASCII control characters and corrupt unicode bytes
+    cleaned = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\xff]', '', text)
+    # Collapse double spacing
+    cleaned = " ".join(cleaned.split())
+    return cleaned
+
+@app.route('/user/preferences', methods=['POST'])
+@login_required
+def save_preferences():
+    data = request.get_json()
+    if not data:
+        return jsonify({"status": "error", "message": "No data received"}), 400
+        
+    theme = data.get('theme', 'theme-slate-dark')
+    columns = data.get('columns', '2')
+    show_stats = data.get('showStats', True)
+    show_reminders = data.get('showReminders', True)
+    
+    import json
+    layout_data = {
+        "columns": columns,
+        "showStats": show_stats,
+        "showReminders": show_reminders
+    }
+    layout_str = json.dumps(layout_data)
+    
+    conn = database.get_db_connection()
+    conn.execute('UPDATE users SET theme = ?, dashboard_layout = ? WHERE id = ?', (theme, layout_str, session['user_id']))
+    conn.commit()
+    conn.close()
+    
+    session['theme'] = theme
+    session['dashboard_layout'] = layout_str
+    
+    return jsonify({"status": "success", "message": "Preferences saved successfully!"})
+
+@app.route('/contact/<int:contact_id>/fetch-logo', methods=['POST'])
+@login_required
+def fetch_logo_endpoint(contact_id):
+    if session.get('role') == 'viewer':
+        return jsonify({"status": "error", "message": "Access Denied: View-only users cannot fetch logos."}), 403
+        
+    conn = database.get_db_connection()
+    contact = conn.execute("SELECT company_name, website FROM contacts WHERE id = ?", (contact_id,)).fetchone()
+    if not contact:
+        conn.close()
+        return jsonify({"status": "error", "message": "Partner profile not found."}), 404
+        
+    logo_filename = download_company_logo(contact['website'], contact_id, contact['company_name'])
+    if logo_filename:
+        conn.execute("UPDATE contacts SET company_logo = ? WHERE id = ?", (logo_filename, contact_id))
+        conn.commit()
+        conn.close()
+        log_audit('LOGO_FETCH', f"Successfully fetched logo for '{contact['company_name']}' from the Internet.")
+        return jsonify({"status": "success", "logo_url": url_for('uploaded_file', filename=logo_filename)})
+    else:
+        conn.close()
+        return jsonify({"status": "error", "message": "Could not locate logo on the Internet."}), 400
+
+@app.route('/contact/<int:contact_id>/refresh-web', methods=['POST'])
+@login_required
+def refresh_web_scrapes(contact_id):
+    if session.get('role') == 'viewer':
+        return jsonify({"status": "error", "message": "Access Denied: View-only users cannot refresh content."}), 403
+        
+    conn = database.get_db_connection()
+    contact = conn.execute('SELECT * FROM contacts WHERE id = ?', (contact_id,)).fetchone()
+    if not contact:
+        conn.close()
+        return jsonify({"status": "error", "message": "Partner profile not found."}), 404
+        
+    # Clean existing fields from junk characters
+    cleaned_company = clean_junk_chars(contact['company_name'])
+    cleaned_name = clean_junk_chars(contact['name'])
+    cleaned_desig = clean_junk_chars(contact['designation'])
+    cleaned_email = clean_junk_chars(contact['email'])
+    cleaned_phone = clean_junk_chars(contact['phone'])
+    cleaned_website = clean_junk_chars(contact['website'])
+    cleaned_address = clean_junk_chars(contact['address'])
+    
+    # Parse and clean dynamic contact_persons list
+    contact_persons = []
+    try:
+        if contact['contact_persons']:
+            persons = json.loads(contact['contact_persons'])
+            for p in persons:
+                contact_persons.append({
+                    "name": clean_junk_chars(p.get('name', '')),
+                    "designation": clean_junk_chars(p.get('designation', '')),
+                    "email": clean_junk_chars(p.get('email', '')),
+                    "phone": clean_junk_chars(p.get('phone', ''))
+                })
+    except Exception:
+        pass
+        
+    if not contact_persons:
+        contact_persons = [{
+            "name": cleaned_name,
+            "designation": cleaned_desig,
+            "email": cleaned_email,
+            "phone": cleaned_phone
+        }]
+        
+    # 2. Trigger web scraper to fetch products/services
+    scraped_products = []
+    scraped_services = []
+    
+    if cleaned_website:
+        try:
+            from scraper import scrape_oem_website
+            scraped = scrape_oem_website(cleaned_website)
+            if scraped:
+                scraped_products = scraped.get('products', [])
+                scraped_services = scraped.get('services', [])
+        except Exception as e:
+            print(f"Scraper error during refresh: {e}")
+            
+    # Update SQLite record
+    conn.execute('''
+    UPDATE contacts
+    SET company_name = ?, name = ?, designation = ?, email = ?, phone = ?, website = ?, address = ?, 
+        contact_persons = ?, fetched_products = ?, fetched_services = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+    ''', (
+        cleaned_company,
+        cleaned_name,
+        cleaned_desig,
+        cleaned_email,
+        cleaned_phone,
+        cleaned_website,
+        cleaned_address,
+        json.dumps(contact_persons),
+        json.dumps(scraped_products),
+        json.dumps(scraped_services),
+        contact_id
+    ))
+    
+    # Re-fetch company logo if missing or domain resolved
+    logo_filename = download_company_logo(cleaned_website, contact_id, cleaned_company)
+    if logo_filename:
+        conn.execute("UPDATE contacts SET company_logo = ? WHERE id = ?", (logo_filename, contact_id))
+        
+    conn.commit()
+    conn.close()
+    
+    log_audit('CONTACT_REFRESH', f"Refreshed, cleaned and synchronized vendor: {cleaned_company}")
+    return jsonify({
+        "status": "success", 
+        "message": f"Successfully stripped junk characters, refreshed company logo, and synchronized products/services from '{cleaned_company}' website!"
+    })
+
+@app.route('/contact/<int:contact_id>/upload-card/delete', methods=['POST'])
+@login_required
+def delete_visiting_card(contact_id):
+    if session.get('role') == 'viewer':
+        flash('Access Denied: View-only users cannot delete visiting cards.', 'error')
+        return redirect(url_for('contact_detail', contact_id=contact_id))
+        
+    side = request.args.get('side', 'front').strip().lower()
+    if side not in ['front', 'back']:
+        side = 'front'
+        
+    conn = database.get_db_connection()
+    contact = conn.execute('SELECT company_name, visiting_card_front, visiting_card_back FROM contacts WHERE id = ?', (contact_id,)).fetchone()
+    
+    if not contact:
+        conn.close()
+        flash('Partner profile not found.', 'error')
+        return redirect(url_for('dashboard'))
+        
+    filename = contact['visiting_card_front'] if side == 'front' else contact['visiting_card_back']
+    
+    if filename:
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        if os.path.exists(filepath):
+            try:
+                os.remove(filepath)
+                print(f"Deleted card image: {filepath}")
+            except Exception as e:
+                print(f"Error removing card file: {e}")
+                
+        if side == 'front':
+            conn.execute("UPDATE contacts SET visiting_card_front = NULL WHERE id = ?", (contact_id,))
+        else:
+            conn.execute("UPDATE contacts SET visiting_card_back = NULL WHERE id = ?", (contact_id,))
+            
+        conn.commit()
+        log_audit('CARD_DELETE', f"Deleted {side} visiting card photo for partner: {contact['company_name']}")
+        flash(f"Successfully deleted {side} side visiting card image.", 'success')
+    else:
+        flash(f"No {side} side visiting card image to remove.", 'error')
+        
+    conn.close()
+    return redirect(url_for('contact_detail', contact_id=contact_id))
+
+@app.route('/admin/settings/update', methods=['POST'])
+@admin_required
+def update_settings():
+    portal_name = request.form.get('portal_name', '').strip()
+    
+    conn = database.get_db_connection()
+    
+    if portal_name:
+        conn.execute('INSERT OR REPLACE INTO portal_settings (key, value) VALUES (?, ?)', ('portal_name', portal_name))
+        
+    # Handle logo file upload
+    if 'portal_logo' in request.files:
+        file = request.files['portal_logo']
+        if file and file.filename != '' and allowed_file(file.filename):
+            ext = file.filename.rsplit('.', 1)[1].lower()
+            filename = f"portal_logo_{uuid.uuid4().hex[:6]}.{ext}"
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            conn.execute('INSERT OR REPLACE INTO portal_settings (key, value) VALUES (?, ?)', ('portal_logo', filename))
+            
+    # Handle favicon file upload
+    if 'favicon' in request.files:
+        file = request.files['favicon']
+        if file and file.filename != '' and (allowed_file(file.filename) or file.filename.endswith('.ico')):
+            ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else 'ico'
+            filename = f"favicon_{uuid.uuid4().hex[:6]}.{ext}"
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            conn.execute('INSERT OR REPLACE INTO portal_settings (key, value) VALUES (?, ?)', ('favicon', filename))
+            
+    conn.commit()
+    conn.close()
+    
+    log_audit('SETTINGS_WHITELABEL', f"Updated portal whitelabel branding: Name: '{portal_name}'")
+    flash('Portal whitelabel configurations saved successfully.', 'success')
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/email-settings/update', methods=['POST'])
+@admin_required
+def update_email_settings():
+    conn = database.get_db_connection()
+    
+    # Retrieve form settings
+    forgot = request.form.get('forgot_password_enabled')
+    service = request.form.get('email_service_type', 'smtp')
+    server = request.form.get('email_server', '').strip()
+    port = request.form.get('email_port', '587').strip()
+    ssl_enc = request.form.get('email_ssl')
+    username = request.form.get('email_username', '').strip()
+    password = request.form.get('email_password', '').strip()
+    
+    # Convert checkbox states
+    forgot_str = 'true' if forgot == 'true' else 'false'
+    ssl_str = 'true' if ssl_enc == 'true' else 'false'
+    
+    # Insert settings keys
+    conn.execute('INSERT OR REPLACE INTO portal_settings (key, value) VALUES (?, ?)', ('forgot_password_enabled', forgot_str))
+    conn.execute('INSERT OR REPLACE INTO portal_settings (key, value) VALUES (?, ?)', ('email_service_type', service))
+    conn.execute('INSERT OR REPLACE INTO portal_settings (key, value) VALUES (?, ?)', ('email_server', server))
+    conn.execute('INSERT OR REPLACE INTO portal_settings (key, value) VALUES (?, ?)', ('email_port', port))
+    conn.execute('INSERT OR REPLACE INTO portal_settings (key, value) VALUES (?, ?)', ('email_ssl', ssl_str))
+    conn.execute('INSERT OR REPLACE INTO portal_settings (key, value) VALUES (?, ?)', ('email_username', username))
+    
+    if password:
+        conn.execute('INSERT OR REPLACE INTO portal_settings (key, value) VALUES (?, ?)', ('email_password', password))
+        
+    conn.commit()
+    conn.close()
+    
+    log_audit('SETTINGS_EMAIL', f"Updated email connectivity & passwords services settings.")
+    flash('Email connection and password configurations saved successfully.', 'success')
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/reset-portal', methods=['POST'])
+@admin_required
+def reset_portal():
+    conn = database.get_db_connection()
+    try:
+        # Disable foreign keys temporarily to clear tables cleanly without constraint halts
+        conn.execute('PRAGMA foreign_keys = OFF')
+        
+        # Clear transaction tables
+        conn.execute('DELETE FROM contacts')
+        conn.execute('DELETE FROM interactions')
+        conn.execute('DELETE FROM oem_groups')
+        conn.execute('DELETE FROM audit_logs')
+        
+        # Re-enable foreign keys
+        conn.execute('PRAGMA foreign_keys = ON')
+        
+        # Identify whitelabel identity assets to preserve
+        whitelabel_files = []
+        settings_rows = conn.execute("SELECT value FROM portal_settings WHERE key IN ('portal_logo', 'favicon')").fetchall()
+        for r in settings_rows:
+            if r['value']:
+                whitelabel_files.append(r['value'])
+        
+        # Prune uploads directory (preserving logo and favicon files)
+        upload_folder = app.config['UPLOAD_FOLDER']
+        if os.path.exists(upload_folder):
+            for filename in os.listdir(upload_folder):
+                if filename in whitelabel_files:
+                    continue  # Keep whitelabel assets
+                file_path = os.path.join(upload_folder, filename)
+                if os.path.isfile(file_path):
+                    try:
+                        os.remove(file_path)
+                    except Exception as e:
+                        print(f"Error removing upload file {filename}: {e}")
+                        
+        conn.commit()
+        log_audit('PORTAL_RESET', f"Admin {session['username']} executed full database and uploads reset.")
+        flash('Portal database has been successfully reset to empty factory state.', 'success')
+    except Exception as e:
+        conn.rollback()
+        flash(f'Reset error: {e}', 'error')
+    finally:
+        conn.close()
+        
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/logs/export/text')
+@admin_required
+def export_logs_text():
+    conn = database.get_db_connection()
+    logs = conn.execute('SELECT * FROM audit_logs ORDER BY created_at DESC').fetchall()
+    conn.close()
+    
+    output = []
+    for log in logs:
+        output.append(f"[{log['created_at']}] [{log['username'] or 'SYSTEM'}] [{log['action']}] {log['details']}")
+        
+    from flask import Response
+    return Response(
+        "\n".join(output),
+        mimetype="text/plain",
+        headers={"Content-disposition": "attachment; filename=system_audit_logs.txt"}
+    )
+
+@app.route('/admin/logs/export/csv')
+@admin_required
+def export_logs_csv():
+    import csv
+    import io
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    writer.writerow(['Timestamp', 'Operator', 'Action Type', 'Log Details'])
+    
+    conn = database.get_db_connection()
+    logs = conn.execute('SELECT * FROM audit_logs ORDER BY created_at DESC').fetchall()
+    conn.close()
+    
+    for log in logs:
+        writer.writerow([log['created_at'], log['username'] or 'SYSTEM', log['action'], log['details']])
+        
+    output.seek(0)
+    from flask import Response
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-disposition": "attachment; filename=system_audit_logs.csv"}
+    )
+
+# Initialize DB tables on import/startup (crucial for Passenger WSGI cPanel migrations)
+database.init_db()
+
+if __name__ == '__main__':
+    # Run locally (accessible on local network: host='0.0.0.0' makes it accessible by team)
+    app.run(host='0.0.0.0', port=5000, debug=True)

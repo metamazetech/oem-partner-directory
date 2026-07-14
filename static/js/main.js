@@ -472,16 +472,6 @@ function openEditInteractionModal(contactId, id, date, typeStr, summary, nextSte
 // Entry Mode Toggle & Unified Scanning (QR & OCR)
 // ==========================================
 
-let qrStream = null;
-let qrAnimationId = null;
-let scannerMode = 'qr'; // 'qr' or 'ocr'
-
-const qrOverlay = document.getElementById('qr-scanner-overlay');
-const qrVideo = document.getElementById('qr-video');
-const qrCanvas = document.getElementById('qr-canvas');
-const btnCloseScanner = document.getElementById('btn-close-qr-scanner');
-const btnCaptureOcr = document.getElementById('btn-capture-ocr');
-
 // Global switch mode tabs handler
 function switchAddMode(mode) {
     const btnManual = document.getElementById('btn-mode-manual');
@@ -514,153 +504,89 @@ function switchAddMode(mode) {
     }
 }
 
-// Open webcam in either QR code or OCR text scan mode
-function openUnifiedCameraScanner(mode) {
-    scannerMode = mode;
-    const scannerTitle = document.getElementById('scanner-title');
-    const scannerInst = document.getElementById('scanner-instructions');
-    
-    if (mode === 'qr') {
-        if (scannerTitle) scannerTitle.innerText = "Point Camera at Visiting Card QR Code";
-        if (scannerInst) scannerInst.innerText = "Position the QR code inside the dashed square area.";
-        if (btnCaptureOcr) btnCaptureOcr.style.display = 'none';
-    } else {
-        if (scannerTitle) scannerTitle.innerText = "Position Business Card in Frame";
-        if (scannerInst) scannerInst.innerText = "Align card text inside frame and click Capture.";
-        if (btnCaptureOcr) btnCaptureOcr.style.display = 'block';
-    }
-    
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-        .then(stream => {
-            qrStream = stream;
-            if (qrVideo) {
-                qrVideo.srcObject = stream;
-                qrVideo.setAttribute("playsinline", true);
-                qrVideo.play();
-            }
-            if (qrOverlay) qrOverlay.style.display = 'flex';
-            if (mode === 'qr') {
-                qrAnimationId = requestAnimationFrame(scanQrFrame);
-            }
-        })
-        .catch(err => {
-            console.error("Camera access error:", err);
-            alert("Could not access camera. Please check your browser permissions or upload an image instead.");
-        });
-}
-
-function stopQrScanner() {
-    if (qrStream) {
-        qrStream.getTracks().forEach(track => track.stop());
-        qrStream = null;
-    }
-    if (qrVideo) {
-        qrVideo.srcObject = null;
-    }
-    if (qrOverlay) {
-        qrOverlay.style.display = 'none';
-    }
-    if (qrAnimationId) {
-        cancelAnimationFrame(qrAnimationId);
-        qrAnimationId = null;
-    }
-}
-
-function scanQrFrame() {
-    if (scannerMode === 'qr' && qrVideo && qrVideo.readyState === qrVideo.HAVE_ENOUGH_DATA) {
-        const canvasCtx = qrCanvas.getContext('2d');
-        qrCanvas.width = qrVideo.videoWidth;
-        qrCanvas.height = qrVideo.videoHeight;
-        canvasCtx.drawImage(qrVideo, 0, 0, qrCanvas.width, qrCanvas.height);
-        
-        const imageData = canvasCtx.getImageData(0, 0, qrCanvas.width, qrCanvas.height);
-        if (typeof jsQR !== 'undefined') {
-            const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                inversionAttempts: "dontInvert",
-            });
-            
-            if (code) {
-                console.log("Webcam scanned QR Code:", code.data);
-                parseQRContactInfo(code.data);
-                stopQrScanner();
-                return;
-            }
-        }
-    }
-    if (scannerMode === 'qr' && qrStream) {
-        qrAnimationId = requestAnimationFrame(scanQrFrame);
-    }
-}
-
 // Trigger QR Scan File Upload
-function handleQRScanFile(input) {
+function handleCardScanFile(input) {
     const file = input.files[0];
     if (!file) return;
     
-    const reader = new FileReader();
-    reader.onload = function(event) {
-        const img = new Image();
-        img.onload = function() {
-            const canvas = document.createElement('canvas');
-            canvas.width = img.width;
-            canvas.height = img.height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0);
-            
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            if (typeof jsQR !== 'undefined') {
-                const code = jsQR(imageData.data, imageData.width, imageData.height);
-                if (code) {
-                    console.log("File uploaded QR Code:", code.data);
-                    parseQRContactInfo(code.data);
-                    
-                    // Auto-bind front card file
-                    const addCardFrontInput = document.getElementById('add_visiting_card_front');
-                    if (addCardFrontInput) {
-                        addCardFrontInput.files = input.files;
-                    }
-                } else {
-                    alert("❌ No QR Code found in the uploaded image.");
-                }
-            }
-        };
-        img.src = event.target.result;
-    };
-    reader.readAsDataURL(file);
-}
-
-// Trigger OCR Scan File Upload
-function handleOCRScanFile(input) {
-    const file = input.files[0];
-    if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onload = function(event) {
-        // Auto-bind front card file
-        const addCardFrontInput = document.getElementById('add_visiting_card_front');
-        if (addCardFrontInput) {
-            addCardFrontInput.files = input.files;
-            showToast("📸 Card file auto-bound to Front Visiting Card field.");
-        }
-        
-        runOCROnImage(event.target.result);
-    };
-    reader.readAsDataURL(file);
-}
-
-// Auto-bind captured webcam snapshot to the Front card input using HTML5 DataTransfer
-function autoBindCapturedImage(canvas) {
-    canvas.toBlob((blob) => {
-        const file = new File([blob], "captured_visiting_card.png", { type: "image/png" });
+    // Auto-bind front card file
+    const addCardFrontInput = document.getElementById('add_visiting_card_front');
+    if (addCardFrontInput) {
+        // Use DataTransfer to programmatically bind file to form upload
         const container = new DataTransfer();
         container.items.add(file);
-        
-        const addCardFrontInput = document.getElementById('add_visiting_card_front');
-        if (addCardFrontInput) {
-            addCardFrontInput.files = container.files;
-            showToast("📸 Captured photo auto-bound to Front Visiting Card field.");
+        addCardFrontInput.files = container.files;
+        showToast("📸 Card file auto-bound to Front Visiting Card field.");
+    }
+    
+    // Show status indicator
+    const statusIndicator = document.getElementById('ocr-scan-status-indicator');
+    const statusText = document.getElementById('ocr-scan-status-text');
+    if (statusIndicator) statusIndicator.style.display = 'block';
+    if (statusText) statusText.innerText = "Uploading & analyzing card...";
+    
+    // Send to backend /scan-card route
+    const formData = new FormData();
+    formData.append('card_image', file);
+    
+    fetch(getAppUrl('/scan-card'), {
+        method: 'POST',
+        body: formData
+    })
+    .then(res => res.json())
+    .then(resJson => {
+        if (resJson.status === 'success') {
+            const data = resJson.data;
+            
+            // Auto populate form
+            if (data.company_name) document.getElementById('company_name').value = data.company_name;
+            if (data.website) {
+                document.getElementById('website').value = data.website;
+                // Trigger auto-fetch logo preview
+                const logoContainer = document.getElementById('company-logo-container');
+                const domain = getDomainFromUrl(data.website);
+                if (domain && logoContainer) {
+                    logoContainer.innerHTML = `<img src="https://logo.clearbit.com/${domain}" alt="Logo" style="width: 100%; height: 100%; object-fit: contain; background: white;" onerror="this.parentElement.innerHTML='🌐';">`;
+                }
+            }
+            if (data.address) document.getElementById('address').value = data.address;
+            
+            // For contacts list (the first one)
+            const nameInputs = document.getElementsByName('contact_name[]');
+            const desigInputs = document.getElementsByName('contact_designation[]');
+            const emailInputs = document.getElementsByName('contact_email[]');
+            const phoneInputs = document.getElementsByName('contact_phone[]');
+            
+            if (nameInputs.length > 0 && data.name) nameInputs[0].value = data.name;
+            if (desigInputs.length > 0 && data.designation) desigInputs[0].value = data.designation;
+            if (emailInputs.length > 0 && data.email) emailInputs[0].value = data.email;
+            if (phoneInputs.length > 0 && data.phone) phoneInputs[0].value = data.phone;
+            
+            showToast("✅ Card successfully analyzed and fields populated!");
+        } else if (resJson.status === 'fallback') {
+            if (statusText) statusText.innerText = "Running local client-side OCR...";
+            // Fallback: Run Tesseract.js client side
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                runOCROnImage(event.target.result);
+            };
+            reader.readAsDataURL(file);
+            return;
+        } else {
+            alert("Error parsing card: " + resJson.message);
         }
-    }, 'image/png');
+        if (statusIndicator) statusIndicator.style.display = 'none';
+    })
+    .catch(err => {
+        console.error("Card scan error:", err);
+        // Fallback: Run Tesseract.js client side
+        if (statusText) statusText.innerText = "Running local client-side OCR (Fallback)...";
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            runOCROnImage(event.target.result);
+        };
+        reader.readAsDataURL(file);
+    });
 }
 
 // Execute OCR processing via Tesseract.js loaded from CDN
@@ -864,97 +790,11 @@ function parseOCRVendorInfo(text) {
     showToast("🎉 Business card parsed! Check fields below.");
 }
 
-// Hook camera click triggers (with smart mobile native camera capture fallback)
-document.addEventListener('DOMContentLoaded', () => {
-    const btnScanQrCamera = document.getElementById('btn-scan-qr-camera');
-    const btnScanOcrCamera = document.getElementById('btn-scan-ocr-camera');
-    
-    // Check if device is mobile or secure context (webcam streams require HTTPS) is missing
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    const hasSecureContext = window.isSecureContext || (navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-
-    if (btnScanQrCamera) {
-        btnScanQrCamera.addEventListener('click', () => {
-            if (isMobile || !hasSecureContext) {
-                // Mobile/HTTP fallback: trigger hidden capture native camera input
-                const cameraInput = document.getElementById('qr-camera-upload-input');
-                if (cameraInput) cameraInput.click();
-            } else {
-                openUnifiedCameraScanner('qr');
-            }
-        });
-    }
-    if (btnScanOcrCamera) {
-        btnScanOcrCamera.addEventListener('click', () => {
-            if (isMobile || !hasSecureContext) {
-                // Mobile/HTTP fallback: trigger hidden capture native camera input
-                const cameraInput = document.getElementById('ocr-camera-upload-input');
-                if (cameraInput) cameraInput.click();
-            } else {
-                openUnifiedCameraScanner('ocr');
-            }
-        });
-    }
-    if (btnCloseScanner) {
-        btnCloseScanner.addEventListener('click', stopQrScanner);
-    }
-    
-    if (btnCaptureOcr) {
-        btnCaptureOcr.addEventListener('click', () => {
-            if (qrVideo && qrVideo.readyState === qrVideo.HAVE_ENOUGH_DATA) {
-                const canvas = document.createElement('canvas');
-                canvas.width = qrVideo.videoWidth;
-                canvas.height = qrVideo.videoHeight;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(qrVideo, 0, 0, canvas.width, canvas.height);
-                
-                const base64Data = canvas.toDataURL('image/png');
-                stopQrScanner();
-                autoBindCapturedImage(canvas);
-                runOCROnImage(base64Data);
-            }
-        });
-    }
-});
-
-// Hook up Front card image upload QR/OCR scanning fallback
+// Hook up Front card image upload QR/OCR scanning
 const addCardFrontInput = document.getElementById('add_visiting_card_front');
 if (addCardFrontInput) {
     addCardFrontInput.addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-        
-        const reader = new FileReader();
-        reader.onload = function(event) {
-            const img = new Image();
-            img.onload = function() {
-                const canvas = document.createElement('canvas');
-                canvas.width = img.width;
-                canvas.height = img.height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0);
-                
-                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                let scannedQR = false;
-                if (typeof jsQR !== 'undefined') {
-                    const code = jsQR(imageData.data, imageData.width, imageData.height);
-                    if (code) {
-                        scannedQR = true;
-                        console.log("File upload scanned QR Code:", code.data);
-                        parseQRContactInfo(code.data);
-                    }
-                }
-                
-                // Fallback to OCR if no QR Code found
-                if (!scannedQR) {
-                    console.log("No QR Code found on uploaded file, running OCR fallback...");
-                    switchAddMode('scan');
-                    runOCROnImage(event.target.result);
-                }
-            };
-            img.src = event.target.result;
-        };
-        reader.readAsDataURL(file);
+        handleCardScanFile(this);
     });
 }
 
@@ -1124,22 +964,95 @@ document.addEventListener('DOMContentLoaded', () => {
             const file = e.target.files[0];
             if (!file) return;
             
-            showProgressOverlay("Importing CSV Database", "Uploading files and analyzing headers...");
-            
-            const formData = new FormData();
-            formData.append('csv_file', file);
-            
-            const xhr = new XMLHttpRequest();
-            xhr.open('POST', getAppUrl('/import/csv'), true);
-            
-            xhr.upload.addEventListener('progress', function(event) {
-                if (event.lengthComputable) {
-                    const percent = Math.round((event.loaded / event.total) * 100);
-                    // Leave 10% for backend importing step
-                    const displayPercent = Math.min(Math.round(percent * 0.9), 90);
-                    updateProgressBar(displayPercent, `Uploading data: ${displayPercent}%`);
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const text = event.target.result;
+                const rows = text.split(/\r?\n/);
+                if (rows.length <= 1) {
+                    alert("❌ CSV file is empty.");
+                    csvFileInput.value = '';
+                    return;
                 }
-            });
+                
+                // Parse headers
+                const headers = rows[0].split(',').map(h => h.replace(/^["']|["']$/g, '').trim());
+                let groupIdx = headers.indexOf('OEM Group');
+                if (groupIdx === -1) {
+                    groupIdx = 2; // Fallback to column index 2
+                }
+                
+                // Collect unique categories
+                const uniqueGroups = new Set();
+                for (let i = 1; i < rows.length; i++) {
+                    const row = rows[i].trim();
+                    if (!row) continue;
+                    
+                    // Basic split by comma, ignoring commas in quotes
+                    let cols = [];
+                    let insideQuote = false;
+                    let currentField = '';
+                    for (let char of row) {
+                        if (char === '"' || char === "'") {
+                            insideQuote = !insideQuote;
+                        } else if (char === ',' && !insideQuote) {
+                            cols.push(currentField.trim());
+                            currentField = '';
+                        } else {
+                            currentField += char;
+                        }
+                    }
+                    cols.push(currentField.trim());
+                    
+                    if (cols.length > groupIdx) {
+                        const gName = cols[groupIdx].replace(/^["']|["']$/g, '').trim();
+                        if (gName && gName.toLowerCase() !== 'other') {
+                            uniqueGroups.add(gName);
+                        }
+                    }
+                }
+                
+                // Get existing categories from page (sidebar category-item data-category)
+                const existingGroups = new Set();
+                document.querySelectorAll('.category-item').forEach(el => {
+                    const catName = el.getAttribute('data-category');
+                    if (catName) existingGroups.add(catName.toLowerCase());
+                });
+                
+                // Confirm each missing category
+                const missingArray = Array.from(uniqueGroups).filter(g => !existingGroups.has(g.toLowerCase()));
+                if (missingArray.length > 0) {
+                    const missingList = missingArray.join(', ');
+                    const confirmCreate = confirm(`⚠️ The following categories do not exist in the system:\n   [ ${missingList} ]\n\nClick OK to automatically create these categories and continue importing, or Cancel to abort.`);
+                    if (!confirmCreate) {
+                        csvFileInput.value = '';
+                        return;
+                    }
+                }
+                
+                // Proceed to upload
+                uploadCSVFile(file);
+            };
+            reader.readAsText(file);
+        });
+    }
+});
+
+function uploadCSVFile(file) {
+    showProgressOverlay("Importing CSV Database", "Uploading files and analyzing headers...");
+    
+    const formData = new FormData();
+    formData.append('csv_file', file);
+    
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', getAppUrl('/import/csv'), true);
+    
+    xhr.upload.addEventListener('progress', function(event) {
+        if (event.lengthComputable) {
+            const percent = Math.round((event.loaded / event.total) * 100);
+            const displayPercent = Math.min(Math.round(percent * 0.9), 90);
+            updateProgressBar(displayPercent, `Uploading data: ${displayPercent}%`);
+        }
+    });
             
             xhr.onreadystatechange = function() {
                 if (xhr.readyState === 4) {
@@ -1216,9 +1129,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             
             xhr.send(formData);
-        });
-    }
-});
+}
 
 // Bind CSV exports with visual progress feedback
 function handleCSVExport(event) {
@@ -1399,12 +1310,53 @@ function saveUserPreferences() {
     const checkReminders = document.getElementById('show-reminders');
     const showReminders = checkReminders ? checkReminders.checked : true;
     
+    const currPwdInput = document.getElementById('pref-curr-pwd');
+    const newPwdInput = document.getElementById('pref-new-pwd');
+    const confPwdInput = document.getElementById('pref-conf-pwd');
+    
+    const currPwd = currPwdInput ? currPwdInput.value.trim() : '';
+    const newPwd = newPwdInput ? newPwdInput.value : '';
+    const confPwd = confPwdInput ? confPwdInput.value : '';
+    
     const data = {
         theme: theme,
         columns: columns,
         showStats: showStats,
         showReminders: showReminders
     };
+    
+    if (newPwd) {
+        if (!currPwd) {
+            alert("❌ Current password is required to change password.");
+            return;
+        }
+        if (newPwd !== confPwd) {
+            alert("❌ New passwords do not match.");
+            return;
+        }
+        if (newPwd.length < 8) {
+            alert("❌ Password must be at least 8 characters long.");
+            return;
+        }
+        if (!/[A-Z]/.test(newPwd)) {
+            alert("❌ Password must contain at least one uppercase letter.");
+            return;
+        }
+        if (!/[a-z]/.test(newPwd)) {
+            alert("❌ Password must contain at least one lowercase letter.");
+            return;
+        }
+        if (!/\d/.test(newPwd)) {
+            alert("❌ Password must contain at least one number.");
+            return;
+        }
+        if (!/[!@#$%^&*(),.?":{}|<>]/.test(newPwd)) {
+            alert("❌ Password must contain at least one special character.");
+            return;
+        }
+        data.curr_password = currPwd;
+        data.new_password = newPwd;
+    }
     
     fetch(getAppUrl('/user/preferences'), {
         method: 'POST',

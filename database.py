@@ -164,8 +164,8 @@ def init_db():
     admin_exists = cursor.fetchone()
     
     if not admin_exists:
-        # Default Admin password is 'admin123'
-        hashed_password = generate_password_hash('admin123')
+        # Default Admin password is '@Admin#99!Directory'
+        hashed_password = generate_password_hash('@Admin#99!Directory')
         cursor.execute('''
         INSERT INTO users (username, email, password_hash, role, status)
         VALUES (?, ?, ?, ?, ?)

@@ -12,6 +12,20 @@ from scraper import scrape_oem_website
 app = Flask(__name__)
 app.secret_key = 'presales_oem_distributor_tracker_secret_key_1928'
 
+# Global sync state for non-blocking asynchronous master refresh
+import threading
+master_sync_lock = threading.Lock()
+master_sync_in_progress = False
+
+@app.template_filter('from_json')
+def from_json(s):
+    if not s:
+        return []
+    try:
+        return json.loads(s)
+    except Exception:
+        return []
+
 @app.template_filter('to_digits')
 def to_digits(s):
     if not s:
@@ -115,8 +129,13 @@ def admin_required(f):
     return decorated_function
 
 # Log system actions to audit trail
-def log_audit(action, details):
-    user_id = session.get('user_id')
+def log_audit(action, details, user_id=None):
+    if user_id is None:
+        try:
+            user_id = session.get('user_id')
+        except RuntimeError:
+            user_id = None
+            
     conn = database.get_db_connection()
     conn.execute('''
     INSERT INTO audit_logs (user_id, action, details)
@@ -205,6 +224,11 @@ def register():
         flash('All fields are required.', 'error')
         return redirect(url_for('login'))
         
+    strong, pwd_err = is_password_strong(password)
+    if not strong:
+        flash(pwd_err, 'error')
+        return redirect(url_for('login'))
+        
     conn = database.get_db_connection()
     # Check if username or email exists
     existing = conn.execute('SELECT * FROM users WHERE username = ? OR email = ?', (username, email)).fetchone()
@@ -236,9 +260,12 @@ def register():
 
 @app.route('/logout')
 def logout():
-    if is_logged_in():
-        log_audit('USER_LOGOUT', f"User {session['username']} logged out.")
-        session.clear()
+    try:
+        if is_logged_in() and 'username' in session:
+            log_audit('USER_LOGOUT', f"User {session.get('username')} logged out.")
+    except Exception as e:
+        print(f"Error logging logout: {e}")
+    session.clear()
     return redirect(url_for('login'))
 
 @app.route('/forgot-password', methods=['POST'])
@@ -251,27 +278,94 @@ def forgot_password():
     conn.close()
     
     if not user:
-        # Prevent username enumeration by flashing success message even if email is missing
+        # Prevent username enumeration
         flash('If the email is registered on our directory, password recovery details have been sent.', 'success')
         return redirect(url_for('login'))
         
     # Query email connection configurations from database
     conn = database.get_db_connection()
     email_settings = conn.execute("SELECT key, value FROM portal_settings WHERE key LIKE 'email_%'").fetchall()
+    portal_name_row = conn.execute("SELECT value FROM portal_settings WHERE key = 'portal_name'").fetchone()
     conn.close()
     
+    portal_name = portal_name_row['value'] if portal_name_row else 'OEM Directory'
     settings = {r['key']: r['value'] for r in email_settings}
+    
     server = settings.get('email_server')
+    port = settings.get('email_port', '465')
+    ssl_enc = settings.get('email_ssl', 'true')
+    username = settings.get('email_username')
+    password = settings.get('email_password')
     protocol = settings.get('email_service_type', 'smtp')
     
-    if server:
-        # Simulate active mail server transmission
-        log_audit('PASSWORD_RESET_REQUEST', f"Dispatched automated password recovery request to {email} via {protocol.upper()} ({server})")
-        flash(f"Password recovery details sent to {email} successfully via {protocol.upper()}.", 'success')
-    else:
+    if not server:
         # Log request and warn about missing email server configuration
         log_audit('PASSWORD_RESET_REQUEST', f"User {user['username']} ({email}) requested password reset. Recovery mail not sent (server not configured).")
         flash("Password recovery request submitted successfully. (Alert email pending administrator connectivity setup).", 'success')
+        return redirect(url_for('login'))
+        
+    # Generate new temporary password
+    import secrets
+    import string
+    temp_pwd = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(8))
+    
+    # Attempt actual email dispatch
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = username if username else 'it@firstoneindia.com'
+        msg['To'] = email
+        msg['Subject'] = f"{portal_name} - Password Recovery Details"
+        
+        body = f"""Dear User,
+
+A password reset request was received for your account on the {portal_name}.
+
+Your temporary password is: {temp_pwd}
+
+Please log in using your username '{user['username']}' and this temporary password, then change your password inside your personalization preferences page immediately.
+
+Best regards,
+{portal_name} Support Team
+"""
+        msg.attach(MIMEText(body, 'plain'))
+        
+        if app.config.get('TESTING'):
+            # Bypass socket connections during automated unit tests
+            pass
+        else:
+            port_val = int(port) if port else 465
+            if ssl_enc == 'true' or port_val == 465:
+                smtp = smtplib.SMTP_SSL(server, port_val, timeout=10)
+            else:
+                smtp = smtplib.SMTP(server, port_val, timeout=10)
+                try:
+                    smtp.starttls()
+                except Exception:
+                    pass
+                    
+            if username and password:
+                smtp.login(username, password)
+                
+            smtp.sendmail(msg['From'], [email], msg.as_string())
+            smtp.quit()
+        
+        # Update user record in database with new temporary password
+        hashed = generate_password_hash(temp_pwd)
+        conn = database.get_db_connection()
+        conn.execute('UPDATE users SET password_hash = ? WHERE id = ?', (hashed, user['id']))
+        conn.commit()
+        conn.close()
+        
+        log_audit('PASSWORD_RESET_REQUEST', f"Dispatched temporary password reset credentials to {email} via SMTP ({server})")
+        flash("Password recovery details sent to your email address.", 'success')
+        
+    except Exception as e:
+        log_audit('PASSWORD_RESET_FAILURE', f"Failed to dispatch recovery email to {email}: {e}")
+        flash(f"⚠️ Mail Server Connection Error: {e}. Please contact your administrator.", "danger")
         
     return redirect(url_for('login'))
 
@@ -1016,6 +1110,11 @@ def admin_create_user():
         flash('All fields are required.', 'error')
         return redirect(url_for('admin_panel'))
         
+    strong, pwd_err = is_password_strong(password)
+    if not strong:
+        flash(pwd_err, 'error')
+        return redirect(url_for('admin_panel'))
+        
     from werkzeug.security import generate_password_hash
     hashed_pw = generate_password_hash(password)
     
@@ -1027,7 +1126,7 @@ def admin_create_user():
         return redirect(url_for('admin_panel'))
         
     conn.execute('''
-    INSERT INTO users (username, email, password, role, status)
+    INSERT INTO users (username, email, password_hash, role, status)
     VALUES (?, ?, ?, ?, 'approved')
     ''', (username, email, hashed_pw, role))
     conn.commit()
@@ -1064,6 +1163,15 @@ def admin_add_category():
     name = request.form.get('name', '').strip()
     icon = request.form.get('icon', '📁').strip()
     
+    # Handle SVG icon upload if present
+    if 'icon_svg' in request.files:
+        file = request.files['icon_svg']
+        if file and file.filename != '' and file.filename.lower().endswith('.svg'):
+            import uuid
+            filename = f"cat_icon_{uuid.uuid4().hex[:8]}.svg"
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            icon = filename
+            
     if not name:
         flash('Category Name is required.', 'error')
         return redirect(url_for('admin_panel'))
@@ -1297,10 +1405,47 @@ def import_csv():
             else:
                 group_name = group_check['name']
                 
-            # Check duplicate
-            existing = conn.execute('SELECT id FROM contacts WHERE company_name = ?', (company_name,)).fetchone()
+            # Check duplicate / merge contact persons
+            existing = conn.execute('SELECT id, contact_persons, name, designation, email, phone FROM contacts WHERE company_name = ?', (company_name,)).fetchone()
             if existing:
-                skipped_count += 1
+                existing_id = existing['id']
+                existing_persons_json = existing['contact_persons']
+                
+                # Parse existing contact persons list
+                existing_persons = []
+                if existing_persons_json:
+                    try:
+                        existing_persons = json.loads(existing_persons_json)
+                    except Exception:
+                        pass
+                
+                # If existing list is empty, initialize it with the main primary contact info
+                if not existing_persons:
+                    existing_persons = [{
+                        "name": existing['name'],
+                        "designation": existing['designation'],
+                        "email": existing['email'],
+                        "phone": existing['phone']
+                    }]
+                
+                # Check if this new contact person already exists in the list to avoid duplicate entries
+                already_exists = False
+                for p in existing_persons:
+                    if p.get('name', '').lower() == name.lower() and p.get('email', '').lower() == email.lower():
+                        already_exists = True
+                        break
+                
+                if not already_exists:
+                    existing_persons.append({
+                        "name": name,
+                        "designation": desig,
+                        "email": email,
+                        "phone": phone
+                    })
+                    conn.execute('UPDATE contacts SET contact_persons = ? WHERE id = ?', (json.dumps(existing_persons), existing_id))
+                    imported_count += 1
+                else:
+                    skipped_count += 1
                 continue
                 
             contact_persons = [{
@@ -1346,6 +1491,20 @@ def import_csv():
         "warnings": warnings
     })
 
+def is_password_strong(password):
+    import re
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters long."
+    if not re.search(r"[A-Z]", password):
+        return False, "Password must contain at least one uppercase letter."
+    if not re.search(r"[a-z]", password):
+        return False, "Password must contain at least one lowercase letter."
+    if not re.search(r"\d", password):
+        return False, "Password must contain at least one number."
+    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+        return False, "Password must contain at least one special character."
+    return True, ""
+
 def clean_junk_chars(text):
     if not text:
         return ""
@@ -1368,6 +1527,30 @@ def save_preferences():
     show_stats = data.get('showStats', True)
     show_reminders = data.get('showReminders', True)
     
+    curr_pwd = data.get('curr_password', '').strip()
+    new_pwd = data.get('new_password', '').strip()
+    
+    conn = database.get_db_connection()
+    
+    # Handle password change if requested
+    if new_pwd:
+        if not curr_pwd:
+            conn.close()
+            return jsonify({"status": "error", "message": "Current password is required to change password."}), 400
+            
+        user = conn.execute("SELECT password_hash FROM users WHERE id = ?", (session['user_id'],)).fetchone()
+        if not user or not check_password_hash(user['password_hash'], curr_pwd):
+            conn.close()
+            return jsonify({"status": "error", "message": "Incorrect current password."}), 400
+            
+        strong, pwd_err = is_password_strong(new_pwd)
+        if not strong:
+            conn.close()
+            return jsonify({"status": "error", "message": pwd_err}), 400
+            
+        hashed = generate_password_hash(new_pwd)
+        conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hashed, session['user_id']))
+        
     import json
     layout_data = {
         "columns": columns,
@@ -1376,11 +1559,16 @@ def save_preferences():
     }
     layout_str = json.dumps(layout_data)
     
-    conn = database.get_db_connection()
     conn.execute('UPDATE users SET theme = ?, dashboard_layout = ? WHERE id = ?', (theme, layout_str, session['user_id']))
     conn.commit()
     conn.close()
     
+    if new_pwd:
+        try:
+            log_audit('PASSWORD_CHANGE', f"User {session['username']} successfully changed account password.")
+        except Exception as e:
+            print(f"Failed to log password change audit: {e}")
+            
     session['theme'] = theme
     session['dashboard_layout'] = layout_str
     
@@ -1545,6 +1733,238 @@ def delete_visiting_card(contact_id):
     conn.close()
     return redirect(url_for('contact_detail', contact_id=contact_id))
 
+def run_master_sync_thread(user_id, username):
+    global master_sync_in_progress
+    
+    # We create database connections independently within the thread context
+    conn = database.get_db_connection()
+    contacts = conn.execute('SELECT id, company_name, website FROM contacts').fetchall()
+    conn.close()
+    
+    total = len(contacts)
+    refreshed_count = 0
+    errors = []
+    
+    from scraper import scrape_oem_website
+    
+    try:
+        log_audit('PORTFOLIO_MASTER_REFRESH_START', f"Background master sync initiated by {username} for all {total} partners.", user_id=user_id)
+    except Exception as e:
+        print(f"Audit log starting error: {e}")
+        
+    for idx, c in enumerate(contacts):
+        contact_id = c['id']
+        company_name = c['company_name']
+        website = c['website']
+        
+        try:
+            conn = database.get_db_connection()
+            contact = conn.execute('SELECT * FROM contacts WHERE id = ?', (contact_id,)).fetchone()
+            
+            # Clean fields
+            cleaned_company = clean_junk_chars(contact['company_name'])
+            cleaned_name = clean_junk_chars(contact['name'])
+            cleaned_desig = clean_junk_chars(contact['designation'])
+            cleaned_email = clean_junk_chars(contact['email'])
+            cleaned_phone = clean_junk_chars(contact['phone'])
+            cleaned_website = clean_junk_chars(contact['website'])
+            cleaned_address = clean_junk_chars(contact['address'])
+            
+            # Parse contact persons
+            contact_persons = []
+            if contact['contact_persons']:
+                try:
+                    persons = json.loads(contact['contact_persons'])
+                    for p in persons:
+                        contact_persons.append({
+                            "name": clean_junk_chars(p.get('name', '')),
+                            "designation": clean_junk_chars(p.get('designation', '')),
+                            "email": clean_junk_chars(p.get('email', '')),
+                            "phone": clean_junk_chars(p.get('phone', ''))
+                        })
+                except Exception:
+                    pass
+            if not contact_persons:
+                contact_persons = [{
+                    "name": cleaned_name,
+                    "designation": cleaned_desig,
+                    "email": cleaned_email,
+                    "phone": cleaned_phone
+                }]
+                
+            scraped_products = []
+            scraped_services = []
+            if cleaned_website:
+                scraped = scrape_oem_website(cleaned_website)
+                if scraped:
+                    scraped_products = scraped.get('products', [])
+                    scraped_services = scraped.get('services', [])
+            
+            conn.execute('''
+            UPDATE contacts
+            SET company_name = ?, name = ?, designation = ?, email = ?, phone = ?, website = ?, address = ?, 
+                contact_persons = ?, fetched_products = ?, fetched_services = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            ''', (
+                cleaned_company,
+                cleaned_name,
+                cleaned_desig,
+                cleaned_email,
+                cleaned_phone,
+                cleaned_website,
+                cleaned_address,
+                json.dumps(contact_persons),
+                json.dumps(scraped_products),
+                json.dumps(scraped_services),
+                contact_id
+            ))
+            
+            # Re-fetch company logo if missing
+            logo_filename = download_company_logo(cleaned_website, contact_id, cleaned_company)
+            if logo_filename:
+                conn.execute("UPDATE contacts SET company_logo = ? WHERE id = ?", (logo_filename, contact_id))
+                
+            conn.commit()
+            conn.close()
+            refreshed_count += 1
+            
+            # Log progress increments in audit trail
+            try:
+                log_audit('PORTFOLIO_MASTER_REFRESH_PROGRESS', f"Syncing catalog: ({refreshed_count}/{total}) Completed '{company_name}' successfully.", user_id=user_id)
+            except Exception:
+                pass
+                
+        except Exception as e:
+            if conn:
+                try: conn.close()
+                except: pass
+            errors.append(f"{company_name}: {e}")
+            
+    with master_sync_lock:
+        master_sync_in_progress = False
+        
+    try:
+        log_audit('PORTFOLIO_MASTER_REFRESH_COMPLETE', f"Master sync completed successfully. Synchronized {refreshed_count}/{total} partners. Failed rows: {len(errors)}.", user_id=user_id)
+    except Exception as e:
+        print(f"Audit log completion error: {e}")
+
+@app.route('/admin/refresh-all-contacts', methods=['POST'])
+@admin_required
+def admin_refresh_all_contacts():
+    global master_sync_in_progress
+    
+    with master_sync_lock:
+        if master_sync_in_progress:
+            flash("A master catalog synchronization is already running in the background.", "warning")
+            return redirect(url_for('admin_panel'))
+        master_sync_in_progress = True
+        
+    if app.config.get('TESTING'):
+        # In tests, run synchronously to prevent SQLite permission/lock issues
+        run_master_sync_thread(session.get('user_id'), session.get('username'))
+    else:
+        # Kick off background synchronization thread
+        t = threading.Thread(target=run_master_sync_thread, args=(session.get('user_id'), session.get('username')))
+        t.daemon = True
+        t.start()
+    
+    flash("Master synchronization successfully initiated in the background! Please monitor the Audit Trail logs below for real-time progress.", "success")
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/backup/download')
+@admin_required
+def download_master_backup():
+    import zipfile
+    import io
+    
+    memory_file = io.BytesIO()
+    with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        # Add database
+        db_path = database.DB_PATH
+        if os.path.exists(db_path):
+            zipf.write(db_path, arcname='oem_tracker.db')
+            
+        # Add uploads files
+        upload_folder = app.config['UPLOAD_FOLDER']
+        if os.path.exists(upload_folder):
+            for root, dirs, files in os.walk(upload_folder):
+                for file in files:
+                    if file == '.gitkeep':
+                        continue
+                    filepath = os.path.join(root, file)
+                    arcname = os.path.join('uploads', file)
+                    zipf.write(filepath, arcname=arcname)
+                    
+    memory_file.seek(0)
+    from flask import send_file
+    return send_file(
+        memory_file,
+        mimetype='application/zip',
+        as_attachment=True,
+        download_name='oem_portal_master_backup.zip'
+    )
+
+@app.route('/admin/restore', methods=['POST'])
+@admin_required
+def restore_master_backup():
+    if 'backup_file' not in request.files:
+        flash('No file uploaded.', 'error')
+        return redirect(url_for('admin_panel'))
+        
+    file = request.files['backup_file']
+    if file.filename == '':
+        flash('No file selected.', 'error')
+        return redirect(url_for('admin_panel'))
+        
+    if not file.filename.endswith('.zip'):
+        flash('Invalid file format. Please upload a .zip backup file.', 'error')
+        return redirect(url_for('admin_panel'))
+        
+    import zipfile
+    import shutil
+    
+    temp_zip_path = os.path.join(app.config['UPLOAD_FOLDER'], 'temp_restore.zip')
+    file.save(temp_zip_path)
+    
+    try:
+        with zipfile.ZipFile(temp_zip_path, 'r') as zipf:
+            namelist = zipf.namelist()
+            if 'oem_tracker.db' not in namelist:
+                flash('Invalid backup file: missing oem_tracker.db', 'error')
+                return redirect(url_for('admin_panel'))
+                
+            # Copy current database to backup first
+            shutil.copy(database.DB_PATH, database.DB_PATH + '.bak')
+            
+            # Extract database
+            zipf.extract('oem_tracker.db', path='.')
+            
+            # Extract uploads
+            for name in namelist:
+                if name.startswith('uploads/'):
+                    zipf.extract(name, path='.')
+                    
+        if os.path.exists(temp_zip_path):
+            os.remove(temp_zip_path)
+            
+        log_audit('PORTAL_RESTORE', f"Admin {session['username']} successfully restored a master backup.")
+        flash('Portal master backup successfully restored! Database and uploaded cards/logos updated.', 'success')
+        
+    except Exception as e:
+        # Revert
+        if os.path.exists(database.DB_PATH + '.bak'):
+            shutil.copy(database.DB_PATH + '.bak', database.DB_PATH)
+        flash(f"Restore failed: {e}", 'error')
+    finally:
+        if os.path.exists(temp_zip_path):
+            try: os.remove(temp_zip_path)
+            except: pass
+        if os.path.exists(database.DB_PATH + '.bak'):
+            try: os.remove(database.DB_PATH + '.bak')
+            except: pass
+            
+    return redirect(url_for('admin_panel'))
+
 @app.route('/admin/settings/update', methods=['POST'])
 @admin_required
 def update_settings():
@@ -1706,6 +2126,257 @@ def export_logs_csv():
         mimetype="text/csv",
         headers={"Content-disposition": "attachment; filename=system_audit_logs.csv"}
     )
+
+@app.route('/scan-card', methods=['POST'])
+@login_required
+def scan_card():
+    if 'card_image' not in request.files:
+        return jsonify({"status": "error", "message": "No file uploaded"}), 400
+        
+    file = request.files['card_image']
+    if file.filename == '':
+        return jsonify({"status": "error", "message": "No file selected"}), 400
+        
+    # Save file temporarily
+    import uuid
+    temp_filename = f"scan_{uuid.uuid4().hex}_{file.filename}"
+    temp_path = os.path.join(app.config['UPLOAD_FOLDER'], temp_filename)
+    file.save(temp_path)
+    
+    parsed_data = {
+        "company_name": "",
+        "name": "",
+        "designation": "",
+        "email": "",
+        "phone": "",
+        "website": "",
+        "address": ""
+    }
+    
+    detected_qr = False
+    qr_text = ""
+    
+    # 1. Try to decode QR Code via OpenCV
+    try:
+        import cv2
+        cv_img = cv2.imread(temp_path)
+        if cv_img is not None:
+            detector = cv2.QRCodeDetector()
+            val, pts, straight_qrcode = detector.detectAndDecode(cv_img)
+            if val:
+                detected_qr = True
+                qr_text = val
+    except Exception as e:
+        print(f"OpenCV QR detection error: {e}")
+        
+    if detected_qr:
+        # Parse QR text (could be vCard or raw text)
+        parsed_data = parse_qr_contact_info(qr_text)
+        try:
+            os.remove(temp_path)
+        except Exception:
+            pass
+        return jsonify({"status": "success", "source": "qrcode", "data": parsed_data})
+        
+    # 2. Run High-Accuracy server-side OCR via Pytesseract
+    ocr_text = ""
+    try:
+        from PIL import Image, ImageEnhance
+        import pytesseract
+        
+        # Pre-process image
+        img = Image.open(temp_path)
+        img = img.convert('L') # Grayscale
+        img = img.resize((img.width * 2, img.height * 2), Image.Resampling.LANCZOS)
+        img = ImageEnhance.Contrast(img).enhance(2.5)
+        img = ImageEnhance.Sharpness(img).enhance(2.0)
+        
+        # Run OCR
+        ocr_text = pytesseract.image_to_string(img)
+    except Exception as e:
+        print(f"Server-side Tesseract OCR failed: {e}")
+        try:
+            os.remove(temp_path)
+        except Exception:
+            pass
+        # Return fallback signal to client to run client-side Tesseract.js
+        return jsonify({"status": "fallback", "message": "Server-side OCR library not available. Falling back to client-side OCR."})
+
+    try:
+        os.remove(temp_path)
+    except Exception:
+        pass
+
+    # 3. Parse OCR text using advanced regex and NLP heuristics
+    parsed_data = parse_raw_ocr_text(ocr_text)
+    return jsonify({"status": "success", "source": "ocr", "data": parsed_data})
+
+def parse_qr_contact_info(text):
+    data = {
+        "company_name": "",
+        "name": "",
+        "designation": "",
+        "email": "",
+        "phone": "",
+        "website": "",
+        "address": ""
+    }
+    if not text:
+        return data
+        
+    # Check if VCard format
+    if "BEGIN:VCARD" in text.upper():
+        lines = text.split('\n')
+        for line in lines:
+            line = line.strip()
+            if line.upper().startswith("FN:"):
+                data["name"] = line[3:].strip()
+            elif line.upper().startswith("N:") and not data["name"]:
+                parts = line[2:].split(';')
+                first_name = parts[1].strip() if len(parts) > 1 else ""
+                last_name = parts[0].strip() if len(parts) > 0 else ""
+                data["name"] = f"{first_name} {last_name}".strip()
+            elif line.upper().startswith("ORG:"):
+                data["company_name"] = line[4:].replace(';', ' ').strip()
+            elif line.upper().startswith("TITLE:"):
+                data["designation"] = line[6:].strip()
+            elif "EMAIL" in line.upper():
+                parts = line.split(':')
+                if len(parts) > 1:
+                    data["email"] = parts[-1].strip()
+            elif "TEL" in line.upper():
+                parts = line.split(':')
+                if len(parts) > 1:
+                    data["phone"] = parts[-1].strip()
+            elif "URL" in line.upper():
+                parts = line.split(':')
+                if len(parts) > 1:
+                    data["website"] = ":".join(parts[1:]).strip()
+            elif "ADR" in line.upper():
+                parts = line.split(':')
+                if len(parts) > 1:
+                    data["address"] = parts[-1].replace(';', ' ').strip()
+    else:
+        # Simple text parse
+        data = parse_raw_ocr_text(text)
+        
+    return data
+
+def parse_raw_ocr_text(text):
+    import re
+    data = {
+        "company_name": "",
+        "name": "",
+        "designation": "",
+        "email": "",
+        "phone": "",
+        "website": "",
+        "address": ""
+    }
+    if not text:
+        return data
+        
+    lines = [line.strip() for line in text.split('\n') if line.strip()]
+    
+    # 1. Extract Email
+    email_pattern = r'[\w\.-]+@[\w\.-]+\.\w+'
+    emails = []
+    for line in lines:
+        match = re.search(email_pattern, line)
+        if match:
+            emails.append(match.group(0))
+    if emails:
+        data["email"] = emails[0]
+        
+    # 2. Extract Website
+    web_pattern = r'(?:https?://)?(?:www\.)?([a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+)'
+    websites = []
+    for line in lines:
+        if "@" in line:
+            continue
+        match = re.search(web_pattern, line)
+        if match:
+            url = match.group(0)
+            if not url.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.pdf')):
+                websites.append(url)
+    if websites:
+        data["website"] = websites[0]
+        
+    # 3. Extract Phone
+    phone_pattern = r'\+?\d[\d-\s()]{7,}\d'
+    phones = []
+    for line in lines:
+        match = re.search(phone_pattern, line)
+        if match:
+            clean_digits = re.sub(r'\D', '', match.group(0))
+            if 8 <= len(clean_digits) <= 15:
+                phones.append(match.group(0))
+    if phones:
+        data["phone"] = phones[0]
+        
+    # 4. Extract Name and Designation Heuristics
+    name_candidates = []
+    for i, line in enumerate(lines[:5]):
+        if "@" in line or any(kw in line.lower() for kw in ['.com', '.in', '.org', '.net', 'www.', 'http', '+', 'tel', 'phone', 'mobile', 'email', 'fax', 'web']):
+            continue
+        words = line.split()
+        if 2 <= len(words) <= 3:
+            if all(w[0].isupper() for w in words if w[0].isalpha()):
+                name_candidates.append((i, line))
+                
+    if name_candidates:
+        idx, name = name_candidates[0]
+        data["name"] = name
+        if idx + 1 < len(lines):
+            next_line = lines[idx + 1]
+            if not any(kw in next_line.lower() for kw in ['.com', '.in', 'www.', '+', 'tel', 'phone', 'email']):
+                data["designation"] = next_line
+                
+    # 5. Extract Company Name
+    company_candidates = []
+    for i, line in enumerate(lines[:3]):
+        if line == data["name"] or line == data["designation"]:
+            continue
+        if "@" in line or any(kw in line.lower() for kw in ['.com', '.in', 'www.', 'http', 'tel', 'phone', 'email']):
+            continue
+        company_candidates.append(line)
+    if company_candidates:
+        data["company_name"] = company_candidates[0]
+        
+    # 6. Extract Address
+    address_keywords = ['street', 'road', 'floor', 'building', 'city', 'state', 'zip', 'india', 'usa', 'office', 'plot', 'sector', 'block', 'bazaar', 'nagar', 'gali', 'cantt', 'phase']
+    address_lines = []
+    for line in lines:
+        if any(kw in line.lower() for kw in address_keywords):
+            if line == data["company_name"] or line == data["name"] or line == data["designation"]:
+                continue
+            address_lines.append(line)
+    if address_lines:
+        data["address"] = ", ".join(address_lines)
+        
+    return data
+
+@app.route('/admin/clear-logs', methods=['POST'])
+@admin_required
+def clear_logs():
+    clear_from = request.form.get('clear_from', '').strip()
+    clear_to = request.form.get('clear_to', '').strip()
+    
+    conn = database.get_db_connection()
+    if clear_from and clear_to:
+        conn.execute("DELETE FROM audit_logs WHERE created_at >= ? AND created_at <= ?", 
+                     (f"{clear_from} 00:00:00", f"{clear_to} 23:59:59"))
+        log_audit('LOGS_CLEAR', f"Erasure of audit logs executed from {clear_from} to {clear_to}")
+        flash(f"Audit logs from {clear_from} to {clear_to} successfully erased.", 'success')
+    else:
+        conn.execute("DELETE FROM audit_logs")
+        conn.execute("INSERT INTO audit_logs (action, details) VALUES (?, ?)", 
+                     ('LOGS_CLEAR', f"All audit logs cleared by administrator {session['username']}."))
+        flash("All system audit logs successfully erased.", 'success')
+        
+    conn.commit()
+    conn.close()
+    return redirect(url_for('admin_panel'))
 
 # Initialize DB tables on import/startup (crucial for Passenger WSGI cPanel migrations)
 database.init_db()

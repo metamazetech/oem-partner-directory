@@ -1,6 +1,7 @@
 import unittest
 import os
 import sqlite3
+import json
 from app import app
 import database
 
@@ -38,7 +39,7 @@ class PortalTestCase(unittest.TestCase):
         reg_response = self.client.post('/register', data={
             'username': 'sales_manager',
             'email': 'manager@company.com',
-            'password': 'password123'
+            'password': 'Password@123'
         }, follow_redirects=True)
         self.assertEqual(reg_response.status_code, 200)
         self.assertIn(b"Registration request submitted", reg_response.data)
@@ -58,7 +59,7 @@ class PortalTestCase(unittest.TestCase):
         print("\nScenario 2: Admin Login...")
         login_response = self.client.post('/login', data={
             'username': 'admin',
-            'password': 'admin123'
+            'password': '@Admin#99!Directory'
         }, follow_redirects=True)
         self.assertEqual(login_response.status_code, 200)
         self.assertIn(b"OEM & Distributor Directory", login_response.data)
@@ -101,7 +102,7 @@ class PortalTestCase(unittest.TestCase):
         print("\nScenario 4: Approved User Login...")
         login_response = self.client.post('/login', data={
             'username': 'sales_manager',
-            'password': 'password123'
+            'password': 'Password@123'
         }, follow_redirects=True)
         self.assertEqual(login_response.status_code, 200)
         self.assertIn(b"OEM & Distributor Directory", login_response.data)
@@ -113,7 +114,7 @@ class PortalTestCase(unittest.TestCase):
         print("\nScenario 5: Creating Category & Adding Partner...")
         # Add category
         self.client.get('/logout')
-        self.client.post('/login', data={'username': 'admin', 'password': 'admin123'})
+        self.client.post('/login', data={'username': 'admin', 'password': '@Admin#99!Directory'})
         
         cat_response = self.client.post('/admin/category/add', data={
             'name': 'Cybersecurity',
@@ -157,6 +158,11 @@ class PortalTestCase(unittest.TestCase):
         self.assertIn(fetch_logo_response.status_code, [200, 400])
         print("[OK] Verified: Partner fetch-logo endpoint executed safely.")
 
+        # Test Scan Card Endpoint
+        scan_response = self.client.post('/scan-card', follow_redirects=True)
+        self.assertEqual(scan_response.status_code, 400)
+        print("[OK] Verified: Scan card endpoint handles empty payloads securely.")
+
         # ----------------------------------------------------
         # Scenario 6: Log Interactions & Follow-ups
         # ----------------------------------------------------
@@ -189,7 +195,7 @@ class PortalTestCase(unittest.TestCase):
         self.client.post('/register', data={
             'username': 'view_user',
             'email': 'viewer@company.com',
-            'password': 'password123'
+            'password': 'Password@123'
         })
         # Approve as viewer
         conn = sqlite3.connect('oem_tracker_test.db')
@@ -199,14 +205,14 @@ class PortalTestCase(unittest.TestCase):
         conn.close()
 
         # Login as viewer
-        self.client.post('/login', data={'username': 'view_user', 'password': 'password123'})
+        self.client.post('/login', data={'username': 'view_user', 'password': 'Password@123'})
         viewer_export = self.client.get('/export/csv')
         self.assertEqual(viewer_export.status_code, 403) # Forbidden
         print("[OK] Verified: View-only users are forbidden from exporting CSV.")
 
         # Login as Admin
         self.client.get('/logout')
-        self.client.post('/login', data={'username': 'admin', 'password': 'admin123'})
+        self.client.post('/login', data={'username': 'admin', 'password': '@Admin#99!Directory'})
         admin_export = self.client.get('/export/csv')
         self.assertEqual(admin_export.status_code, 200) # Success
         self.assertIn('text/csv', admin_export.content_type)
@@ -252,10 +258,74 @@ class PortalTestCase(unittest.TestCase):
         print("[OK] Verified: Password recovery requested and simulated mail logs created.")
 
         # ----------------------------------------------------
+        # Scenario 9.5: Direct User Creation, Master Sync, and Backup
+        # ----------------------------------------------------
+        print("\nScenario 9.5: Testing User Creation, Master Sync, and Backup...")
+        # Login as Admin
+        self.client.post('/login', data={'username': 'admin', 'password': '@Admin#99!Directory'})
+        
+        # Test Direct User Creation
+        create_user_resp = self.client.post('/admin/user/create', data={
+            'username': 'newadminuser',
+            'email': 'newadmin@presales-tracker.local',
+            'password': '@Password#99!Strong',
+            'role': 'admin'
+        }, follow_redirects=True)
+        self.assertEqual(create_user_resp.status_code, 200)
+        
+        # Verify user is in db
+        conn = sqlite3.connect('oem_tracker_test.db')
+        user_exist = conn.execute("SELECT id FROM users WHERE username='newadminuser'").fetchone()
+        conn.close()
+        self.assertIsNotNone(user_exist)
+        print("[OK] Verified: Admin user account successfully created directly with strong password.")
+        
+        # Test Master Sync
+        master_sync_resp = self.client.post('/admin/refresh-all-contacts', follow_redirects=True)
+        self.assertEqual(master_sync_resp.status_code, 200)
+        print("[OK] Verified: Master sync offerings refresh route executed successfully.")
+        
+        # Test Master Backup Download
+        backup_resp = self.client.get('/admin/backup/download')
+        self.assertEqual(backup_resp.status_code, 200)
+        self.assertEqual(backup_resp.content_type, 'application/zip')
+        print("[OK] Verified: Master backup ZIP download generated successfully.")
+
+        # ----------------------------------------------------
+        # Scenario 9.7: Testing Multiple Contacts CSV Import & Merge
+        # ----------------------------------------------------
+        print("\nScenario 9.7: Testing Multiple Contacts CSV Import & Merge...")
+        
+        # Prepare mock CSV payload with duplicate company rows (different contact persons)
+        csv_data = (
+            "Company Name,Type,OEM Group,Website,Address,Primary Contact Name,Primary Designation,Primary Email,Primary Phone\n"
+            "Fortinet,OEM,Security,fortinet.com,Sunnyvale,John Forti,Manager,john@fortinet.com,11111\n"
+            "Fortinet,OEM,Security,fortinet.com,Sunnyvale,Sarah Net,Engineer,sarah@fortinet.com,22222\n"
+        )
+        
+        import io
+        response = self.client.post('/import/csv', data={
+            'csv_file': (io.BytesIO(csv_data.encode('utf-8')), 'test_import.csv')
+        }, content_type='multipart/form-data', follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        
+        # Verify both contacts exist under the same Fortinet partner record
+        conn = sqlite3.connect('oem_tracker_test.db')
+        fortinet_record = conn.execute("SELECT contact_persons FROM contacts WHERE company_name='Fortinet'").fetchone()
+        conn.close()
+        
+        self.assertIsNotNone(fortinet_record)
+        persons = json.loads(fortinet_record[0])
+        self.assertEqual(len(persons), 2)
+        self.assertEqual(persons[0]['name'], 'John Forti')
+        self.assertEqual(persons[1]['name'], 'Sarah Net')
+        print("[OK] Verified: CSV Import successfully merged duplicate company rows into secondary Team Contacts.")
+
+        # ----------------------------------------------------
         # Scenario 10: Factory Reset Danger Zone
         # ----------------------------------------------------
         print("\nScenario 10: Factory Reset Danger Zone...")
-        self.client.post('/login', data={'username': 'admin', 'password': 'admin123'})
+        self.client.post('/login', data={'username': 'admin', 'password': '@Admin#99!Directory'})
         reset_response = self.client.post('/admin/reset-portal', follow_redirects=True)
         self.assertEqual(reset_response.status_code, 200)
 

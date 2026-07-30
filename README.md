@@ -14,7 +14,7 @@ Ensure you have the following installed:
 * Git (optional, for version control)
 
 ### 2. Extract Files
-Extract the zip archive (`sanddy_oem_portal.zip`) into your target folder (e.g. `C:\oem-portal` or `/var/www/oem-portal`).
+Extract the zip archive (`oem_portal.zip`) into your target folder (e.g. `C:\oem-portal` or `/var/www/oem-portal`).
 
 ### 3. Create a Virtual Environment
 Using a terminal, navigate to the folder and run:
@@ -74,7 +74,7 @@ Most modern cPanel hostings support Python via **Passenger WSGI**.
    * **Python Version**: Select `3.8`, `3.9`, or higher.
    * **Application Mode**: Select `Production`.
    * **Application Root**: Enter the folder name relative to home (e.g., `oem_portal`).
-   * **Application URL**: Select your domain/subdomain and specify the subpath. For example, if you want your portal to run at `https://firstoneindia.com/oemportal`, select your domain and enter `oemportal` in the text box. All internal page links are rendered relative to this path automatically.
+   * **Application URL**: Select your domain/subdomain and specify the subpath. For example, if you want your portal to run at `https://yourdomain.com/oemportal`, select your domain and enter `oemportal` in the text box. All internal page links are rendered relative to this path automatically.
    * **Application Startup File**: Enter `passenger_wsgi.py`.
    * **Application Entry Point**: Enter `application` (all lowercase).
 4. Click **"Create"**.

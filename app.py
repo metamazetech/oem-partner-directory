@@ -337,7 +337,7 @@ def forgot_password():
     
     try:
         msg = MIMEMultipart()
-        msg['From'] = username if username else 'it@firstoneindia.com'
+        msg['From'] = username if username else 'it@metamaze.co.in'
         msg['To'] = email
         msg['Subject'] = f"{portal_name} - Password Recovery Details"
         

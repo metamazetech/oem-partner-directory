@@ -29,3 +29,8 @@ All notable changes to the OEM & Partner Relationship Directory Portal will be d
   - Added unverified SSL context bypass to the logo downloader's `urllib` fallback connection loop, preventing failures on servers with outdated CA certificate bundles.
 - **📏 Brand Logo Size Preview**:
   - Set logo display sizes inside the admin Whitelabel branding page preview card to exactly `200px x 100px` utilizing `object-fit: contain` styling.
+
+---
+
+*Portal is developed by [Metamaze Private Limited](https://metamaze.co.in)*  
+*Email:* it@metamaze.co.in

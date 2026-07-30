@@ -64,17 +64,17 @@ Most modern cPanel hostings support Python via **Passenger WSGI**.
 
 ### Step 1: Upload Files
 1. Log in to your cPanel.
-2. Open **File Manager** and create a directory for your app outside the `public_html` root (e.g. `/home/username/oem_portal`).
-3. Upload and extract `sanddy_oem_portal.zip` in this directory.
+2. Open **File Manager** and create a directory for your app outside the `public_html` root (e.g., `/home/username/oem_portal`).
+3. Upload and extract **`oem_portal.zip`** in this directory.
 
 ### Step 2: Create Python Application in cPanel
 1. Navigate to the cPanel dashboard and search for **"Setup Python App"**.
 2. Click **"Create Application"**.
 3. Fill out the application settings:
    * **Python Version**: Select `3.8`, `3.9`, or higher.
-   * **Application Mode**: Select `Production` (or `Development`).
+   * **Application Mode**: Select `Production`.
    * **Application Root**: Enter the folder name relative to home (e.g., `oem_portal`).
-   * **Application URL**: Select your domain/subdomain and specify the subpath if needed (e.g., `partners` or leave empty for root domain).
+   * **Application URL**: Select your domain/subdomain and specify the subpath. For example, if you want your portal to run at `https://firstoneindia.com/oemportal`, select your domain and enter `oemportal` in the text box. All internal page links are rendered relative to this path automatically.
    * **Application Startup File**: Enter `passenger_wsgi.py`.
    * **Application Entry Point**: Enter `application` (all lowercase).
 4. Click **"Create"**.
@@ -103,10 +103,11 @@ from app import app as application
 ```
 Ensure your database file `oem_tracker.db` and the `uploads` directory have read/write permissions for the server process (typically `755` or `777`).
 
-### Step 5: Start & Verify Deployment
-1. Go back to the cPanel **"Setup Python App"** page.
-2. Click **"Restart"** on your application.
-3. Access your domain at the configured URL. The portal is fully operational!
+### Step 5: Zero-Downtime Reloads (tmp/restart.txt)
+To reload or restart the application after uploading new files, you do not need to log into the cPanel GUI:
+1. Simply touch or upload the **`tmp/restart.txt`** file in your application root folder (included inside the release zip).
+2. Passenger WSGI monitors this file's modification timestamp and will automatically recycle the running process and reload the latest Python code on the next page request.
+3. If the automatic restart does not trigger, go back to the cPanel **"Setup Python App"** page and click **"Restart"** on your application.
 
 ---
 

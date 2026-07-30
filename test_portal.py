@@ -322,6 +322,26 @@ class PortalTestCase(unittest.TestCase):
         print("[OK] Verified: CSV Import successfully merged duplicate company rows into secondary Team Contacts.")
 
         # ----------------------------------------------------
+        # Scenario 9.9: Testing OEM News Feed & Sync
+        # ----------------------------------------------------
+        print("\nScenario 9.9: Testing OEM News Feed & Sync...")
+        
+        # Test loading news page
+        news_page_resp = self.client.get('/news')
+        self.assertEqual(news_page_resp.status_code, 200)
+        self.assertIn(b'OEM News', news_page_resp.data)
+        
+        # Test manual news fetch
+        news_fetch_resp = self.client.post('/news/fetch', follow_redirects=True)
+        self.assertEqual(news_fetch_resp.status_code, 200)
+        
+        # Verify news table behaves safely
+        conn = sqlite3.connect('oem_tracker_test.db')
+        news_count = conn.execute("SELECT COUNT(*) FROM oem_news").fetchone()[0]
+        conn.close()
+        print(f"[OK] Verified: OEM News routes executed safely. News count in DB: {news_count}")
+
+        # ----------------------------------------------------
         # Scenario 10: Factory Reset Danger Zone
         # ----------------------------------------------------
         print("\nScenario 10: Factory Reset Danger Zone...")

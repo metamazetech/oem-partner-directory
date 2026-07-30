@@ -83,22 +83,43 @@ def download_company_logo(website, contact_id, company_name=None):
     if not domain:
         return None
         
-    try:
-        logo_url = f"https://logo.clearbit.com/{domain}"
-        req = urllib.request.Request(
-            logo_url, 
-            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-        )
-        filename = f"logo_{contact_id}.png"
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        
-        with urllib.request.urlopen(req, timeout=3) as response:
-            if response.status == 200:
+    filename = f"logo_{contact_id}.png"
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    
+    # List of public logo/favicon API services
+    sources = [
+        f"https://logo.clearbit.com/{domain}",
+        f"https://www.google.com/s2/favicons?sz=128&domain={domain}",
+        f"https://icons.duckduckgo.com/ip3/{domain}.ico"
+    ]
+    
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
+    
+    # Try sequentially
+    import requests
+    for logo_url in sources:
+        try:
+            response = requests.get(logo_url, headers=headers, timeout=5, verify=False)
+            if response.status_code == 200 and len(response.content) > 150:
                 with open(filepath, 'wb') as out_file:
-                    out_file.write(response.read())
+                    out_file.write(response.content)
                 return filename
-    except Exception as e:
-        print(f"Failed to fetch logo for {domain}: {e}")
+        except Exception as e:
+            print(f"Requests failed to fetch logo from {logo_url}: {e}")
+            
+        try:
+            import ssl
+            context = ssl._create_unverified_context()
+            req = urllib.request.Request(logo_url, headers=headers)
+            with urllib.request.urlopen(req, timeout=4, context=context) as urllib_resp:
+                content = urllib_resp.read()
+                if urllib_resp.status == 200 and len(content) > 150:
+                    with open(filepath, 'wb') as out_file:
+                        out_file.write(content)
+                    return filename
+        except Exception as e2:
+            print(f"Urllib fallback failed to fetch logo from {logo_url}: {e2}")
+            
     return None
 
 # Helper decorator/checker to verify login
@@ -372,6 +393,35 @@ Best regards,
 @app.route('/')
 @login_required
 def dashboard():
+    # Lazy-cron nightly automated news sync check (once per calendar day)
+    try:
+        import datetime
+        import threading
+        conn = database.get_db_connection()
+        last_fetch_row = conn.execute("SELECT value FROM portal_settings WHERE key = 'last_news_fetch'").fetchone()
+        today_str = datetime.date.today().strftime('%Y-%m-%d')
+        
+        needs_fetch = False
+        if not last_fetch_row:
+            needs_fetch = True
+        else:
+            if last_fetch_row['value'] != today_str:
+                needs_fetch = True
+                
+        if needs_fetch:
+            conn.execute("INSERT OR REPLACE INTO portal_settings (key, value) VALUES ('last_news_fetch', ?)", (today_str,))
+            conn.commit()
+            
+            # Kick off news fetch background thread
+            t = threading.Thread(target=run_oem_news_fetch_thread, args=(session.get('user_id'), session.get('username')))
+            t.daemon = True
+            t.start()
+    except Exception as e:
+        print(f"Error checking daily automated news sync: {e}")
+    finally:
+        try: conn.close()
+        except: pass
+
     conn = database.get_db_connection()
     
     # Fetch user's role and group permissions
@@ -767,7 +817,7 @@ def scrape_website(contact_id):
     website = contact['website']
     
     # Run the web scraper
-    scrape_data = scrape_oem_website(website)
+    scrape_data = scrape_oem_website(website, contact['company_name'])
     
     # Save scraped results if status is success or partial
     if scrape_data['status'] in ['success', 'partial']:
@@ -1163,14 +1213,16 @@ def admin_add_category():
     name = request.form.get('name', '').strip()
     icon = request.form.get('icon', '📁').strip()
     
-    # Handle SVG icon upload if present
+    # Handle custom icon file upload if present
     if 'icon_svg' in request.files:
         file = request.files['icon_svg']
-        if file and file.filename != '' and file.filename.lower().endswith('.svg'):
-            import uuid
-            filename = f"cat_icon_{uuid.uuid4().hex[:8]}.svg"
-            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            icon = filename
+        if file and file.filename != '':
+            ext = os.path.splitext(file.filename)[1].lower()
+            if ext in ['.svg', '.png', '.jpg', '.jpeg']:
+                import uuid
+                filename = f"cat_icon_{uuid.uuid4().hex[:8]}{ext}"
+                file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+                icon = filename
             
     if not name:
         flash('Category Name is required.', 'error')
@@ -1215,6 +1267,37 @@ def admin_delete_category(group_id):
     
     log_audit('CATEGORY_DELETE', f"Deleted OEM category: {category_name}")
     flash(f"OEM Category '{category_name}' deleted. Associated partners have been moved to 'Other'.", 'success')
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/category/<int:group_id>/update-icon', methods=['POST'])
+@admin_required
+def admin_update_category_icon(group_id):
+    icon = request.form.get('icon', '📁').strip()
+    
+    # Handle custom icon file upload if present
+    if 'icon_svg' in request.files:
+        file = request.files['icon_svg']
+        if file and file.filename != '':
+            ext = os.path.splitext(file.filename)[1].lower()
+            if ext in ['.svg', '.png', '.jpg', '.jpeg']:
+                import uuid
+                filename = f"cat_icon_{uuid.uuid4().hex[:8]}{ext}"
+                file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+                icon = filename
+            
+    conn = database.get_db_connection()
+    group = conn.execute('SELECT name FROM oem_groups WHERE id = ?', (group_id,)).fetchone()
+    if not group:
+        conn.close()
+        flash('Category not found.', 'error')
+        return redirect(url_for('admin_panel'))
+        
+    conn.execute('UPDATE oem_groups SET icon = ? WHERE id = ?', (icon, group_id))
+    conn.commit()
+    conn.close()
+    
+    log_audit('CATEGORY_ICON_UPDATE', f"Updated icon for category: {group['name']}")
+    flash(f"Icon for category '{group['name']}' updated successfully.", 'success')
     return redirect(url_for('admin_panel'))
 
 # Export Partners to CSV (Respecting allowed groups)
@@ -1648,7 +1731,7 @@ def refresh_web_scrapes(contact_id):
     if cleaned_website:
         try:
             from scraper import scrape_oem_website
-            scraped = scrape_oem_website(cleaned_website)
+            scraped = scrape_oem_website(cleaned_website, cleaned_company)
             if scraped:
                 scraped_products = scraped.get('products', [])
                 scraped_services = scraped.get('services', [])
@@ -1795,7 +1878,7 @@ def run_master_sync_thread(user_id, username):
             scraped_products = []
             scraped_services = []
             if cleaned_website:
-                scraped = scrape_oem_website(cleaned_website)
+                scraped = scrape_oem_website(cleaned_website, cleaned_company)
                 if scraped:
                     scraped_products = scraped.get('products', [])
                     scraped_services = scraped.get('services', [])
@@ -1876,33 +1959,62 @@ def admin_refresh_all_contacts():
 def download_master_backup():
     import zipfile
     import io
+    import traceback
     
-    memory_file = io.BytesIO()
-    with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        # Add database
-        db_path = database.DB_PATH
-        if os.path.exists(db_path):
-            zipf.write(db_path, arcname='oem_tracker.db')
+    try:
+        temp_zip_path = os.path.join(app.config['UPLOAD_FOLDER'], 'oem_portal_master_backup.zip')
+        
+        # Determine zip compression method
+        try:
+            import zlib
+            compress_method = zipfile.ZIP_DEFLATED
+        except ImportError:
+            compress_method = zipfile.ZIP_STORED
             
-        # Add uploads files
-        upload_folder = app.config['UPLOAD_FOLDER']
-        if os.path.exists(upload_folder):
-            for root, dirs, files in os.walk(upload_folder):
-                for file in files:
-                    if file == '.gitkeep':
-                        continue
-                    filepath = os.path.join(root, file)
-                    arcname = os.path.join('uploads', file)
-                    zipf.write(filepath, arcname=arcname)
-                    
-    memory_file.seek(0)
-    from flask import send_file
-    return send_file(
-        memory_file,
-        mimetype='application/zip',
-        as_attachment=True,
-        download_name='oem_portal_master_backup.zip'
-    )
+        with zipfile.ZipFile(temp_zip_path, 'w', compress_method) as zipf:
+            # Add database
+            db_path = database.DB_PATH
+            if os.path.exists(db_path):
+                try:
+                    zipf.write(db_path, arcname='oem_tracker.db')
+                except Exception as db_err:
+                    print(f"Backup warning: could not write db to zip: {db_err}")
+                
+            # Add uploads files
+            upload_folder = app.config['UPLOAD_FOLDER']
+            if os.path.exists(upload_folder):
+                for root, dirs, files in os.walk(upload_folder):
+                    for file in files:
+                        if file in ['.gitkeep', 'temp_restore.zip', 'oem_portal_master_backup.zip']:
+                            continue
+                        filepath = os.path.join(root, file)
+                        arcname = os.path.join('uploads', file)
+                        try:
+                            zipf.write(filepath, arcname=arcname)
+                        except Exception as file_err:
+                            print(f"Backup warning: could not write file {file} to zip: {file_err}")
+                            
+        from flask import send_file
+        try:
+            return send_file(
+                temp_zip_path,
+                mimetype='application/zip',
+                as_attachment=True,
+                download_name='oem_portal_master_backup.zip'
+            )
+        except TypeError:
+            return send_file(
+                temp_zip_path,
+                mimetype='application/zip',
+                as_attachment=True,
+                attachment_filename='oem_portal_master_backup.zip'
+            )
+    except Exception as e:
+        err_msg = traceback.format_exc()
+        log_audit('BACKUP_FAILED', f"Master backup generation failed: {str(e)}")
+        flash(f"Backup Generation Failed: {str(e)}", 'error')
+        print(f"Backup error trace: {err_msg}")
+        return redirect(url_for('admin_panel'))
 
 @app.route('/admin/restore', methods=['POST'])
 @admin_required
@@ -1936,13 +2048,20 @@ def restore_master_backup():
             # Copy current database to backup first
             shutil.copy(database.DB_PATH, database.DB_PATH + '.bak')
             
-            # Extract database
-            zipf.extract('oem_tracker.db', path='.')
+            # Read from zip and write directly to absolute DB_PATH
+            db_data = zipf.read('oem_tracker.db')
+            with open(database.DB_PATH, 'wb') as db_out:
+                db_out.write(db_data)
             
-            # Extract uploads
+            # Extract uploads absolutely to UPLOAD_FOLDER
             for name in namelist:
-                if name.startswith('uploads/'):
-                    zipf.extract(name, path='.')
+                if name.startswith('uploads/') and not name.endswith('/'):
+                    filename = os.path.basename(name)
+                    if filename:
+                        target_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                        file_data = zipf.read(name)
+                        with open(target_path, 'wb') as out_file:
+                            out_file.write(file_data)
                     
         if os.path.exists(temp_zip_path):
             os.remove(temp_zip_path)
@@ -2380,6 +2499,102 @@ def clear_logs():
 
 # Initialize DB tables on import/startup (crucial for Passenger WSGI cPanel migrations)
 database.init_db()
+
+def run_oem_news_fetch_thread(user_id=None, username=None):
+    import concurrent.futures
+    from scraper import fetch_oem_news_rss
+    
+    conn = database.get_db_connection()
+    try:
+        # Get all unique OEMs
+        rows = conn.execute("SELECT DISTINCT company_name FROM contacts ORDER BY company_name").fetchall()
+        oems = [r['company_name'] for r in rows if r['company_name']]
+        
+        if not oems:
+            conn.close()
+            return
+            
+        print(f"Concurrent OEM news fetch starting for {len(oems)} OEMs...")
+        all_articles = []
+        
+        # Parallel fetch with 10 threads
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            future_to_oem = {executor.submit(fetch_oem_news_rss, oem): oem for oem in oems}
+            for future in concurrent.futures.as_completed(future_to_oem):
+                oem = future_to_oem[future]
+                try:
+                    articles = future.result()
+                    if articles:
+                        all_articles.extend(articles)
+                except Exception as exc:
+                    print(f"OEM {oem} fetch generated an exception: {exc}")
+                    
+        # Persist to database
+        added_count = 0
+        for art in all_articles:
+            try:
+                conn.execute("""
+                    INSERT OR IGNORE INTO oem_news (oem_name, title, link, pub_date, source, snippet)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (art['oem_name'], art['title'], art['link'], art['pub_date'], art['source'], art['snippet']))
+                added_count += 1
+            except Exception as e:
+                pass
+        conn.commit()
+        
+        # Log audit log entry
+        if username:
+            conn.execute("INSERT INTO audit_logs (user_id, action, details) VALUES ((SELECT id FROM users WHERE username = ?), ?, ?)",
+                         (username, 'NEWS_FETCH_SUCCESS', f"OEM news successfully refreshed. Checked {len(oems)} OEMs and cached articles."))
+        else:
+            conn.execute("INSERT INTO audit_logs (user_id, action, details) VALUES (NULL, ?, ?)",
+                         ('NEWS_FETCH_SUCCESS', f"Automated nightly news fetch completed. Checked {len(oems)} OEMs and cached articles."))
+        conn.commit()
+    except Exception as e:
+        print(f"Error in background news fetch: {e}")
+    finally:
+        conn.close()
+
+@app.route('/news')
+@login_required
+def oem_news_page():
+    conn = database.get_db_connection()
+    # Fetch all news
+    news_rows = conn.execute("SELECT * FROM oem_news ORDER BY id DESC").fetchall()
+    
+    # Get list of unique OEMs that have news
+    oems_rows = conn.execute("SELECT DISTINCT oem_name FROM oem_news ORDER BY oem_name").fetchall()
+    oems = [r['oem_name'] for r in oems_rows]
+    
+    # If no news cached, also query unique OEMs from directory contacts to show in filter
+    if not oems:
+        contacts_rows = conn.execute("SELECT DISTINCT company_name FROM contacts ORDER BY company_name").fetchall()
+        oems = [r['company_name'] for r in contacts_rows if r['company_name']]
+        
+    # Get last successful sync timestamp
+    last_sync_row = conn.execute("SELECT created_at FROM audit_logs WHERE action = 'NEWS_FETCH_SUCCESS' ORDER BY id DESC LIMIT 1").fetchone()
+    last_fetch = last_sync_row['created_at'] if last_sync_row else None
+    
+    conn.close()
+    
+    return render_template(
+        'news.html',
+        news_list=news_rows,
+        oems=oems,
+        last_fetch=last_fetch
+    )
+
+@app.route('/news/fetch', methods=['POST'])
+@login_required
+def fetch_news_manually():
+    import threading
+    t = threading.Thread(target=run_oem_news_fetch_thread, args=(session.get('user_id'), session.get('username')))
+    t.daemon = True
+    t.start()
+    t.join(4.0) # Wait up to 4 seconds for fast concurrent thread pool completion
+    
+    flash("OEM News fetch completed or running in the background. The latest announcements have been synced.", "success")
+    return redirect(url_for('oem_news_page'))
 
 if __name__ == '__main__':
     # Run locally (accessible on local network: host='0.0.0.0' makes it accessible by team)

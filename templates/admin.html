@@ -37,6 +37,11 @@
                                 <span>📊</span> Dashboard
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a href="{{ url_for('oem_news_page') }}">
+                                <span>📰</span> OEM News
+                            </a>
+                        </li>
                         <li class="nav-item active">
                             <a href="{{ url_for('admin_panel') }}">
                                 <span>🛡️</span> Admin Panel
@@ -49,22 +54,20 @@
                         </li>
                     </ul>
                     
-                    <!-- OEM Categories Grouping Section -->
-                    <div class="sidebar-section-title" style="font-size:0.72rem; text-transform:uppercase; color:var(--text-muted); font-weight:700; margin-top:2rem; margin-bottom:0.75rem; letter-spacing:0.05em; padding-left:1rem; font-family:var(--font-heading);">
-                        OEM Categories
-                    </div>
-                    <ul class="nav-menu">
-                        {% for group in oem_groups %}
-                            <li class="nav-item category-item" data-category="{{ group['name'] }}">
-                                <a href="javascript:void(0)" onclick="filterByCategory('{{ group['name'] }}')">
-                                    <span>{{ group['icon'] }}</span> {{ group['name'] }}
-                                </a>
-                            </li>
-                        {% endfor %}
-                    </ul>
                 </nav>
             </div>
             
+            <!-- User profile display at the bottom of the sidebar -->
+            <div class="sidebar-user-profile" style="margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border-glass); display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.5rem;">
+                <div class="user-avatar" style="position: relative; width: 34px; height: 34px; border-radius: 50%; font-size: 0.85rem; font-weight: 700; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; flex-shrink: 0; margin: 0;">
+                    {{ session['username'][0].upper() }}
+                    <a href="{{ url_for('dashboard') }}?preferences=1" style="position: absolute; bottom: -3px; right: -3px; background: var(--primary); font-size: 0.55rem; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center; border-radius: 50%; text-decoration: none; border: 1px solid var(--border-glass);" title="Personalize Portal Layout & Theme">⚙️</a>
+                </div>
+                <div style="display: flex; flex-direction: column; min-width: 0;">
+                    <span style="font-size: 0.8rem; font-weight: 700; color: white; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left;">{{ session['username'] }}</span>
+                    <span style="font-size: 0.65rem; color: var(--text-secondary); line-height: 1.2; text-transform: capitalize; text-align: left;">{{ session['role'] }}</span>
+                </div>
+            </div>
         </aside>
         
         <!-- Main Content Area -->
@@ -74,17 +77,6 @@
                 <div>
                     <h1 class="page-title">Admin Operations Panel</h1>
                     <p style="color: var(--text-secondary); margin-top: 0.25rem;">Approve team members, edit roles, and view security audit trails.</p>
-                </div>
-                <!-- User Profile Icon widget -->
-                <div class="user-profile-header" style="display: flex; align-items: center; gap: 0.6rem; padding: 0.35rem 0.75rem; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-glass); border-radius: 30px; margin-left: auto;">
-                    <div class="user-avatar" style="position: relative; width: 32px; height: 32px; border-radius: 50%; font-size: 0.85rem; font-weight: 700; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; margin: 0;">
-                        {{ session['username'][0].upper() }}
-                        <a href="{{ url_for('dashboard') }}?preferences=1" style="position: absolute; bottom: -3px; right: -3px; background: var(--primary); font-size: 0.55rem; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center; border-radius: 50%; text-decoration: none; border: 1px solid var(--border-glass);" title="Personalize Portal Layout & Theme">⚙️</a>
-                    </div>
-                    <div style="display: flex; flex-direction: column;">
-                        <span style="font-size: 0.8rem; font-weight: 700; color: white; line-height: 1.1;">{{ session['username'] }}</span>
-                        <span style="font-size: 0.65rem; color: var(--text-secondary); line-height: 1.1;">{{ session['role'] }}</span>
-                    </div>
                 </div>
             </div>
             
@@ -170,7 +162,7 @@
                 <h2 class="card-title">📁 Manage OEM Categories & Groups</h2>
                 <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.5rem;">Add new classifications or delete existing categories (except default fallbacks).</p>
                 
-                <div class="dashboard-layout-grid" style="grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+                <div class="dashboard-layout-grid" style="grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem; align-items: start;">
                     <!-- Left: Current Categories List -->
                     <div>
                         <div class="custom-table-container" style="max-height: 250px; overflow-y: auto;">
@@ -186,22 +178,57 @@
                                     {% for group in oem_groups %}
                                          <tr>
                                              <td style="font-size: 1.2rem;">
-                                                 {% if group['icon'].endswith('.svg') %}
+                                                 {% if '.' in group['icon'] %}
                                                      <img src="{{ url_for('uploaded_file', filename=group['icon']) }}" style="width: 24px; height: 24px; object-fit: contain; filter: brightness(0) invert(1);">
                                                  {% else %}
                                                      {{ group['icon'] }}
                                                  {% endif %}
                                              </td>
                                              <td style="font-weight: 600; color: var(--text-primary);">{{ group['name'] }}</td>
-                                            <td style="text-align: right;">
-                                                {% if group['name'].lower() != 'other' %}
-                                                    <form action="{{ url_for('admin_delete_category', group_id=group['id']) }}" method="POST" style="margin:0;" onsubmit="return confirmMathPuzzle(event);">
-                                                        <button type="submit" class="btn btn-danger btn-sm" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; border-radius: 4px;">Delete</button>
-                                                    </form>
-                                                {% else %}
-                                                    <span style="font-size: 0.75rem; color: var(--text-muted);">Core System</span>
-                                                {% endif %}
-                                            </td>
+                                             <td style="text-align: right; display: flex; align-items: center; justify-content: flex-end; gap: 0.25rem;">
+                                                 <button type="button" class="btn btn-secondary btn-sm" onclick="openModal('edit-category-modal-{{ group['id'] }}')" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; border-radius: 4px;">Edit Icon</button>
+                                                 {% if group['name'].lower() != 'other' %}
+                                                     <form action="{{ url_for('admin_delete_category', group_id=group['id']) }}" method="POST" style="margin:0;" onsubmit="return confirmMathPuzzle(event);">
+                                                         <button type="submit" class="btn btn-danger btn-sm" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; border-radius: 4px;">Delete</button>
+                                                     </form>
+                                                 {% else %}
+                                                     <span style="font-size: 0.75rem; color: var(--text-muted); padding-right: 0.5rem;">Core System</span>
+                                                 {% endif %}
+                                                 
+                                                 <!-- Edit Category Modal -->
+                                                 <div id="edit-category-modal-{{ group['id'] }}" class="modal" style="display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(15,23,42,0.85); backdrop-filter: blur(10px); align-items: center; justify-content: center;">
+                                                     <div class="modal-content" style="background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.95)); border: 1px solid var(--border-glass); border-radius: 16px; padding: 1.5rem; width: 90%; max-width: 450px; text-align: left; box-shadow: 0 20px 50px rgba(0,0,0,0.5); margin: 10% auto;">
+                                                         <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-glass); padding-bottom: 0.75rem; margin-bottom: 1.25rem;">
+                                                             <h3 class="modal-title" style="font-size: 1.15rem; font-weight: 700; color: white; display: flex; align-items: center; gap: 0.35rem; margin: 0;">✏️ Update Icon for {{ group['name'] }}</h3>
+                                                             <button type="button" class="btn-close" onclick="closeModal('edit-category-modal-{{ group['id'] }}')" style="background: none; border: none; color: var(--text-secondary); font-size: 1.15rem; cursor: pointer; line-height: 1;">✕</button>
+                                                         </div>
+                                                         <form action="{{ url_for('admin_update_category_icon', group_id=group['id']) }}" method="POST" enctype="multipart/form-data">
+                                                             <div class="modal-body">
+                                                                 <div class="form-group" style="margin-bottom: 1.25rem;">
+                                                                     <label class="form-label" style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.5rem;">Emoji Icon* (Type/paste any emoji or select below)</label>
+                                                                     <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
+                                                                         <input type="text" id="edit_cat_icon_{{ group['id'] }}" name="icon" class="form-control" placeholder="e.g. 📁" value="{% if '.' in group['icon'] %}📁{% else %}{{ group['icon'] }}{% endif %}" maxlength="8" style="font-size: 1.2rem; text-align: center; width: 65px; height: 38px; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-glass); color: white;" required>
+                                                                         <span style="font-size: 0.8rem; color: var(--text-secondary);">Represent your category folder.</span>
+                                                                     </div>
+                                                                     <div class="emoji-picker-container" style="display: grid; grid-template-columns: repeat(10, 1fr); gap: 0.35rem; max-height: 120px; overflow-y: auto; padding: 0.5rem; background: rgba(15, 23, 42, 0.4); border: 1px solid var(--border-glass); border-radius: 8px;">
+                                                                         {% for emoji in ['📁', '🌐', '📷', '💾', '☁️', '🖥️', '💻', '🔌', '🔋', '⚙️', '🛡️', '🔒', '🔑', '💡', '📢', '📠', '🤝', '🛠️', '📦', '🧯', '🚀', '🏢', '📊', '📈', '🧠', '🤖', '📡', '🎙️', '🛸', '🔭', '🧪', '📐', '🧱', '📝', '💼', '💵', '🚪', '🧭', '🔥', '💧', '⚡', '🌟', '🌍', '🏠', '📞', '✉️', '📅', '👤', '👥', '🚨'] %}
+                                                                             <span onclick="document.getElementById('edit_cat_icon_{{ group['id'] }}').value = '{{ emoji }}'" style="font-size: 1.25rem; text-align: center; cursor: pointer; padding: 0.2rem; border-radius: 4px; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='transparent'">{{ emoji }}</span>
+                                                                         {% endfor %}
+                                                                     </div>
+                                                                 </div>
+                                                                 <div class="form-group" style="margin-bottom: 1.25rem;">
+                                                                     <label class="form-label" style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.5rem;">Or Upload New Custom SVG Icon (.svg)</label>
+                                                                     <input type="file" name="icon_svg" class="form-control" accept=".svg" style="width: 100%; padding: 0.6rem; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-glass); border-radius: 8px; color: white;">
+                                                                 </div>
+                                                             </div>
+                                                             <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--border-glass); padding-top: 0.75rem; margin-top: 1.25rem;">
+                                                                 <button type="button" class="btn btn-secondary btn-sm" onclick="closeModal('edit-category-modal-{{ group['id'] }}')">Cancel</button>
+                                                                 <button type="submit" class="btn btn-primary btn-sm">Update Icon</button>
+                                                             </div>
+                                                         </form>
+                                                     </div>
+                                                 </div>
+                                             </td>
                                         </tr>
                                     {% endfor %}
                                 </tbody>
@@ -217,49 +244,16 @@
                                 <input type="text" id="cat_name" name="name" class="form-control" placeholder="e.g. CyberSecurity" required>
                             </div>
                             <div class="form-group" style="margin-bottom: 1rem;">
-                                <label class="form-label" for="cat_icon">Select Emoji Icon*</label>
-                                <select id="cat_icon" name="icon" class="form-control">
-                                    <option value="🖥️">🖥️ Computer / Hardware</option>
-                                    <option value="❄️">❄️ Air Conditioning / AC</option>
-                                    <option value="🛡️">🛡️ Cyber Security / Firewall</option>
-                                    <option value="🌐">🌐 Networking / Infrastructure</option>
-                                    <option value="📷">📷 Surveillance / Camera</option>
-                                    <option value="💾">💾 Server / Storage</option>
-                                    <option value="☁️">☁️ Software / Cloud</option>
-                                    <option value="🔌">🔌 Cables / Electricity</option>
-                                    <option value="📢">📢 Audio / Video / Broadcast</option>
-                                    <option value="⚙️">⚙️ Automation / Control</option>
-                                    <option value="🔋">🔋 Power / Battery / UPS</option>
-                                    <option value="💡">💡 Smart Home / Lighting</option>
-                                    <option value="📠">📠 Printers / Scanner</option>
-                                    <option value="📱">📱 Mobile / Telecom</option>
-                                    <option value="🤝">🤝 Services / Consulting</option>
-                                    <option value="🛠️">🛠️ Tools / Maintenance</option>
-                                    <option value="📦">📦 Logistics / Packing</option>
-                                    <option value="🔒">🔒 Access Control / Locks</option>
-                                    <option value="🧯">🧯 Fire Safety / Alarms</option>
-                                    <option value="📁">📁 Category / Folder</option>
-                                    <option value="💻">💻 Laptop / Workstation</option>
-                                    <option value="🚀">🚀 Launch / Startup</option>
-                                    <option value="🏢">🏢 Enterprise / Office</option>
-                                    <option value="📊">📊 Dashboard / Analytics</option>
-                                    <option value="📈">📈 Marketing / Sales Growth</option>
-                                    <option value="🧠">🧠 Artificial Intelligence</option>
-                                    <option value="🤖">🤖 Bot / Automation</option>
-                                    <option value="📡">📡 Antenna / Satellite</option>
-                                    <option value="🎙️">🎙️ Audio Recording / Mic</option>
-                                    <option value="🛸">🛸 Advanced Systems</option>
-                                    <option value="🔭">🔭 Research / Telescopes</option>
-                                    <option value="🧪">🧪 R&D / Science Lab</option>
-                                    <option value="📐">📐 Engineering / CAD</option>
-                                    <option value="🧱">🧱 Building / Hardware Parts</option>
-                                    <option value="📝">📝 Documentation / Wiki</option>
-                                    <option value="💼">💼 Partner Portfolio</option>
-                                    <option value="💵">💵 Financial Services</option>
-                                    <option value="🔑">🔑 Security Keys / Identity</option>
-                                    <option value="🚪">🚪 Portals / Entryways</option>
-                                    <option value="🧭">🧭 Navigations / Compass</option>
-                                </select>
+                                <label class="form-label" for="cat_icon">Emoji Icon* (Type/paste any emoji or select below)</label>
+                                <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
+                                    <input type="text" id="cat_icon" name="icon" class="form-control" placeholder="e.g. 📁" value="📁" maxlength="8" style="font-size: 1.2rem; text-align: center; width: 65px; height: 38px; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-glass); color: white;" required>
+                                    <span style="font-size: 0.8rem; color: var(--text-secondary);">Represent your category folder.</span>
+                                </div>
+                                <div class="emoji-picker-container" style="display: grid; grid-template-columns: repeat(10, 1fr); gap: 0.35rem; max-height: 120px; overflow-y: auto; padding: 0.5rem; background: rgba(15, 23, 42, 0.4); border: 1px solid var(--border-glass); border-radius: 8px;">
+                                    {% for emoji in ['📁', '🌐', '📷', '💾', '☁️', '🖥️', '💻', '🔌', '🔋', '⚙️', '🛡️', '🔒', '🔑', '💡', '📢', '📠', '🤝', '🛠️', '📦', '🧯', '🚀', '🏢', '📊', '📈', '🧠', '🤖', '📡', '🎙️', '🛸', '🔭', '🧪', '📐', '🧱', '📝', '💼', '💵', '🚪', '🧭', '🔥', '💧', '⚡', '🌟', '🌍', '🏠', '📞', '✉️', '📅', '👤', '👥', '🚨'] %}
+                                        <span onclick="document.getElementById('cat_icon').value = '{{ emoji }}'" style="font-size: 1.25rem; text-align: center; cursor: pointer; padding: 0.2rem; border-radius: 4px; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='transparent'">{{ emoji }}</span>
+                                    {% endfor %}
+                                </div>
                             </div>
                             <div class="form-group" style="margin-bottom: 1rem;">
                                 <label class="form-label" for="cat_svg">Or Upload Custom SVG Icon (.svg)</label>
@@ -329,7 +323,7 @@
                             {% if portal_settings['portal_logo'] %}
                                 <div style="margin-top: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
                                     <small style="color: var(--text-secondary);">Current Logo:</small>
-                                    <img src="{{ url_for('uploaded_file', filename=portal_settings['portal_logo']) }}" style="max-height: 30px; border-radius: 4px; border: 1px solid var(--border-glass);">
+                                     <img src="{{ url_for('uploaded_file', filename=portal_settings['portal_logo']) }}" style="width: 200px; height: 100px; object-fit: contain; border-radius: 4px; border: 1px solid var(--border-glass); background: rgba(255,255,255,0.02); padding: 5px;">
                                 </div>
                             {% endif %}
                         </div>

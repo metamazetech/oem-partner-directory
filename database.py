@@ -159,6 +159,20 @@ def init_db():
     )
     ''')
     
+    # Create OEM News Table
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS oem_news (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        oem_name TEXT NOT NULL,
+        title TEXT NOT NULL,
+        link TEXT UNIQUE NOT NULL,
+        pub_date TEXT,
+        source TEXT,
+        snippet TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+    
     # Check if admin user exists, if not, create default admin
     cursor.execute('SELECT * FROM users WHERE role = ?', ('admin',))
     admin_exists = cursor.fetchone()

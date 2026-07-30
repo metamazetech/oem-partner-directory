@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  oem-portal:
+    build: .
+    container_name: oem_partner_portal
+    ports:
+      - "5000:5000"
+    volumes:
+      # Persist uploaded visiting cards and logos
+      - ./uploads:/app/uploads
+      # Persist the SQLite database file
+      - ./data:/app/data
+    restart: unless-stopped

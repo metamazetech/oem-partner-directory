@@ -111,6 +111,32 @@ To reload or restart the application after uploading new files, you do not need 
 
 ---
 
+## 🐳 Method 3: Containerized Deployment (via Docker & Docker Compose)
+
+This is the recommended method for Linux environments (such as Ubuntu 24.04 and below). It packages system requirements like Tesseract OCR automatically and deploys the entire application in a single command.
+
+### 1. Prerequisites
+Ensure you have Docker and Docker Compose installed:
+* **Ubuntu/Debian**:
+  ```bash
+  sudo apt-get update
+  sudo apt-get install -y docker.io docker-compose-v2
+  ```
+
+### 2. Deploy in a Single Command
+From the directory containing `docker-compose.yml`, run:
+```bash
+docker compose up -d --build
+```
+* The portal will be compiled and launched in the background.
+* It will listen on **`http://localhost:5000`** (or `http://YOUR_SERVER_IP:5000`).
+
+### 3. Data Persistence & Backups
+* **`/app/uploads`**: Automatically maps to your host directory `./uploads` to store visiting card images and brand logos safely.
+* **`/app/data`**: Maps to your host directory `./data` to persist your `oem_tracker.db` database file securely.
+
+---
+
 ## 🎨 Administrator Whitelabel Customization
 Once installed:
 1. Log in as an **admin** user.

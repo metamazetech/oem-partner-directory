@@ -120,3 +120,8 @@ Once installed:
    * Upload your custom logo image.
    * Upload your custom favicon.
 4. Click **Save Settings** to apply the branding globally.
+
+---
+
+*Portal is developed by [Metamaze Private Limited](https://metamaze.co.in)*  
+*Email:* it@metamaze.co.in

@@ -2713,6 +2713,70 @@ def rfp_save_boq(rfp_id):
     finally:
         conn.close()
 
+@app.route('/rfps/<int:rfp_id>/export-boq-csv')
+@login_required
+def rfp_export_boq_csv(rfp_id):
+    conn = database.get_db_connection()
+    rfp = conn.execute("SELECT rfp_number FROM rfps WHERE id = ?", (rfp_id,)).fetchone()
+    if not rfp:
+        conn.close()
+        flash("RFP not found.", "error")
+        return redirect(url_for('rfps_list'))
+        
+    # Fetch BoQ items
+    items = conn.execute("SELECT * FROM rfp_boq_items WHERE rfp_id = ? ORDER BY id ASC", (rfp_id,)).fetchall()
+    
+    # Fetch mapped OEMs to establish header columns
+    mappings_all = conn.execute("""
+        SELECT DISTINCT oem_name FROM rfp_boq_oem_mappings m
+        JOIN rfp_boq_items i ON m.boq_item_id = i.id
+        WHERE i.rfp_id = ?
+        ORDER BY oem_name
+    """, (rfp_id,)).fetchall()
+    oems = [m['oem_name'] for m in mappings_all if m['oem_name']]
+    
+    # Build headers: [BoQ Item / Specification, Qty, OEM1 Model, OEM1 Remarks, OEM2 Model, OEM2 Remarks, ...]
+    headers = ['BoQ Item / Specification', 'Qty']
+    for oem in oems:
+        headers.append(f'{oem} Model')
+        headers.append(f'{oem} Remarks')
+        
+    # Generate CSV response
+    import io
+    import csv
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(headers)
+    
+    for item in items:
+        row = [item['item_name'], item['quantity']]
+        
+        # Fetch mappings for this item
+        mappings_item = conn.execute("SELECT oem_name, offering_details, remarks FROM rfp_boq_oem_mappings WHERE boq_item_id = ?", (item['id'],)).fetchall()
+        map_dict = {m['oem_name']: {'model': m['offering_details'] or "", 'remarks': m['remarks'] or ""} for m in mappings_item}
+        
+        for oem in oems:
+            oem_data = map_dict.get(oem, {'model': "", 'remarks': ""})
+            row.append(oem_data['model'])
+            row.append(oem_data['remarks'])
+            
+        writer.writerow(row)
+        
+    conn.close()
+    
+    csv_data = output.getvalue()
+    output.close()
+    
+    # Format filename: e.g. RFP_GEM-2026-B-99981_BoQ_Matrix.csv
+    safe_rfp_num = "".join(c if c.isalnum() or c in ('-', '_') else '_' for c in rfp['rfp_number'])
+    filename = f"RFP_{safe_rfp_num}_BoQ_Matrix.csv"
+    
+    from flask import make_response
+    response = make_response(csv_data)
+    response.headers["Content-Disposition"] = f"attachment; filename={filename}"
+    response.headers["Content-Type"] = "text/csv"
+    return response
+
 @app.route('/rfps/<int:rfp_id>/checklist/add', methods=['POST'])
 @login_required
 def rfp_checklist_add(rfp_id):

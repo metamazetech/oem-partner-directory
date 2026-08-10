@@ -457,6 +457,16 @@ class PortalTestCase(unittest.TestCase):
         self.assertIn(b"exceeds 40 MB limit", upload_large_resp.data)
         print("[OK] Verified: File upload size constraints (40MB limit filters) are fully functional.")
         
+        # 5.5 BoQ Matrix CSV Export
+        export_resp = self.client.get(f'/rfps/{rfp_id}/export-boq-csv')
+        self.assertEqual(export_resp.status_code, 200)
+        self.assertEqual(export_resp.mimetype, 'text/csv')
+        self.assertIn(b'BoQ Item / Specification,Qty', export_resp.data)
+        self.assertIn(b'Cisco Model,Cisco Remarks', export_resp.data)
+        self.assertIn(b'Next-Gen Firewall,2', export_resp.data)
+        self.assertIn(b'Core Switch,4', export_resp.data)
+        print("[OK] Verified: RFP BoQ matrix export to CSV is functional and matches format requirements.")
+        
         # 6. Universal Search Queries
         search_match_resp = self.client.get('/rfps?search=99981')
         self.assertEqual(search_match_resp.status_code, 200)

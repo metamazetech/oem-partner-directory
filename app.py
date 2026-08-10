@@ -2782,17 +2782,34 @@ def rfp_export_boq_csv(rfp_id):
 def rfp_checklist_add(rfp_id):
     doc_name = request.form.get('doc_name', '').strip()
     doc_description = request.form.get('doc_description', '').strip()
+    oem_name = request.form.get('oem_name', '').strip()
+    format_file = request.files.get('format_file')
     
     if not doc_name:
         flash("Document Name is required.", "error")
         return redirect(url_for('rfp_detail', rfp_id=rfp_id))
         
+    format_file_path = None
+    if format_file and format_file.filename:
+        # Verify size < 40MB
+        format_file.seek(0, os.SEEK_END)
+        file_size = format_file.tell()
+        format_file.seek(0)
+        if file_size > 40 * 1024 * 1024:
+            flash("Format file exceeds the allowed 40 MB size limit.", "error")
+            return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+            
+        ext = os.path.splitext(format_file.filename)[1]
+        unique_name = f"format_{uuid.uuid4().hex}{ext}"
+        format_file.save(os.path.join(UPLOAD_FOLDER, unique_name))
+        format_file_path = f"/uploads/{unique_name}"
+        
     conn = database.get_db_connection()
     try:
         conn.execute("""
-            INSERT INTO rfp_checklist (rfp_id, doc_name, doc_description)
-            VALUES (?, ?, ?)
-        """, (rfp_id, doc_name, doc_description))
+            INSERT INTO rfp_checklist (rfp_id, doc_name, doc_description, oem_name, format_file)
+            VALUES (?, ?, ?, ?, ?)
+        """, (rfp_id, doc_name, doc_description, oem_name or None, format_file_path))
         conn.commit()
         flash(f"Checklist item '{doc_name}' added successfully.", "success")
     except Exception as e:
@@ -2834,6 +2851,122 @@ def rfp_checklist_delete(rfp_id, item_id):
     finally:
         conn.close()
     return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+
+@app.route('/rfps/<int:rfp_id>/checklist/<int:item_id>/upload', methods=['POST'])
+@login_required
+def rfp_checklist_upload_doc(rfp_id, item_id):
+    file = request.files.get('uploaded_file')
+    if not file or not file.filename:
+        flash("No file selected.", "error")
+        return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+        
+    # Check size
+    file.seek(0, os.SEEK_END)
+    file_size = file.tell()
+    file.seek(0)
+    if file_size > 40 * 1024 * 1024:
+        flash("File exceeds the 40 MB size limit.", "error")
+        return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+        
+    ext = os.path.splitext(file.filename)[1]
+    unique_name = f"doc_{uuid.uuid4().hex}{ext}"
+    file.save(os.path.join(UPLOAD_FOLDER, unique_name))
+    uploaded_file_path = f"/uploads/{unique_name}"
+    
+    conn = database.get_db_connection()
+    try:
+        conn.execute("""
+            UPDATE rfp_checklist 
+            SET uploaded_file = ?, status = 'Received' 
+            WHERE id = ? AND rfp_id = ?
+        """, (uploaded_file_path, item_id, rfp_id))
+        conn.commit()
+        flash("Document uploaded successfully.", "success")
+    except Exception as e:
+        flash(f"Error uploading document: {e}", "error")
+    finally:
+        conn.close()
+    return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+
+@app.route('/rfps/<int:rfp_id>/checklist/<int:item_id>/upload-format', methods=['POST'])
+@login_required
+def rfp_checklist_upload_format(rfp_id, item_id):
+    file = request.files.get('format_file')
+    if not file or not file.filename:
+        flash("No file selected.", "error")
+        return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+        
+    # Check size
+    file.seek(0, os.SEEK_END)
+    file_size = file.tell()
+    file.seek(0)
+    if file_size > 40 * 1024 * 1024:
+        flash("File exceeds the 40 MB size limit.", "error")
+        return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+        
+    ext = os.path.splitext(file.filename)[1]
+    unique_name = f"format_{uuid.uuid4().hex}{ext}"
+    file.save(os.path.join(UPLOAD_FOLDER, unique_name))
+    format_file_path = f"/uploads/{unique_name}"
+    
+    conn = database.get_db_connection()
+    try:
+        conn.execute("""
+            UPDATE rfp_checklist 
+            SET format_file = ? 
+            WHERE id = ? AND rfp_id = ?
+        """, (format_file_path, item_id, rfp_id))
+        conn.commit()
+        flash("Template format file uploaded successfully.", "success")
+    except Exception as e:
+        flash(f"Error uploading format file: {e}", "error")
+    finally:
+        conn.close()
+    return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+
+@app.route('/rfps/<int:rfp_id>/checklist/<int:item_id>/update-oem', methods=['POST'])
+@login_required
+def rfp_checklist_update_oem(rfp_id, item_id):
+    oem_name = request.form.get('oem_name', '').strip()
+    conn = database.get_db_connection()
+    try:
+        conn.execute("UPDATE rfp_checklist SET oem_name = ? WHERE id = ? AND rfp_id = ?", (oem_name or None, item_id, rfp_id))
+        conn.commit()
+        return jsonify({"status": "success", "message": "OEM updated."})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/rfps/<int:rfp_id>/checklist/<int:item_id>/delete-doc', methods=['POST'])
+@login_required
+def rfp_checklist_delete_doc(rfp_id, item_id):
+    conn = database.get_db_connection()
+    try:
+        conn.execute("UPDATE rfp_checklist SET uploaded_file = NULL, status = 'Not Received' WHERE id = ? AND rfp_id = ?", (item_id, rfp_id))
+        conn.commit()
+        flash("Checklist document removed successfully.", "success")
+    except Exception as e:
+        flash(f"Error removing document: {e}", "error")
+    finally:
+        conn.close()
+    return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+
+@app.route('/rfps/<int:rfp_id>/checklist/<int:item_id>/delete-format', methods=['POST'])
+@login_required
+def rfp_checklist_delete_format(rfp_id, item_id):
+    conn = database.get_db_connection()
+    try:
+        conn.execute("UPDATE rfp_checklist SET format_file = NULL WHERE id = ? AND rfp_id = ?", (item_id, rfp_id))
+        conn.commit()
+        flash("Template format file removed successfully.", "success")
+    except Exception as e:
+        flash(f"Error removing format file: {e}", "error")
+    finally:
+        conn.close()
+    return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+
+
 
 @app.route('/rfps/<int:rfp_id>/upload', methods=['POST'])
 @login_required

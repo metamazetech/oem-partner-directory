@@ -221,6 +221,9 @@ def init_db():
         doc_name TEXT NOT NULL,
         doc_description TEXT,
         status TEXT DEFAULT 'Not Received',
+        oem_name TEXT,
+        format_file TEXT,
+        uploaded_file TEXT,
         FOREIGN KEY (rfp_id) REFERENCES rfps(id) ON DELETE CASCADE
     )
     ''')
@@ -244,6 +247,13 @@ def init_db():
         cursor.execute("ALTER TABLE rfp_boq_oem_mappings ADD COLUMN remarks TEXT")
     except sqlite3.OperationalError:
         pass
+
+    # Add rfp_checklist columns safety migration block
+    for col in [('oem_name', 'TEXT'), ('format_file', 'TEXT'), ('uploaded_file', 'TEXT')]:
+        try:
+            cursor.execute(f"ALTER TABLE rfp_checklist ADD COLUMN {col[0]} {col[1]}")
+        except sqlite3.OperationalError:
+            pass
         
     # Check if admin user exists, if not, create default admin
     cursor.execute('SELECT * FROM users WHERE role = ?', ('admin',))

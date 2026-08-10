@@ -435,6 +435,39 @@ class PortalTestCase(unittest.TestCase):
         self.assertEqual(toggle_data['new_status'], 'Received')
         print("[OK] Verified: Document Checklist toggling AJAX handler updates successfully.")
         
+        # 4.2 Update Checklist Item OEM association via AJAX
+        update_oem_resp = self.client.post(f'/rfps/{rfp_id}/checklist/{item_id}/update-oem', data={
+            'oem_name': 'Cisco'
+        })
+        self.assertEqual(update_oem_resp.status_code, 200)
+        update_oem_data = json.loads(update_oem_resp.data)
+        self.assertEqual(update_oem_data['status'], 'success')
+        
+        # 4.4 Upload format file for checklist item
+        import io
+        format_file = (io.BytesIO(b"template format content"), "template.docx")
+        upload_format_resp = self.client.post(f'/rfps/{rfp_id}/checklist/{item_id}/upload-format', data={
+            'format_file': format_file
+        }, content_type='multipart/form-data', follow_redirects=True)
+        self.assertEqual(upload_format_resp.status_code, 200)
+        
+        # 4.6 Upload received document file for checklist item
+        received_file = (io.BytesIO(b"signed document content"), "signed_spec.pdf")
+        upload_received_resp = self.client.post(f'/rfps/{rfp_id}/checklist/{item_id}/upload', data={
+            'uploaded_file': received_file
+        }, content_type='multipart/form-data', follow_redirects=True)
+        self.assertEqual(upload_received_resp.status_code, 200)
+        
+        # Verify columns in DB
+        conn = sqlite3.connect('oem_tracker_test.db')
+        checklist_row = conn.execute("SELECT oem_name, format_file, uploaded_file, status FROM rfp_checklist WHERE id = ?", (item_id,)).fetchone()
+        self.assertEqual(checklist_row[0], 'Cisco')
+        self.assertIsNotNone(checklist_row[1]) # format file exists
+        self.assertIsNotNone(checklist_row[2]) # uploaded document exists
+        self.assertEqual(checklist_row[3], 'Received')
+        conn.close()
+        print("[OK] Verified: Checklist OEM mapping, template formats, and received document uploads function successfully.")
+        
         # 5. File Upload Size Limits
         # Verify we can upload file
         import io

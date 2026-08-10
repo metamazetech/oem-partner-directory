@@ -497,7 +497,7 @@
     
     <script>
         // 1. Tab Switching Functionality
-        function switchTab(evt, tabId) {
+        function selectTab(tabId) {
             // Hide all tabs
             const contents = document.querySelectorAll('.tab-content');
             contents.forEach(tab => tab.style.display = 'none');
@@ -512,14 +512,36 @@
             });
             
             // Show target tab
-            document.getElementById(tabId).style.display = 'block';
+            const targetTab = document.getElementById(tabId);
+            if (targetTab) {
+                targetTab.style.display = 'block';
+            }
             
-            // Check active button state
-            evt.currentTarget.classList.add('active');
-            evt.currentTarget.style.borderBottomColor = 'var(--primary)';
-            evt.currentTarget.style.color = 'white';
-            evt.currentTarget.style.fontWeight = '700';
+            // Highlight button
+            buttons.forEach(btn => {
+                const clickAttr = btn.getAttribute('onclick');
+                if (clickAttr && clickAttr.includes(tabId)) {
+                    btn.classList.add('active');
+                    btn.style.borderBottomColor = 'var(--primary)';
+                    btn.style.color = 'white';
+                    btn.style.fontWeight = '700';
+                }
+            });
+            
+            localStorage.setItem('activeRfpTab', tabId);
         }
+
+        function switchTab(evt, tabId) {
+            selectTab(tabId);
+        }
+        
+        // Restore active tab on load
+        document.addEventListener('DOMContentLoaded', () => {
+            const activeTab = localStorage.getItem('activeRfpTab');
+            if (activeTab && document.getElementById(activeTab)) {
+                selectTab(activeTab);
+            }
+        });
         
         // 2. Document Checklist Toggle Functionality
         function toggleChecklistStatus(itemId, btn) {

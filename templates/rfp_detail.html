@@ -267,7 +267,12 @@
                     
                     <!-- Left: Checklist Table -->
                     <div class="glass-card" style="padding: 1.25rem; overflow-x: auto;">
-                        <h3 style="margin-top: 0; margin-bottom: 1rem; color: white;">RFP Tender Checklist</h3>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 1rem; flex-wrap: wrap;">
+                            <h3 style="margin: 0; color: white;">RFP Tender Checklist</h3>
+                            <a href="/rfps/{{ rfp['id'] }}/export-checklist-csv" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem; border-radius: 6px; padding: 0.45rem 0.85rem; font-size: 0.78rem; text-decoration: none;">
+                                📥 Export Checklist CSV
+                            </a>
+                        </div>
                         <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;">
                             <thead>
                                 <tr style="background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--border-glass);">

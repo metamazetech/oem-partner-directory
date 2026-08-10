@@ -468,6 +468,14 @@ class PortalTestCase(unittest.TestCase):
         conn.close()
         print("[OK] Verified: Checklist OEM mapping, template formats, and received document uploads function successfully.")
         
+        # 4.8 Export Checklist CSV
+        export_chk_resp = self.client.get(f'/rfps/{rfp_id}/export-checklist-csv')
+        self.assertEqual(export_chk_resp.status_code, 200)
+        self.assertEqual(export_chk_resp.mimetype, 'text/csv')
+        self.assertIn(b'Document Type,Description,Associated OEM,Submission Status', export_chk_resp.data)
+        self.assertIn(b'Cisco,Received', export_chk_resp.data)
+        print("[OK] Verified: RFP checklist export to CSV is functional and returns correct submission records.")
+        
         # 5. File Upload Size Limits
         # Verify we can upload file
         import io

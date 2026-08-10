@@ -2966,6 +2966,63 @@ def rfp_checklist_delete_format(rfp_id, item_id):
         conn.close()
     return redirect(url_for('rfp_detail', rfp_id=rfp_id))
 
+@app.route('/rfps/<int:rfp_id>/export-checklist-csv')
+@login_required
+def rfp_export_checklist_csv(rfp_id):
+    conn = database.get_db_connection()
+    rfp = conn.execute("SELECT rfp_number FROM rfps WHERE id = ?", (rfp_id,)).fetchone()
+    if not rfp:
+        conn.close()
+        flash("RFP not found.", "error")
+        return redirect(url_for('rfps_list'))
+        
+    # Fetch checklist items
+    items = conn.execute("SELECT * FROM rfp_checklist WHERE rfp_id = ? ORDER BY id ASC", (rfp_id,)).fetchall()
+    conn.close()
+    
+    # Generate CSV response
+    import io
+    import csv
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Headers
+    writer.writerow([
+        'Document Type', 
+        'Description', 
+        'Associated OEM', 
+        'Submission Status', 
+        'Format Template Path', 
+        'Uploaded Document Path'
+    ])
+    
+    for item in items:
+        oem = item['oem_name'] if item['oem_name'] else 'General / All'
+        format_file = item['format_file'] if item['format_file'] else 'No Template'
+        uploaded_file = item['uploaded_file'] if item['uploaded_file'] else 'Not Submitted'
+        
+        writer.writerow([
+            item['doc_name'],
+            item['doc_description'] or '',
+            oem,
+            item['status'],
+            format_file,
+            uploaded_file
+        ])
+        
+    csv_data = output.getvalue()
+    output.close()
+    
+    # Format filename: e.g. RFP_GEM-2026-B-99981_Checklist.csv
+    safe_rfp_num = "".join(c if c.isalnum() or c in ('-', '_') else '_' for c in rfp['rfp_number'])
+    filename = f"RFP_{safe_rfp_num}_Checklist.csv"
+    
+    from flask import make_response
+    response = make_response(csv_data)
+    response.headers["Content-Disposition"] = f"attachment; filename={filename}"
+    response.headers["Content-Type"] = "text/csv"
+    return response
+
 
 
 @app.route('/rfps/<int:rfp_id>/upload', methods=['POST'])

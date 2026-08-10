@@ -477,6 +477,16 @@ def dashboard():
         
     # Total interactions count (for stats bar)
     interactions_count = conn.execute("SELECT COUNT(*) FROM interactions").fetchone()[0]
+    
+    # Query pending RFP reminders
+    rfp_reminders = conn.execute('''
+        SELECT r.id, r.reminder_date, r.task_description, r.status, f.rfp_number, f.id as rfp_id
+        FROM rfp_reminders r
+        JOIN rfps f ON r.rfp_id = f.id
+        WHERE r.status = 'pending'
+        ORDER BY r.reminder_date ASC
+    ''').fetchall()
+    
     conn.close()
     
     stats = {
@@ -490,7 +500,7 @@ def dashboard():
     from datetime import date
     today_str = date.today().isoformat()
     
-    return render_template('dashboard.html', contacts=contacts_rows, stats=stats, reminders=reminders, today_str=today_str, user_role=role)
+    return render_template('dashboard.html', contacts=contacts_rows, stats=stats, reminders=reminders, rfp_reminders=rfp_reminders, today_str=today_str, user_role=role)
 
 @app.route('/contact/add', methods=['POST'])
 @login_required
@@ -2628,6 +2638,10 @@ def rfp_detail(rfp_id):
         })
         
     oems_mapped = sorted(list(oems_mapped_set))
+    
+    # Query RFP reminders
+    rfp_reminders = conn.execute("SELECT * FROM rfp_reminders WHERE rfp_id = ? ORDER BY reminder_date ASC", (rfp_id,)).fetchall()
+    
     conn.close()
     
     return render_template(
@@ -2637,8 +2651,87 @@ def rfp_detail(rfp_id):
         documents=documents,
         directory_oems=directory_oems,
         boq_matrix=boq_matrix,
-        oems_mapped=oems_mapped
+        oems_mapped=oems_mapped,
+        rfp_reminders=rfp_reminders
     )
+
+# ----------------------------------------------------
+# RFP Reminders & Follow-ups Routes
+# ----------------------------------------------------
+@app.route('/rfps/<int:rfp_id>/reminders/add', methods=['POST'])
+@login_required
+def rfp_reminder_add(rfp_id):
+    reminder_date = request.form.get('reminder_date', '').strip()
+    task_description = request.form.get('task_description', '').strip()
+    
+    if not reminder_date or not task_description:
+        flash("Date and task description are required.", "error")
+        return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+        
+    conn = database.get_db_connection()
+    try:
+        conn.execute("""
+            INSERT INTO rfp_reminders (rfp_id, reminder_date, task_description, status, created_by)
+            VALUES (?, ?, ?, 'pending', ?)
+        """, (rfp_id, reminder_date, task_description, session['user_id']))
+        conn.commit()
+        log_audit('RFP_REMINDER_CREATE', f"Added reminder for RFP ID: {rfp_id}")
+        flash("Reminder successfully scheduled.", "success")
+    except Exception as e:
+        flash(f"Error adding reminder: {e}", "error")
+    finally:
+        conn.close()
+    return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+
+@app.route('/rfps/<int:rfp_id>/reminders/<int:reminder_id>/toggle', methods=['POST'])
+@login_required
+def rfp_reminder_toggle(rfp_id, reminder_id):
+    conn = database.get_db_connection()
+    try:
+        current = conn.execute("SELECT status FROM rfp_reminders WHERE id = ? AND rfp_id = ?", (reminder_id, rfp_id)).fetchone()
+        if current:
+            new_status = 'completed' if current['status'] == 'pending' else 'pending'
+            conn.execute("UPDATE rfp_reminders SET status = ? WHERE id = ?", (new_status, reminder_id))
+            conn.commit()
+            log_audit('RFP_REMINDER_TOGGLE', f"Toggled reminder ID {reminder_id} to {new_status}")
+            flash(f"Reminder status updated to {new_status}.", "success")
+        else:
+            flash("Reminder not found.", "error")
+    except Exception as e:
+        flash(f"Error updating status: {e}", "error")
+    finally:
+        conn.close()
+    return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+
+@app.route('/rfps/<int:rfp_id>/reminders/<int:reminder_id>/delete', methods=['POST'])
+@login_required
+def rfp_reminder_delete(rfp_id, reminder_id):
+    conn = database.get_db_connection()
+    try:
+        conn.execute("DELETE FROM rfp_reminders WHERE id = ? AND rfp_id = ?", (reminder_id, rfp_id))
+        conn.commit()
+        log_audit('RFP_REMINDER_DELETE', f"Deleted reminder ID {reminder_id}")
+        flash("Reminder deleted successfully.", "success")
+    except Exception as e:
+        flash(f"Error deleting reminder: {e}", "error")
+    finally:
+        conn.close()
+    return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+
+@app.route('/rfps/reminders/<int:reminder_id>/complete', methods=['POST'])
+@login_required
+def rfp_reminder_complete_dashboard(reminder_id):
+    conn = database.get_db_connection()
+    try:
+        conn.execute("UPDATE rfp_reminders SET status = 'completed' WHERE id = ?", (reminder_id,))
+        conn.commit()
+        log_audit('RFP_REMINDER_COMPLETE_DASHBOARD', f"Marked RFP reminder ID {reminder_id} completed from dashboard")
+        flash("RFP reminder marked completed.", "success")
+    except Exception as e:
+        flash(f"Error completing RFP reminder: {e}", "error")
+    finally:
+        conn.close()
+    return redirect(url_for('dashboard'))
 
 @app.route('/rfps/<int:rfp_id>/update-details', methods=['POST'])
 @login_required

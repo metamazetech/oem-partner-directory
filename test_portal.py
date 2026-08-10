@@ -573,6 +573,58 @@ class PortalTestCase(unittest.TestCase):
         self.assertIn(b'Core Switch,4', export_resp.data)
         print("[OK] Verified: RFP BoQ matrix export to CSV is functional and matches format requirements.")
         
+        # 5.75 RFP Reminders & Follow-ups
+        # Create a reminder
+        add_reminder_resp = self.client.post(f'/rfps/{rfp_id}/reminders/add', data={
+            'reminder_date': '2026-08-30',
+            'task_description': 'Send final proposal to client'
+        }, follow_redirects=True)
+        self.assertEqual(add_reminder_resp.status_code, 200)
+        
+        # Verify in DB
+        conn = sqlite3.connect('oem_tracker_test.db')
+        reminder = conn.execute("SELECT id, status, task_description FROM rfp_reminders WHERE rfp_id = ?", (rfp_id,)).fetchone()
+        self.assertIsNotNone(reminder)
+        self.assertEqual(reminder[1], 'pending')
+        self.assertEqual(reminder[2], 'Send final proposal to client')
+        reminder_id = reminder[0]
+        conn.close()
+        
+        # Toggle reminder to completed
+        toggle_resp = self.client.post(f'/rfps/{rfp_id}/reminders/{reminder_id}/toggle', follow_redirects=True)
+        self.assertEqual(toggle_resp.status_code, 200)
+        conn = sqlite3.connect('oem_tracker_test.db')
+        status = conn.execute("SELECT status FROM rfp_reminders WHERE id = ?", (reminder_id,)).fetchone()[0]
+        self.assertEqual(status, 'completed')
+        conn.close()
+        
+        # Complete another reminder from the dashboard (create a new one first)
+        self.client.post(f'/rfps/{rfp_id}/reminders/add', data={
+            'reminder_date': '2026-08-31',
+            'task_description': 'Follow up with vendor'
+        }, follow_redirects=True)
+        conn = sqlite3.connect('oem_tracker_test.db')
+        new_reminder = conn.execute("SELECT id FROM rfp_reminders WHERE rfp_id = ? AND task_description = 'Follow up with vendor'", (rfp_id,)).fetchone()
+        self.assertIsNotNone(new_reminder)
+        new_reminder_id = new_reminder[0]
+        conn.close()
+        
+        dash_complete_resp = self.client.post(f'/rfps/reminders/{new_reminder_id}/complete', follow_redirects=True)
+        self.assertEqual(dash_complete_resp.status_code, 200)
+        conn = sqlite3.connect('oem_tracker_test.db')
+        status2 = conn.execute("SELECT status FROM rfp_reminders WHERE id = ?", (new_reminder_id,)).fetchone()[0]
+        self.assertEqual(status2, 'completed')
+        conn.close()
+        
+        # Delete reminder
+        delete_resp = self.client.post(f'/rfps/{rfp_id}/reminders/{reminder_id}/delete', follow_redirects=True)
+        self.assertEqual(delete_resp.status_code, 200)
+        conn = sqlite3.connect('oem_tracker_test.db')
+        count = conn.execute("SELECT COUNT(*) FROM rfp_reminders WHERE id = ?", (reminder_id,)).fetchone()[0]
+        self.assertEqual(count, 0)
+        conn.close()
+        print("[OK] Verified: RFP Reminders (Add, Toggle, Dashboard complete, Delete) function successfully.")
+        
         # 6. Universal Search Queries
         search_match_resp = self.client.get('/rfps?search=99981')
         self.assertEqual(search_match_resp.status_code, 200)

@@ -112,6 +112,7 @@
                 <button class="tab-button" onclick="switchTab(event, 'tab-boq')" style="padding: 0.75rem 1.25rem; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); font-weight: 600; cursor: pointer; font-size: 0.9rem; white-space: nowrap;">📊 BoQ OEM Matrix</button>
                 <button class="tab-button" onclick="switchTab(event, 'tab-checklist')" style="padding: 0.75rem 1.25rem; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); font-weight: 600; cursor: pointer; font-size: 0.9rem; white-space: nowrap;">✓ Document Checklist</button>
                 <button class="tab-button" onclick="switchTab(event, 'tab-documents')" style="padding: 0.75rem 1.25rem; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); font-weight: 600; cursor: pointer; font-size: 0.9rem; white-space: nowrap;">📁 File Uploads (< 40MB)</button>
+                <button class="tab-button" onclick="switchTab(event, 'tab-reminders')" style="padding: 0.75rem 1.25rem; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); font-weight: 600; cursor: pointer; font-size: 0.9rem; white-space: nowrap;">⏰ Reminders & Follow-ups</button>
             </div>
             
             <!-- TAB 1: OVERVIEW & CONTACT DETAILS -->
@@ -500,6 +501,77 @@
                         {% else %}
                             <div style="padding: 2rem; text-align: center; color: var(--text-muted); font-size: 0.85rem; border: 1px dashed var(--border-glass); border-radius: 8px;">
                                 No file attachments uploaded yet.
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                </div>
+            </div>
+
+            <!-- TAB 5: RFP REMINDERS & FOLLOW-UPS -->
+            <div id="tab-reminders" class="tab-content" style="display: none;">
+                <div class="dashboard-layout-grid" style="grid-template-columns: 1fr 1.5fr; gap: 1.5rem; align-items: start;">
+                    
+                    <!-- Left: Add Reminder Form -->
+                    <div class="glass-card" style="padding: 1.25rem;">
+                        <h3 style="margin-top: 0; margin-bottom: 0.5rem; color: white;">Schedule Follow-up / Reminder</h3>
+                        <p style="margin: 0 0 1.25rem 0; font-size: 0.78rem; color: var(--text-secondary);">Set up an actionable reminder or deadline task for this RFP.</p>
+                        
+                        <form action="{{ url_for('rfp_reminder_add', rfp_id=rfp['id']) }}" method="POST">
+                            <div class="form-group" style="margin-bottom: 1rem;">
+                                <label class="form-label" for="reminder_date">Follow-up Date*</label>
+                                <input type="date" id="reminder_date" name="reminder_date" class="form-control" required style="background: rgba(15,23,42,0.6); color: white;">
+                            </div>
+                            
+                            <div class="form-group" style="margin-bottom: 1.5rem;">
+                                <label class="form-label" for="task_description">Action Item / Task Description*</label>
+                                <textarea id="task_description" name="task_description" class="form-control" placeholder="e.g. Request MAF from Cisco manager, check commercial compliance, submit tender fee receipt..." rows="4" required style="background: rgba(15,23,42,0.6); color: white; resize: none;"></textarea>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.6rem; font-size: 0.88rem;">💾 Save RFP Reminder</button>
+                        </form>
+                    </div>
+                    
+                    <!-- Right: Reminders List -->
+                    <div class="glass-card" style="padding: 1.25rem;">
+                        <h3 style="margin-top: 0; margin-bottom: 1.25rem; color: white;">Scheduled RFP Reminders</h3>
+                        {% if rfp_reminders %}
+                            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                                {% for rem in rfp_reminders %}
+                                    <div style="padding: 1rem; background: rgba(255,255,255,0.02); border: 1px solid var(--border-glass); border-radius: 10px; display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
+                                        <div style="min-width: 0; flex-grow: 1;">
+                                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.35rem; flex-wrap: wrap;">
+                                                <span style="font-weight: 700; color: white; font-size: 0.85rem;">📅 Due: {{ rem['reminder_date'] }}</span>
+                                                {% if rem['status'] == 'completed' %}
+                                                    <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #a7f3d0; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.65rem; padding: 0.1rem 0.35rem;">Completed</span>
+                                                {% else %}
+                                                    <span class="badge" style="background: rgba(245, 158, 11, 0.15); color: var(--color-warning); border: 1px solid rgba(245, 158, 11, 0.3); font-size: 0.65rem; padding: 0.1rem 0.35rem;">Pending</span>
+                                                {% endif %}
+                                            </div>
+                                            <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4; margin: 0; {% if rem['status'] == 'completed' %}text-decoration: line-through; opacity: 0.6;{% endif %}">
+                                                {{ rem['task_description'] }}
+                                            </p>
+                                        </div>
+                                        
+                                        <div style="display: flex; gap: 0.35rem; align-items: center; flex-shrink: 0;">
+                                            <!-- Toggle status button -->
+                                            <form action="{{ url_for('rfp_reminder_toggle', rfp_id=rfp['id'], reminder_id=rem['id']) }}" method="POST" style="margin: 0;">
+                                                <button type="submit" class="btn btn-secondary btn-sm" style="padding: 0.25rem 0.5rem; font-size: 0.72rem; display: flex; align-items: center; gap: 0.2rem; background: {% if rem['status'] == 'completed' %}rgba(255,255,255,0.05){% else %}rgba(16, 185, 129, 0.1){% endif %}; color: {% if rem['status'] == 'completed' %}var(--text-secondary){% else %}var(--color-oem){% endif %}; border-color: {% if rem['status'] == 'completed' %}rgba(255,255,255,0.1){% else %}rgba(16, 185, 129, 0.2){% endif %};">
+                                                    {% if rem['status'] == 'completed' %}↩️ Undo{% else %}✓ Done{% endif %}
+                                                </button>
+                                            </form>
+                                            
+                                            <!-- Delete button -->
+                                            <form action="{{ url_for('rfp_reminder_delete', rfp_id=rfp['id'], reminder_id=rem['id']) }}" method="POST" style="margin: 0;" onsubmit="return confirmDeleteMatch(event, 'Reminder scheduled for {{ rem['reminder_date'] }}');">
+                                                <button type="submit" style="background: none; border: none; color: #f87171; cursor: pointer; padding: 0.25rem; font-size: 0.95rem;" title="Delete Reminder">🗑️</button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div style="padding: 3rem 1rem; text-align: center; color: var(--text-muted); font-size: 0.85rem; border: 1px dashed var(--border-glass); border-radius: 8px;">
+                                No reminders scheduled for this RFP yet.
                             </div>
                         {% endif %}
                     </div>

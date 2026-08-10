@@ -249,6 +249,21 @@ def init_db():
         FOREIGN KEY (rfp_id) REFERENCES rfps(id) ON DELETE CASCADE
     )
     ''')
+
+    # Create RFP Reminders Table
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS rfp_reminders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        rfp_id INTEGER NOT NULL,
+        reminder_date TEXT NOT NULL,
+        task_description TEXT NOT NULL,
+        status TEXT DEFAULT 'pending',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_by INTEGER,
+        FOREIGN KEY (rfp_id) REFERENCES rfps(id) ON DELETE CASCADE,
+        FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    )
+    ''')
     
     # Add remarks column safety migration block
     try:

@@ -477,6 +477,30 @@ class PortalTestCase(unittest.TestCase):
         conn.close()
         print("[OK] Verified: Checklist OEM mapping, template formats, remarks updates, and received document uploads function successfully.")
         
+        # 4.75 Clone checklist item for another OEM
+        clone_resp = self.client.post(f'/rfps/{rfp_id}/checklist/{item_id}/clone', follow_redirects=True)
+        self.assertEqual(clone_resp.status_code, 200)
+        
+        # Verify a new row was created with same doc_name/format_file but empty oem/status/uploaded_file
+        conn = sqlite3.connect('oem_tracker_test.db')
+        original_doc_name = conn.execute("SELECT doc_name FROM rfp_checklist WHERE id = ?", (item_id,)).fetchone()[0]
+        cloned_rows = conn.execute("SELECT doc_name, doc_description, format_file, oem_name, uploaded_file, status FROM rfp_checklist WHERE rfp_id = ? AND doc_name = ?", (rfp_id, original_doc_name)).fetchall()
+        self.assertEqual(len(cloned_rows), 2)
+        cisco_found = False
+        empty_found = False
+        for row in cloned_rows:
+            if row[3] == 'Cisco':
+                self.assertEqual(row[5], 'Received')
+                cisco_found = True
+            elif row[3] is None:
+                self.assertEqual(row[5], 'Not Received')
+                self.assertIsNone(row[4])
+                empty_found = True
+        self.assertTrue(cisco_found)
+        self.assertTrue(empty_found)
+        conn.close()
+        print("[OK] Verified: Document checklist row cloning (multiple OEM submission rows per document type) operates correctly.")
+        
         # 4.8 Export Checklist CSV
         export_chk_resp = self.client.get(f'/rfps/{rfp_id}/export-checklist-csv')
         self.assertEqual(export_chk_resp.status_code, 200)

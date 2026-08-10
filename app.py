@@ -2853,6 +2853,27 @@ def rfp_checklist_delete(rfp_id, item_id):
         conn.close()
     return redirect(url_for('rfp_detail', rfp_id=rfp_id))
 
+@app.route('/rfps/<int:rfp_id>/checklist/<int:item_id>/clone', methods=['POST'])
+@login_required
+def rfp_checklist_clone(rfp_id, item_id):
+    conn = database.get_db_connection()
+    try:
+        item = conn.execute("SELECT doc_name, doc_description, format_file FROM rfp_checklist WHERE id = ? AND rfp_id = ?", (item_id, rfp_id)).fetchone()
+        if item:
+            conn.execute("""
+                INSERT INTO rfp_checklist (rfp_id, doc_name, doc_description, format_file, status)
+                VALUES (?, ?, ?, ?, 'Not Received')
+            """, (rfp_id, item['doc_name'], item['doc_description'], item['format_file']))
+            conn.commit()
+            flash(f"Added another submission row for '{item['doc_name']}'.", "success")
+        else:
+            flash("Checklist item not found.", "error")
+    except Exception as e:
+        flash(f"Error cloning checklist item: {e}", "error")
+    finally:
+        conn.close()
+    return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+
 @app.route('/rfps/<int:rfp_id>/checklist/<int:item_id>/upload', methods=['POST'])
 @login_required
 def rfp_checklist_upload_doc(rfp_id, item_id):

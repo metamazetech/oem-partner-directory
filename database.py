@@ -264,6 +264,25 @@ def init_db():
         FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
     )
     ''')
+
+    # Create RFP Interactions Table
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS rfp_interactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        rfp_id INTEGER NOT NULL,
+        section TEXT NOT NULL, -- 'boq' or 'checklist'
+        user_id INTEGER NOT NULL,
+        interaction_date TEXT NOT NULL,
+        type TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        next_steps TEXT,
+        followup_date TEXT,
+        followup_status TEXT DEFAULT 'pending',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (rfp_id) REFERENCES rfps(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+    ''')
     
     # Add remarks column safety migration block
     try:

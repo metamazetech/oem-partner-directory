@@ -382,7 +382,7 @@
                                     
                                     <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.03); padding-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted);">
                                         <span>📅 Due: {{ r['reminder_date'] }}</span>
-                                        <form action="{{ url_for('rfp_reminder_complete_dashboard', reminder_id=r['id']) }}" method="POST" style="margin: 0;">
+                                        <form action="{{ url_for('rfp_reminder_complete_dashboard', reminder_id=r['id']) }}?source={{ r['source'] }}" method="POST" style="margin: 0;">
                                             <button type="submit" class="btn btn-secondary btn-sm" style="padding: 0.25rem 0.5rem; font-size: 0.65rem; background: rgba(16, 185, 129, 0.1); color: var(--color-oem); border-color: rgba(16, 185, 129, 0.2); border-radius: 4px;">✓ Done</button>
                                         </form>
                                     </div>

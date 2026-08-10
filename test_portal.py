@@ -625,6 +625,46 @@ class PortalTestCase(unittest.TestCase):
         conn.close()
         print("[OK] Verified: RFP Reminders (Add, Toggle, Dashboard complete, Delete) function successfully.")
         
+        # 5.8 RFP Interactions
+        # Log interaction for boq section
+        add_int_resp = self.client.post(f'/rfps/{rfp_id}/interactions/add', data={
+            'section': 'boq',
+            'interaction_date': '2026-08-10',
+            'type[]': ['Call', 'Meeting'],
+            'summary': 'Discussed Cisco pricing models',
+            'next_steps': 'Verify license matrix',
+            'followup_date': '2026-08-12'
+        }, follow_redirects=True)
+        self.assertEqual(add_int_resp.status_code, 200)
+        
+        # Verify in DB
+        conn = sqlite3.connect('oem_tracker_test.db')
+        interaction = conn.execute("SELECT id, section, summary, type, followup_status FROM rfp_interactions WHERE rfp_id = ?", (rfp_id,)).fetchone()
+        self.assertIsNotNone(interaction)
+        self.assertEqual(interaction[1], 'boq')
+        self.assertEqual(interaction[2], 'Discussed Cisco pricing models')
+        self.assertEqual(interaction[3], 'Call, Meeting')
+        self.assertEqual(interaction[4], 'pending')
+        int_id = interaction[0]
+        conn.close()
+        
+        # Toggle interaction follow-up status
+        toggle_int_resp = self.client.post(f'/rfps/{rfp_id}/interactions/{int_id}/toggle', follow_redirects=True)
+        self.assertEqual(toggle_int_resp.status_code, 200)
+        conn = sqlite3.connect('oem_tracker_test.db')
+        status = conn.execute("SELECT followup_status FROM rfp_interactions WHERE id = ?", (int_id,)).fetchone()[0]
+        self.assertEqual(status, 'completed')
+        conn.close()
+        
+        # Delete interaction
+        del_int_resp = self.client.post(f'/rfps/{rfp_id}/interactions/{int_id}/delete', follow_redirects=True)
+        self.assertEqual(del_int_resp.status_code, 200)
+        conn = sqlite3.connect('oem_tracker_test.db')
+        count = conn.execute("SELECT COUNT(*) FROM rfp_interactions WHERE id = ?", (int_id,)).fetchone()[0]
+        self.assertEqual(count, 0)
+        conn.close()
+        print("[OK] Verified: RFP sectioned Interaction Log (Add, Toggle, Delete) function successfully.")
+        
         # 6. Universal Search Queries
         search_match_resp = self.client.get('/rfps?search=99981')
         self.assertEqual(search_match_resp.status_code, 200)

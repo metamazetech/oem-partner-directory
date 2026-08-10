@@ -478,13 +478,18 @@ def dashboard():
     # Total interactions count (for stats bar)
     interactions_count = conn.execute("SELECT COUNT(*) FROM interactions").fetchone()[0]
     
-    # Query pending RFP reminders
+    # Query pending RFP reminders & RFP interaction follow-up tasks
     rfp_reminders = conn.execute('''
-        SELECT r.id, r.reminder_date, r.task_description, r.status, f.rfp_number, f.id as rfp_id
+        SELECT r.id, r.reminder_date, r.task_description, r.status, f.rfp_number, f.id as rfp_id, 'manual_reminder' as source
         FROM rfp_reminders r
         JOIN rfps f ON r.rfp_id = f.id
         WHERE r.status = 'pending'
-        ORDER BY r.reminder_date ASC
+        UNION ALL
+        SELECT i.id, i.followup_date as reminder_date, ('[' || UPPER(i.section) || '] ' || i.next_steps) as task_description, i.followup_status as status, f.rfp_number, f.id as rfp_id, 'interaction_followup' as source
+        FROM rfp_interactions i
+        JOIN rfps f ON i.rfp_id = f.id
+        WHERE i.followup_status = 'pending' AND i.followup_date IS NOT NULL AND i.followup_date != ''
+        ORDER BY reminder_date ASC
     ''').fetchall()
     
     conn.close()
@@ -2642,6 +2647,18 @@ def rfp_detail(rfp_id):
     # Query RFP reminders
     rfp_reminders = conn.execute("SELECT * FROM rfp_reminders WHERE rfp_id = ? ORDER BY reminder_date ASC", (rfp_id,)).fetchall()
     
+    # Query RFP interactions
+    interactions_rows = conn.execute('''
+        SELECT i.*, u.username 
+        FROM rfp_interactions i
+        JOIN users u ON i.user_id = u.id
+        WHERE i.rfp_id = ?
+        ORDER BY i.interaction_date DESC, i.id DESC
+    ''', (rfp_id,)).fetchall()
+    
+    boq_interactions = [dict(row) for row in interactions_rows if row['section'] == 'boq']
+    checklist_interactions = [dict(row) for row in interactions_rows if row['section'] == 'checklist']
+    
     conn.close()
     
     return render_template(
@@ -2652,7 +2669,9 @@ def rfp_detail(rfp_id):
         directory_oems=directory_oems,
         boq_matrix=boq_matrix,
         oems_mapped=oems_mapped,
-        rfp_reminders=rfp_reminders
+        rfp_reminders=rfp_reminders,
+        boq_interactions=boq_interactions,
+        checklist_interactions=checklist_interactions
     )
 
 # ----------------------------------------------------
@@ -2721,17 +2740,91 @@ def rfp_reminder_delete(rfp_id, reminder_id):
 @app.route('/rfps/reminders/<int:reminder_id>/complete', methods=['POST'])
 @login_required
 def rfp_reminder_complete_dashboard(reminder_id):
+    source = request.args.get('source', 'manual_reminder')
     conn = database.get_db_connection()
     try:
-        conn.execute("UPDATE rfp_reminders SET status = 'completed' WHERE id = ?", (reminder_id,))
+        if source == 'interaction_followup':
+            conn.execute("UPDATE rfp_interactions SET followup_status = 'completed' WHERE id = ?", (reminder_id,))
+        else:
+            conn.execute("UPDATE rfp_reminders SET status = 'completed' WHERE id = ?", (reminder_id,))
         conn.commit()
-        log_audit('RFP_REMINDER_COMPLETE_DASHBOARD', f"Marked RFP reminder ID {reminder_id} completed from dashboard")
+        log_audit('RFP_REMINDER_COMPLETE_DASHBOARD', f"Marked RFP reminder ID {reminder_id} ({source}) completed from dashboard")
         flash("RFP reminder marked completed.", "success")
     except Exception as e:
         flash(f"Error completing RFP reminder: {e}", "error")
     finally:
         conn.close()
     return redirect(url_for('dashboard'))
+
+# ----------------------------------------------------
+# RFP Interactions Routes
+# ----------------------------------------------------
+@app.route('/rfps/<int:rfp_id>/interactions/add', methods=['POST'])
+@login_required
+def rfp_interaction_add(rfp_id):
+    section = request.form.get('section', '').strip() # 'boq' or 'checklist'
+    interaction_date = request.form.get('interaction_date', '').strip()
+    summary = request.form.get('summary', '').strip()
+    next_steps = request.form.get('next_steps', '').strip()
+    followup_date = request.form.get('followup_date', '').strip()
+    
+    # Handle checkboxes
+    types_list = request.form.getlist('type[]')
+    types_str = ", ".join(types_list) if types_list else "Other"
+    
+    if not interaction_date or not summary or section not in ['boq', 'checklist']:
+        flash("Date, summary, and valid section are required.", "error")
+        return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+        
+    conn = database.get_db_connection()
+    try:
+        conn.execute("""
+            INSERT INTO rfp_interactions (rfp_id, section, user_id, interaction_date, type, summary, next_steps, followup_date, followup_status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+        """, (rfp_id, section, session['user_id'], interaction_date, types_str, summary, next_steps, followup_date if followup_date else None))
+        conn.commit()
+        log_audit('RFP_INTERACTION_CREATE', f"Logged interaction ({types_str}) in section {section} for RFP ID: {rfp_id}")
+        flash("Interaction logged successfully.", "success")
+    except Exception as e:
+        flash(f"Error logging interaction: {e}", "error")
+    finally:
+        conn.close()
+    return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+
+@app.route('/rfps/<int:rfp_id>/interactions/<int:interaction_id>/toggle', methods=['POST'])
+@login_required
+def rfp_interaction_toggle(rfp_id, interaction_id):
+    conn = database.get_db_connection()
+    try:
+        current = conn.execute("SELECT followup_status FROM rfp_interactions WHERE id = ? AND rfp_id = ?", (interaction_id, rfp_id)).fetchone()
+        if current:
+            new_status = 'completed' if current['followup_status'] == 'pending' else 'pending'
+            conn.execute("UPDATE rfp_interactions SET followup_status = ? WHERE id = ?", (new_status, interaction_id))
+            conn.commit()
+            log_audit('RFP_INTERACTION_TOGGLE', f"Toggled interaction ID {interaction_id} to {new_status}")
+            flash(f"Interaction status updated.", "success")
+        else:
+            flash("Interaction not found.", "error")
+    except Exception as e:
+        flash(f"Error updating status: {e}", "error")
+    finally:
+        conn.close()
+    return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+
+@app.route('/rfps/<int:rfp_id>/interactions/<int:interaction_id>/delete', methods=['POST'])
+@login_required
+def rfp_interaction_delete(rfp_id, interaction_id):
+    conn = database.get_db_connection()
+    try:
+        conn.execute("DELETE FROM rfp_interactions WHERE id = ? AND rfp_id = ?", (interaction_id, rfp_id))
+        conn.commit()
+        log_audit('RFP_INTERACTION_DELETE', f"Deleted interaction ID {interaction_id}")
+        flash("Interaction log entry deleted.", "success")
+    except Exception as e:
+        flash(f"Error deleting interaction: {e}", "error")
+    finally:
+        conn.close()
+    return redirect(url_for('rfp_detail', rfp_id=rfp_id))
 
 @app.route('/rfps/<int:rfp_id>/update-details', methods=['POST'])
 @login_required

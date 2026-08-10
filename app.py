@@ -2611,10 +2611,13 @@ def rfp_detail(rfp_id):
     oems_mapped_set = set()
     
     for item in items_rows:
-        mappings = conn.execute("SELECT oem_name, offering_details FROM rfp_boq_oem_mappings WHERE boq_item_id = ?", (item['id'],)).fetchall()
+        mappings = conn.execute("SELECT oem_name, offering_details, remarks FROM rfp_boq_oem_mappings WHERE boq_item_id = ?", (item['id'],)).fetchall()
         mapping_dict = {}
         for m in mappings:
-            mapping_dict[m['oem_name']] = m['offering_details']
+            mapping_dict[m['oem_name']] = {
+                'model': m['offering_details'] or "",
+                'remarks': m['remarks'] or ""
+            }
             oems_mapped_set.add(m['oem_name'])
             
         boq_matrix.append({
@@ -2690,10 +2693,17 @@ def rfp_save_boq(rfp_id):
             
             mappings = item.get('mappings', {})
             for oem_name, details in mappings.items():
+                model_val = ""
+                remarks_val = ""
+                if isinstance(details, dict):
+                    model_val = details.get('model', '').strip()
+                    remarks_val = details.get('remarks', '').strip()
+                else:
+                    model_val = str(details).strip()
                 conn.execute("""
-                    INSERT INTO rfp_boq_oem_mappings (boq_item_id, oem_name, offering_details)
-                    VALUES (?, ?, ?)
-                """, (boq_item_id, oem_name.strip(), details.strip()))
+                    INSERT INTO rfp_boq_oem_mappings (boq_item_id, oem_name, offering_details, remarks)
+                    VALUES (?, ?, ?, ?)
+                """, (boq_item_id, oem_name.strip(), model_val, remarks_val))
                 
         conn.commit()
         log_audit('RFP_BOQ_SAVE', f"Updated BoQ Matrix for RFP ID: {rfp_id}")

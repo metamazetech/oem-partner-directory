@@ -208,6 +208,7 @@ def init_db():
         boq_item_id INTEGER NOT NULL,
         oem_name TEXT NOT NULL,
         offering_details TEXT,
+        remarks TEXT,
         FOREIGN KEY (boq_item_id) REFERENCES rfp_boq_items(id) ON DELETE CASCADE
     )
     ''')
@@ -238,6 +239,12 @@ def init_db():
     )
     ''')
     
+    # Add remarks column safety migration block
+    try:
+        cursor.execute("ALTER TABLE rfp_boq_oem_mappings ADD COLUMN remarks TEXT")
+    except sqlite3.OperationalError:
+        pass
+        
     # Check if admin user exists, if not, create default admin
     cursor.execute('SELECT * FROM users WHERE role = ?', ('admin',))
     admin_exists = cursor.fetchone()

@@ -382,7 +382,7 @@ class PortalTestCase(unittest.TestCase):
                     'item_name': 'Next-Gen Firewall',
                     'quantity': 2,
                     'mappings': {
-                        'Cisco': 'Firepower 1010',
+                        'Cisco': {'model': 'Firepower 1010', 'remarks': 'Include licenses'},
                         'Fortinet': 'FortiGate 60F'
                     }
                 },
@@ -390,7 +390,7 @@ class PortalTestCase(unittest.TestCase):
                     'item_name': 'Core Switch',
                     'quantity': 4,
                     'mappings': {
-                        'Cisco': 'Catalyst 9300'
+                        'Cisco': {'model': 'Catalyst 9300', 'remarks': 'Include stacking cables'}
                     }
                 }
             ]
@@ -410,8 +410,18 @@ class PortalTestCase(unittest.TestCase):
             WHERE i.rfp_id = ?
         """, (rfp_id,)).fetchone()[0]
         self.assertEqual(mapping_count, 3) # 2 mappings for item 1, 1 mapping for item 2
+        
+        # Check remarks column values
+        remarks_list = conn.execute("""
+            SELECT remarks FROM rfp_boq_oem_mappings m
+            JOIN rfp_boq_items i ON m.boq_item_id = i.id
+            WHERE i.rfp_id = ? AND m.oem_name = 'Cisco'
+            ORDER BY i.id
+        """, (rfp_id,)).fetchall()
+        self.assertEqual(remarks_list[0][0], 'Include licenses')
+        self.assertEqual(remarks_list[1][0], 'Include stacking cables')
         conn.close()
-        print("[OK] Verified: BoQ OEM Matrix details saved and retrieved successfully.")
+        print("[OK] Verified: BoQ OEM Matrix details and remarks saved and retrieved successfully.")
         
         # 4. Toggle Checklist Item Status
         conn = sqlite3.connect('oem_tracker_test.db')

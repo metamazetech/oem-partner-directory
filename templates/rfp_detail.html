@@ -192,9 +192,12 @@
                                 <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 35%;">BoQ Item / Specification*</th>
                                 <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 10%;">Qty*</th>
                                 {% for oem in oems_mapped %}
-                                    <th class="oem-col-header" data-oem="{{ oem }}" style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; min-width: 150px;">
+                                    <th class="oem-col-header" data-oem="{{ oem }}" style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; min-width: 130px;">
+                                        <span>{{ oem }} Model</span>
+                                    </th>
+                                    <th class="oem-col-header-remarks" data-oem="{{ oem }}" style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; min-width: 130px;">
                                         <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.35rem;">
-                                            <span>{{ oem }}</span>
+                                            <span>{{ oem }} Remarks</span>
                                             <button type="button" onclick="removeOemColumn('{{ oem }}')" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 0.8rem; padding: 0;">✕</button>
                                         </div>
                                     </th>
@@ -214,7 +217,10 @@
                                         </td>
                                         {% for oem in oems_mapped %}
                                             <td class="oem-cell" data-oem="{{ oem }}" style="padding: 0.5rem 0.25rem;">
-                                                <input type="text" class="form-control oem-mapping-input" value="{{ item['mappings'].get(oem, '') }}" placeholder="Model / Offering..." style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem;">
+                                                <input type="text" class="form-control oem-mapping-model" value="{% if item['mappings'].get(oem) is mapping %}{{ item['mappings'].get(oem).get('model', '') }}{% else %}{{ item['mappings'].get(oem) or '' }}{% endif %}" placeholder="Model / Offering..." style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem;">
+                                            </td>
+                                            <td class="oem-cell-remarks" data-oem="{{ oem }}" style="padding: 0.5rem 0.25rem;">
+                                                <input type="text" class="form-control oem-mapping-remarks" value="{% if item['mappings'].get(oem) is mapping %}{{ item['mappings'].get(oem).get('remarks', '') }}{% endif %}" placeholder="Remarks..." style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem;">
                                             </td>
                                         {% endfor %}
                                         <td style="padding: 0.5rem 0.25rem; text-align: right;">
@@ -519,53 +525,77 @@
             dropdown.value = '';
             customInput.value = '';
             
-            // 1. Add header column
+            // 1. Add header columns
             const table = document.getElementById('boq-matrix-table');
             const headerRow = table.querySelector('thead tr');
             const delHeader = headerRow.lastElementChild;
             
-            const newTh = document.createElement('th');
-            newTh.className = 'oem-col-header';
-            newTh.dataset.oem = oemName;
-            newTh.style.padding = '0.75rem';
-            newTh.style.color = 'var(--text-secondary)';
-            newTh.style.fontWeight = '700';
-            newTh.style.minWidth = '150px';
-            newTh.innerHTML = `
+            const newThModel = document.createElement('th');
+            newThModel.className = 'oem-col-header';
+            newThModel.dataset.oem = oemName;
+            newThModel.style.padding = '0.75rem';
+            newThModel.style.color = 'var(--text-secondary)';
+            newThModel.style.fontWeight = '700';
+            newThModel.style.minWidth = '130px';
+            newThModel.innerHTML = `<span>${oemName} Model</span>`;
+            headerRow.insertBefore(newThModel, delHeader);
+            
+            const newThRemarks = document.createElement('th');
+            newThRemarks.className = 'oem-col-header-remarks';
+            newThRemarks.dataset.oem = oemName;
+            newThRemarks.style.padding = '0.75rem';
+            newThRemarks.style.color = 'var(--text-secondary)';
+            newThRemarks.style.fontWeight = '700';
+            newThRemarks.style.minWidth = '130px';
+            newThRemarks.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.35rem;">
-                    <span>${oemName}</span>
+                    <span>${oemName} Remarks</span>
                     <button type="button" onclick="removeOemColumn('${oemName}')" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 0.8rem; padding: 0;">✕</button>
                 </div>
             `;
-            headerRow.insertBefore(newTh, delHeader);
+            headerRow.insertBefore(newThRemarks, delHeader);
             
-            // 2. Add input cell to each row
+            // 2. Add input cells to each row
             const rows = document.querySelectorAll('.boq-row');
             rows.forEach(row => {
                 const delCell = row.lastElementChild;
-                const newTd = document.createElement('td');
-                newTd.className = 'oem-cell';
-                newTd.dataset.oem = oemName;
-                newTd.style.padding = '0.5rem 0.25rem';
-                newTd.innerHTML = `
-                    <input type="text" class="form-control oem-mapping-input" placeholder="Model / Offering..." style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem;">
+                
+                const newTdModel = document.createElement('td');
+                newTdModel.className = 'oem-cell';
+                newTdModel.dataset.oem = oemName;
+                newTdModel.style.padding = '0.5rem 0.25rem';
+                newTdModel.innerHTML = `
+                    <input type="text" class="form-control oem-mapping-model" placeholder="Model / Offering..." style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem;">
                 `;
-                row.insertBefore(newTd, delCell);
+                row.insertBefore(newTdModel, delCell);
+                
+                const newTdRemarks = document.createElement('td');
+                newTdRemarks.className = 'oem-cell-remarks';
+                newTdRemarks.dataset.oem = oemName;
+                newTdRemarks.style.padding = '0.5rem 0.25rem';
+                newTdRemarks.innerHTML = `
+                    <input type="text" class="form-control oem-mapping-remarks" placeholder="Remarks..." style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem;">
+                `;
+                row.insertBefore(newTdRemarks, delCell);
             });
         }
         
         function removeOemColumn(oemName) {
-            if (!confirm(`Are you sure you want to remove the OEM column '${oemName}'?`)) {
+            if (!confirm(`Are you sure you want to remove the OEM columns for '${oemName}'?`)) {
                 return;
             }
             
-            // Remove header
-            const th = document.querySelector(`.oem-col-header[data-oem="${oemName}"]`);
-            if (th) th.remove();
+            // Remove headers
+            const thModel = document.querySelector(`.oem-col-header[data-oem="${oemName}"]`);
+            if (thModel) thModel.remove();
+            const thRemarks = document.querySelector(`.oem-col-header-remarks[data-oem="${oemName}"]`);
+            if (thRemarks) thRemarks.remove();
             
             // Remove cells
-            const cells = document.querySelectorAll(`.oem-cell[data-oem="${oemName}"]`);
-            cells.forEach(cell => cell.remove());
+            const cellsModel = document.querySelectorAll(`.oem-cell[data-oem="${oemName}"]`);
+            cellsModel.forEach(cell => cell.remove());
+            const cellsRemarks = document.querySelectorAll(`.oem-cell-remarks[data-oem="${oemName}"]`);
+            cellsRemarks.forEach(cell => cell.remove());
         }
         
         function addBoqRow() {
@@ -581,7 +611,10 @@
                 const oemName = header.dataset.oem;
                 oemCellsHtml += `
                     <td class="oem-cell" data-oem="${oemName}" style="padding: 0.5rem 0.25rem;">
-                        <input type="text" class="form-control oem-mapping-input" placeholder="Model / Offering..." style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem;">
+                        <input type="text" class="form-control oem-mapping-model" placeholder="Model / Offering..." style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem;">
+                    </td>
+                    <td class="oem-cell-remarks" data-oem="${oemName}" style="padding: 0.5rem 0.25rem;">
+                        <input type="text" class="form-control oem-mapping-remarks" placeholder="Remarks..." style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem;">
                     </td>
                 `;
             });
@@ -635,10 +668,15 @@
                 const cells = row.querySelectorAll('.oem-cell');
                 cells.forEach(cell => {
                     const oemName = cell.dataset.oem;
-                    const input = cell.querySelector('.oem-mapping-input');
-                    if (input) {
-                        mappings[oemName] = input.value.trim();
-                    }
+                    const modelInput = cell.querySelector('.oem-mapping-model');
+                    
+                    const remarksCell = row.querySelector(`.oem-cell-remarks[data-oem="${oemName}"]`);
+                    const remarksInput = remarksCell ? remarksCell.querySelector('.oem-mapping-remarks') : null;
+                    
+                    mappings[oemName] = {
+                        model: modelInput ? modelInput.value.trim() : "",
+                        remarks: remarksInput ? remarksInput.value.trim() : ""
+                    };
                 });
                 
                 items.push({

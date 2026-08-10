@@ -458,22 +458,32 @@ class PortalTestCase(unittest.TestCase):
         }, content_type='multipart/form-data', follow_redirects=True)
         self.assertEqual(upload_received_resp.status_code, 200)
         
+        # 4.7 Update Checklist Item remarks via AJAX
+        update_remarks_resp = self.client.post(f'/rfps/{rfp_id}/checklist/{item_id}/update-remarks', data={
+            'remarks': 'Awaiting signature'
+        })
+        self.assertEqual(update_remarks_resp.status_code, 200)
+        update_remarks_data = json.loads(update_remarks_resp.data)
+        self.assertEqual(update_remarks_data['status'], 'success')
+        
         # Verify columns in DB
         conn = sqlite3.connect('oem_tracker_test.db')
-        checklist_row = conn.execute("SELECT oem_name, format_file, uploaded_file, status FROM rfp_checklist WHERE id = ?", (item_id,)).fetchone()
+        checklist_row = conn.execute("SELECT oem_name, format_file, uploaded_file, status, remarks FROM rfp_checklist WHERE id = ?", (item_id,)).fetchone()
         self.assertEqual(checklist_row[0], 'Cisco')
         self.assertIsNotNone(checklist_row[1]) # format file exists
         self.assertIsNotNone(checklist_row[2]) # uploaded document exists
         self.assertEqual(checklist_row[3], 'Received')
+        self.assertEqual(checklist_row[4], 'Awaiting signature')
         conn.close()
-        print("[OK] Verified: Checklist OEM mapping, template formats, and received document uploads function successfully.")
+        print("[OK] Verified: Checklist OEM mapping, template formats, remarks updates, and received document uploads function successfully.")
         
         # 4.8 Export Checklist CSV
         export_chk_resp = self.client.get(f'/rfps/{rfp_id}/export-checklist-csv')
         self.assertEqual(export_chk_resp.status_code, 200)
         self.assertEqual(export_chk_resp.mimetype, 'text/csv')
-        self.assertIn(b'Document Type,Description,Associated OEM,Submission Status', export_chk_resp.data)
+        self.assertIn(b'Document Type,Description,Associated OEM,Submission Status,Format Template Path,Uploaded Document Path,Remarks', export_chk_resp.data)
         self.assertIn(b'Cisco,Received', export_chk_resp.data)
+        self.assertIn(b'Awaiting signature', export_chk_resp.data)
         print("[OK] Verified: RFP checklist export to CSV is functional and returns correct submission records.")
         
         # 5. File Upload Size Limits

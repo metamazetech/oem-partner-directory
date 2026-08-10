@@ -2784,6 +2784,7 @@ def rfp_checklist_add(rfp_id):
     doc_description = request.form.get('doc_description', '').strip()
     oem_name = request.form.get('oem_name', '').strip()
     format_file = request.files.get('format_file')
+    remarks = request.form.get('remarks', '').strip()
     
     if not doc_name:
         flash("Document Name is required.", "error")
@@ -2807,9 +2808,9 @@ def rfp_checklist_add(rfp_id):
     conn = database.get_db_connection()
     try:
         conn.execute("""
-            INSERT INTO rfp_checklist (rfp_id, doc_name, doc_description, oem_name, format_file)
-            VALUES (?, ?, ?, ?, ?)
-        """, (rfp_id, doc_name, doc_description, oem_name or None, format_file_path))
+            INSERT INTO rfp_checklist (rfp_id, doc_name, doc_description, oem_name, format_file, remarks)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (rfp_id, doc_name, doc_description, oem_name or None, format_file_path, remarks or None))
         conn.commit()
         flash(f"Checklist item '{doc_name}' added successfully.", "success")
     except Exception as e:
@@ -2938,6 +2939,20 @@ def rfp_checklist_update_oem(rfp_id, item_id):
     finally:
         conn.close()
 
+@app.route('/rfps/<int:rfp_id>/checklist/<int:item_id>/update-remarks', methods=['POST'])
+@login_required
+def rfp_checklist_update_remarks(rfp_id, item_id):
+    remarks = request.form.get('remarks', '').strip()
+    conn = database.get_db_connection()
+    try:
+        conn.execute("UPDATE rfp_checklist SET remarks = ? WHERE id = ? AND rfp_id = ?", (remarks or None, item_id, rfp_id))
+        conn.commit()
+        return jsonify({"status": "success", "message": "Remarks updated."})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        conn.close()
+
 @app.route('/rfps/<int:rfp_id>/checklist/<int:item_id>/delete-doc', methods=['POST'])
 @login_required
 def rfp_checklist_delete_doc(rfp_id, item_id):
@@ -2993,7 +3008,8 @@ def rfp_export_checklist_csv(rfp_id):
         'Associated OEM', 
         'Submission Status', 
         'Format Template Path', 
-        'Uploaded Document Path'
+        'Uploaded Document Path',
+        'Remarks'
     ])
     
     for item in items:
@@ -3007,7 +3023,8 @@ def rfp_export_checklist_csv(rfp_id):
             oem,
             item['status'],
             format_file,
-            uploaded_file
+            uploaded_file,
+            item['remarks'] or ''
         ])
         
     csv_data = output.getvalue()

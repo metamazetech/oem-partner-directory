@@ -276,12 +276,13 @@
                         <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;">
                             <thead>
                                 <tr style="background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--border-glass);">
-                                    <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 30%;">Document Name</th>
-                                    <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 18%;">Associated OEM</th>
-                                    <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 18%;">Format/Template</th>
-                                    <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 18%;">Uploaded Doc</th>
+                                    <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 24%;">Document Name</th>
+                                    <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 15%;">Format/Template</th>
+                                    <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 15%;">Associated OEM</th>
+                                    <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 15%;">Uploaded Doc</th>
                                     <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 10%; text-align: center;">Status</th>
-                                    <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 6%; text-align: right;">Del</th>
+                                    <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 17%;">Remarks</th>
+                                    <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 4%; text-align: right;">Del</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -291,14 +292,6 @@
                                             <td style="padding: 0.75rem;">
                                                 <div style="font-weight: 700; color: white; margin-bottom: 0.15rem;">{{ item['doc_name'] }}</div>
                                                 <div style="color: var(--text-secondary); font-size: 0.75rem;">{{ item['doc_description'] }}</div>
-                                            </td>
-                                            <td style="padding: 0.75rem;">
-                                                <select onchange="updateChecklistOem({{ item['id'] }}, this.value)" class="form-control" style="font-size: 0.75rem; padding: 0.25rem; background: rgba(15,23,42,0.6); color: white; border: 1px solid var(--border-glass); border-radius: 4px; width: 100%;">
-                                                    <option value="">-- None --</option>
-                                                    {% for oem in directory_oems %}
-                                                        <option value="{{ oem }}" {% if item['oem_name'] == oem %}selected{% endif %}>{{ oem }}</option>
-                                                    {% endfor %}
-                                                </select>
                                             </td>
                                             <td style="padding: 0.75rem;">
                                                 {% if item['format_file'] %}
@@ -314,6 +307,14 @@
                                                         <button type="button" onclick="document.getElementById('format-file-{{ item['id'] }}').click()" class="btn btn-secondary btn-sm" style="font-size: 0.7rem; padding: 0.25rem 0.5rem; background: transparent; border-color: rgba(255,255,255,0.15); color: var(--text-secondary);">📁 Upload format</button>
                                                     </form>
                                                 {% endif %}
+                                            </td>
+                                            <td style="padding: 0.75rem;">
+                                                <select onchange="updateChecklistOem({{ item['id'] }}, this.value)" class="form-control" style="font-size: 0.75rem; padding: 0.25rem; background: rgba(15,23,42,0.6); color: white; border: 1px solid var(--border-glass); border-radius: 4px; width: 100%;">
+                                                    <option value="">-- None --</option>
+                                                    {% for oem in directory_oems %}
+                                                        <option value="{{ oem }}" {% if item['oem_name'] == oem %}selected{% endif %}>{{ oem }}</option>
+                                                    {% endfor %}
+                                                </select>
                                             </td>
                                             <td style="padding: 0.75rem;">
                                                 {% if item['uploaded_file'] %}
@@ -337,6 +338,9 @@
                                                     {{ item['status'] }}
                                                 </button>
                                             </td>
+                                            <td style="padding: 0.75rem;">
+                                                <input type="text" onblur="updateChecklistRemarks({{ item['id'] }}, this.value)" class="form-control" value="{{ item['remarks'] or '' }}" placeholder="Remarks..." style="font-size: 0.75rem; padding: 0.25rem 0.5rem; background: rgba(255,255,255,0.02); border: 1px solid var(--border-glass); color: white; border-radius: 4px; width: 100%;">
+                                            </td>
                                             <td style="padding: 0.75rem; text-align: right;">
                                                 <form action="{{ url_for('rfp_checklist_delete', rfp_id=rfp['id'], item_id=item['id']) }}" method="POST" style="margin: 0;">
                                                     <button type="submit" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 1rem;">🗑️</button>
@@ -346,7 +350,7 @@
                                     {% endfor %}
                                 {% else %}
                                     <tr>
-                                        <td colspan="6" style="padding: 2rem; text-align: center; color: var(--text-muted);">No checklist documents added.</td>
+                                        <td colspan="7" style="padding: 2rem; text-align: center; color: var(--text-muted);">No checklist documents added.</td>
                                     </tr>
                                 {% endif %}
                             </tbody>
@@ -374,9 +378,13 @@
                                     {% endfor %}
                                 </select>
                             </div>
-                            <div class="form-group" style="margin-bottom: 1.25rem;">
+                            <div class="form-group" style="margin-bottom: 1rem;">
                                 <label class="form-label" for="format_file_input">Upload Format Template (Optional)</label>
                                 <input type="file" id="format_file_input" name="format_file" class="form-control" style="background: rgba(15,23,42,0.6); color: white; font-size: 0.8rem;">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 1.25rem;">
+                                <label class="form-label" for="remarks_input">Remarks (Optional)</label>
+                                <input type="text" id="remarks_input" name="remarks" class="form-control" placeholder="e.g. Awaiting OEM signature" style="background: rgba(15,23,42,0.6); color: white; font-size: 0.85rem;">
                             </div>
                             <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.5rem; font-size: 0.85rem;">Add to Checklist</button>
                         </form>
@@ -803,6 +811,26 @@
             .catch(err => {
                 console.error(err);
                 alert('Error updating associated OEM.');
+            });
+        }
+        
+        function updateChecklistRemarks(itemId, remarks) {
+            const formData = new FormData();
+            formData.append('remarks', remarks);
+            
+            fetch(`/rfps/${window.RFP_ID}/checklist/${itemId}/update-remarks`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status !== 'success') {
+                    alert('Error updating remarks: ' + data.message);
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert('Error updating checklist remarks.');
             });
         }
         

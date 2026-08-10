@@ -2650,13 +2650,23 @@ def rfp_update_details(rfp_id):
     contact_email = request.form.get('contact_email', '').strip()
     contact_phone = request.form.get('contact_phone', '').strip()
     
+    title = request.form.get('title', '').strip()
+    opportunity_from = request.form.get('opportunity_from', '').strip()
+    customer_name = request.form.get('customer_name', '').strip()
+    opportunity_date = request.form.get('opportunity_date', '').strip()
+    opportunity_type = request.form.get('opportunity_type', '').strip()
+    source = request.form.get('source', '').strip()
+    opportunity_owner = request.form.get('opportunity_owner', '').strip()
+    
     conn = database.get_db_connection()
     try:
         conn.execute("""
             UPDATE rfps 
-            SET pre_bid_date = ?, submission_date = ?, contact_name = ?, contact_address = ?, contact_email = ?, contact_phone = ?
+            SET pre_bid_date = ?, submission_date = ?, contact_name = ?, contact_address = ?, contact_email = ?, contact_phone = ?,
+                title = ?, opportunity_from = ?, customer_name = ?, opportunity_date = ?, opportunity_type = ?, source = ?, opportunity_owner = ?
             WHERE id = ?
-        """, (pre_bid_date, submission_date, contact_name, contact_address, contact_email, contact_phone, rfp_id))
+        """, (pre_bid_date, submission_date, contact_name, contact_address, contact_email, contact_phone,
+              title, opportunity_from, customer_name, opportunity_date, opportunity_type, source, opportunity_owner, rfp_id))
         conn.commit()
         log_audit('RFP_UPDATE', f"Updated details for RFP ID: {rfp_id}")
         flash("RFP details successfully updated.", "success")

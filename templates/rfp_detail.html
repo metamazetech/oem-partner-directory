@@ -119,14 +119,56 @@
                 <div class="glass-card" style="padding: 1.5rem;">
                     <h3 style="margin-top: 0; margin-bottom: 1.25rem; color: white;">Edit RFP Details & Deadlines</h3>
                     <form action="{{ url_for('rfp_update_details', rfp_id=rfp['id']) }}" method="POST">
+                        
+                        <h4 style="margin-top: 0; margin-bottom: 1rem; color: white;">Opportunity Details & Context</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.25rem;">
+                            <div class="form-group">
+                                <label class="form-label" for="title">Title / Project Name</label>
+                                <input type="text" id="title" name="title" class="form-control" value="{{ rfp['title'] or '' }}" placeholder="e.g. Smart City Wi-Fi Expansion Project" style="background: rgba(15,23,42,0.6); color: white;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="opportunity_from">Opportunity From</label>
+                                <input type="text" id="opportunity_from" name="opportunity_from" class="form-control" value="{{ rfp['opportunity_from'] or '' }}" placeholder="e.g. GeM Portal" style="background: rgba(15,23,42,0.6); color: white;">
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.25rem;">
+                            <div class="form-group">
+                                <label class="form-label" for="customer_name">Name of Customer (Account)</label>
+                                <input type="text" id="customer_name" name="customer_name" class="form-control" value="{{ rfp['customer_name'] or '' }}" placeholder="e.g. Ministry of Communications" style="background: rgba(15,23,42,0.6); color: white;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="opportunity_date">Opportunity Date</label>
+                                <input type="date" id="opportunity_date" name="opportunity_date" class="form-control" value="{{ rfp['opportunity_date'] or '' }}" style="background: rgba(15,23,42,0.6); color: white;">
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.25rem; margin-bottom: 1.25rem;">
+                            <div class="form-group">
+                                <label class="form-label" for="opportunity_type">Opportunity Type</label>
+                                <input type="text" id="opportunity_type" name="opportunity_type" class="form-control" value="{{ rfp['opportunity_type'] or '' }}" placeholder="e.g. Government RFP" style="background: rgba(15,23,42,0.6); color: white;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="source">Source</label>
+                                <input type="text" id="source" name="source" class="form-control" value="{{ rfp['source'] or '' }}" placeholder="e.g. Referral / Website" style="background: rgba(15,23,42,0.6); color: white;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="opportunity_owner">Opportunity Owner</label>
+                                <input type="text" id="opportunity_owner" name="opportunity_owner" class="form-control" value="{{ rfp['opportunity_owner'] or '' }}" placeholder="e.g. Jane Smith" style="background: rgba(15,23,42,0.6); color: white;">
+                            </div>
+                        </div>
+
+                        <hr style="border: 0; border-top: 1px solid var(--border-glass); margin: 1.5rem 0;">
+                        <h4 style="margin-top: 0; margin-bottom: 1rem; color: white;">Critical Dates & Milestones</h4>
+                        
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.25rem;">
                             <div class="form-group">
                                 <label class="form-label" for="pre_bid_date">Pre-Bid Meeting Date</label>
-                                <input type="date" id="pre_bid_date" name="pre_bid_date" class="form-control" value="{{ rfp['pre_bid_date'] }}">
+                                <input type="date" id="pre_bid_date" name="pre_bid_date" class="form-control" value="{{ rfp['pre_bid_date'] }}" style="background: rgba(15,23,42,0.6); color: white;">
                             </div>
                             <div class="form-group">
                                 <label class="form-label" for="submission_date">Submission Deadline Date</label>
-                                <input type="date" id="submission_date" name="submission_date" class="form-control" value="{{ rfp['submission_date'] }}">
+                                <input type="date" id="submission_date" name="submission_date" class="form-control" value="{{ rfp['submission_date'] }}" style="background: rgba(15,23,42,0.6); color: white;">
                             </div>
                         </div>
                         
@@ -297,7 +339,7 @@
                                                 {% if item['format_file'] %}
                                                     <div style="display: flex; align-items: center; gap: 0.35rem;">
                                                         <a href="{{ item['format_file'] }}" download class="btn btn-secondary btn-sm" style="font-size: 0.7rem; padding: 0.2rem 0.4rem;" title="Download Template Format">📥 Template</a>
-                                                        <form action="{{ url_for('rfp_checklist_delete_format', rfp_id=rfp['id'], item_id=item['id']) }}" method="POST" style="display: inline; margin: 0;">
+                                                        <form action="{{ url_for('rfp_checklist_delete_format', rfp_id=rfp['id'], item_id=item['id']) }}" method="POST" style="display: inline; margin: 0;" onsubmit="return confirmDeleteMatch(event, 'Template format for {{ item['doc_name'] }}');">
                                                             <button type="submit" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 0.8rem; padding: 0;" title="Remove template format">✕</button>
                                                         </form>
                                                     </div>
@@ -325,7 +367,7 @@
                                                 {% if item['uploaded_file'] %}
                                                     <div style="display: flex; align-items: center; gap: 0.35rem;">
                                                         <button type="button" onclick="viewDocument('{{ item['uploaded_file'] }}', '{{ item['uploaded_file'].split('.')[-1] }}', '{{ item['doc_name'] }}')" class="btn btn-secondary btn-sm" style="font-size: 0.7rem; padding: 0.2rem 0.4rem; color: #60a5fa;" title="View document inline">👁️ View</button>
-                                                        <form action="{{ url_for('rfp_checklist_delete_doc', rfp_id=rfp['id'], item_id=item['id']) }}" method="POST" style="display: inline; margin: 0;">
+                                                        <form action="{{ url_for('rfp_checklist_delete_doc', rfp_id=rfp['id'], item_id=item['id']) }}" method="POST" style="display: inline; margin: 0;" onsubmit="return confirmDeleteMatch(event, 'Uploaded document for {{ item['doc_name'] }}');">
                                                             <button type="submit" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 0.8rem; padding: 0;" title="Remove uploaded document">🗑️</button>
                                                         </form>
                                                     </div>
@@ -347,7 +389,7 @@
                                                 <input type="text" onblur="updateChecklistRemarks({{ item['id'] }}, this.value)" class="form-control" value="{{ item['remarks'] or '' }}" placeholder="Remarks..." style="font-size: 0.75rem; padding: 0.25rem 0.5rem; background: rgba(255,255,255,0.02); border: 1px solid var(--border-glass); color: white; border-radius: 4px; width: 100%;">
                                             </td>
                                             <td style="padding: 0.75rem; text-align: right;">
-                                                <form action="{{ url_for('rfp_checklist_delete', rfp_id=rfp['id'], item_id=item['id']) }}" method="POST" style="margin: 0;">
+                                                <form action="{{ url_for('rfp_checklist_delete', rfp_id=rfp['id'], item_id=item['id']) }}" method="POST" style="margin: 0;" onsubmit="return confirmDeleteMatch(event, 'Checklist row for {{ item['doc_name'] }}');">
                                                     <button type="submit" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 1rem;">🗑️</button>
                                                 </form>
                                             </td>
@@ -449,7 +491,7 @@
                                                 </div>
                                             </div>
                                         </div>
-                                        <form action="{{ url_for('rfp_document_delete', rfp_id=rfp['id'], doc_id=doc['id']) }}" method="POST" style="margin: 0; flex-shrink: 0;">
+                                        <form action="{{ url_for('rfp_document_delete', rfp_id=rfp['id'], doc_id=doc['id']) }}" method="POST" style="margin: 0; flex-shrink: 0;" onsubmit="return confirmDeleteMatch(event, 'Attachment: {{ doc['original_name'] }}');">
                                             <button type="submit" style="background: none; border: none; color: #f87171; cursor: pointer; padding: 0.25rem; font-size: 0.95rem;">🗑️</button>
                                         </form>
                                     </div>
@@ -821,6 +863,18 @@
             });
         }
         
+        function confirmDeleteMatch(event, itemName) {
+            event.preventDefault();
+            const answer = prompt(`⚠️ WARNING: You are deleting: "${itemName}"\n\nThis action cannot be undone. To confirm, please type "DELETE" in the box below:`);
+            if (answer === "DELETE") {
+                event.target.submit();
+                return true;
+            } else {
+                alert("❌ Deletion cancelled. Confirmation word did not match.");
+                return false;
+            }
+        }
+
         function updateChecklistOem(itemId, oemName) {
             const formData = new FormData();
             formData.append('oem_name', oemName);

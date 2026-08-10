@@ -178,6 +178,13 @@ def init_db():
     CREATE TABLE IF NOT EXISTS rfps (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         rfp_number TEXT NOT NULL UNIQUE,
+        title TEXT,
+        opportunity_from TEXT,
+        customer_name TEXT,
+        opportunity_date TEXT,
+        opportunity_type TEXT,
+        source TEXT,
+        opportunity_owner TEXT,
         pre_bid_date TEXT,
         submission_date TEXT,
         contact_name TEXT,
@@ -248,6 +255,15 @@ def init_db():
         cursor.execute("ALTER TABLE rfp_boq_oem_mappings ADD COLUMN remarks TEXT")
     except sqlite3.OperationalError:
         pass
+
+    # Add rfps columns safety migration block
+    for col in [('title', 'TEXT'), ('opportunity_from', 'TEXT'), ('customer_name', 'TEXT'),
+                ('opportunity_date', 'TEXT'), ('opportunity_type', 'TEXT'),
+                ('source', 'TEXT'), ('opportunity_owner', 'TEXT')]:
+        try:
+            cursor.execute(f"ALTER TABLE rfps ADD COLUMN {col[0]} {col[1]}")
+        except sqlite3.OperationalError:
+            pass
 
     # Add rfp_checklist columns safety migration block
     for col in [('oem_name', 'TEXT'), ('format_file', 'TEXT'), ('uploaded_file', 'TEXT'), ('remarks', 'TEXT')]:

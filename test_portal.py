@@ -375,6 +375,37 @@ class PortalTestCase(unittest.TestCase):
         conn.close()
         print("[OK] Verified: RFP created and 5 checklist items pre-seeded successfully.")
         
+        # 2.5 Update RFP details including new Opportunity context fields
+        update_detail_resp = self.client.post(f'/rfps/{rfp_id}/update-details', data={
+            'pre_bid_date': '2026-08-15',
+            'submission_date': '2026-08-25',
+            'contact_name': 'Test Contact',
+            'contact_address': 'Test Address',
+            'contact_email': 'test@contact.com',
+            'contact_phone': '1234567890',
+            'title': 'Test Title Project Name',
+            'opportunity_from': 'Test Opportunity From',
+            'customer_name': 'Test Customer Account',
+            'opportunity_date': '2026-08-11',
+            'opportunity_type': 'Test Opportunity Type',
+            'source': 'Test Source',
+            'opportunity_owner': 'Test Opportunity Owner'
+        }, follow_redirects=True)
+        self.assertEqual(update_detail_resp.status_code, 200)
+        
+        # Verify columns updated in DB
+        conn = sqlite3.connect('oem_tracker_test.db')
+        rfp_details = conn.execute("SELECT title, opportunity_from, customer_name, opportunity_date, opportunity_type, source, opportunity_owner FROM rfps WHERE id = ?", (rfp_id,)).fetchone()
+        self.assertEqual(rfp_details[0], 'Test Title Project Name')
+        self.assertEqual(rfp_details[1], 'Test Opportunity From')
+        self.assertEqual(rfp_details[2], 'Test Customer Account')
+        self.assertEqual(rfp_details[3], '2026-08-11')
+        self.assertEqual(rfp_details[4], 'Test Opportunity Type')
+        self.assertEqual(rfp_details[5], 'Test Source')
+        self.assertEqual(rfp_details[6], 'Test Opportunity Owner')
+        conn.close()
+        print("[OK] Verified: RFP Overview details and Opportunity Context fields updated successfully.")
+        
         # 3. Save BoQ OEM Matrix
         boq_payload = {
             'items': [

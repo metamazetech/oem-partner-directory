@@ -155,7 +155,7 @@
                                         <td style="padding: 1rem; text-align: right;">
                                             <div style="display: inline-flex; gap: 0.4rem; align-items: center; justify-content: flex-end;">
                                                 <a href="{{ url_for('rfp_detail', rfp_id=rfp['id']) }}" class="btn btn-secondary btn-sm" style="text-decoration: none; padding: 0.25rem 0.6rem; font-size: 0.78rem; border-radius: 4px;">Workspace</a>
-                                                <form action="{{ url_for('rfp_delete', rfp_id=rfp['id']) }}" method="POST" style="margin: 0;" onsubmit="return confirm('Are you sure you want to permanently delete RFP {{ rfp['rfp_number'] }} and all its documents?');">
+                                                <form action="{{ url_for('rfp_delete', rfp_id=rfp['id']) }}" method="POST" style="margin: 0;" onsubmit="return confirmDeleteMatch(event, '{{ rfp['rfp_number'] }}');">
                                                     <button type="submit" class="btn btn-danger btn-sm" style="padding: 0.25rem 0.6rem; font-size: 0.78rem; border-radius: 4px;">Delete</button>
                                                 </form>
                                             </div>
@@ -274,6 +274,18 @@
     </div>
     
     <script>
+        function confirmDeleteMatch(event, itemName) {
+            event.preventDefault();
+            const answer = prompt(`⚠️ WARNING: You are deleting RFP "${itemName}".\n\nThis will permanently remove the RFP opportunity and all its associated documents.\n\nTo confirm, please type "DELETE" in the box below:`);
+            if (answer === "DELETE") {
+                event.target.submit();
+                return true;
+            } else {
+                alert("❌ Deletion cancelled. Confirmation word did not match.");
+                return false;
+            }
+        }
+
         function openModal(modalId) {
             const m = document.getElementById(modalId);
             if (m) {

@@ -173,6 +173,71 @@ def init_db():
     )
     ''')
     
+    # Create Master RFPs Table
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS rfps (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        rfp_number TEXT NOT NULL UNIQUE,
+        pre_bid_date TEXT,
+        submission_date TEXT,
+        contact_name TEXT,
+        contact_address TEXT,
+        contact_email TEXT,
+        contact_phone TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_by INTEGER,
+        FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    )
+    ''')
+
+    # Create RFP BoQ Items Table
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS rfp_boq_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        rfp_id INTEGER NOT NULL,
+        item_name TEXT NOT NULL,
+        quantity INTEGER NOT NULL,
+        FOREIGN KEY (rfp_id) REFERENCES rfps(id) ON DELETE CASCADE
+    )
+    ''')
+
+    # Create RFP BoQ OEM Mappings Table
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS rfp_boq_oem_mappings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        boq_item_id INTEGER NOT NULL,
+        oem_name TEXT NOT NULL,
+        offering_details TEXT,
+        FOREIGN KEY (boq_item_id) REFERENCES rfp_boq_items(id) ON DELETE CASCADE
+    )
+    ''')
+
+    # Create RFP Document Checklist Table
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS rfp_checklist (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        rfp_id INTEGER NOT NULL,
+        doc_name TEXT NOT NULL,
+        doc_description TEXT,
+        status TEXT DEFAULT 'Not Received',
+        FOREIGN KEY (rfp_id) REFERENCES rfps(id) ON DELETE CASCADE
+    )
+    ''')
+
+    # Create RFP Uploaded Documents Table
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS rfp_documents (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        rfp_id INTEGER NOT NULL,
+        filename TEXT NOT NULL,
+        original_name TEXT NOT NULL,
+        doc_type TEXT,
+        file_size INTEGER,
+        uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (rfp_id) REFERENCES rfps(id) ON DELETE CASCADE
+    )
+    ''')
+    
     # Check if admin user exists, if not, create default admin
     cursor.execute('SELECT * FROM users WHERE role = ?', ('admin',))
     admin_exists = cursor.fetchone()

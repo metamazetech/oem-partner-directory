@@ -335,11 +335,138 @@ class PortalTestCase(unittest.TestCase):
         news_fetch_resp = self.client.post('/news/fetch', follow_redirects=True)
         self.assertEqual(news_fetch_resp.status_code, 200)
         
-        # Verify news table behaves safely
         conn = sqlite3.connect('oem_tracker_test.db')
         news_count = conn.execute("SELECT COUNT(*) FROM oem_news").fetchone()[0]
         conn.close()
         print(f"[OK] Verified: OEM News routes executed safely. News count in DB: {news_count}")
+
+        # ----------------------------------------------------
+        # Scenario 9.95: Testing RFP Section Features
+        # ----------------------------------------------------
+        print("\nScenario 9.95: Testing RFP Section Features...")
+        
+        # 1. Access RFP List Page
+        rfps_page_resp = self.client.get('/rfps')
+        self.assertEqual(rfps_page_resp.status_code, 200)
+        self.assertIn(b'RFP Procurement Opportunities', rfps_page_resp.data)
+        
+        # 2. Create RFP
+        rfp_payload = {
+            'rfp_number': 'GEM/2026/B/99981',
+            'pre_bid_date': '2026-08-15',
+            'submission_date': '2026-08-30',
+            'contact_name': 'Key Contact Person',
+            'contact_phone': '9988776655',
+            'contact_email': 'contact@client.gov.in',
+            'contact_address': 'Procurement Department'
+        }
+        create_rfp_resp = self.client.post('/rfps/create', data=rfp_payload, follow_redirects=True)
+        self.assertEqual(create_rfp_resp.status_code, 200)
+        self.assertIn(b'Workspace for managing matrix comparisons', create_rfp_resp.data)
+        
+        # Verify in DB and pre-seeded checklist
+        conn = sqlite3.connect('oem_tracker_test.db')
+        rfp_row = conn.execute("SELECT id FROM rfps WHERE rfp_number = 'GEM/2026/B/99981'").fetchone()
+        self.assertIsNotNone(rfp_row)
+        rfp_id = rfp_row[0]
+        
+        checklist_count = conn.execute("SELECT COUNT(*) FROM rfp_checklist WHERE rfp_id = ?", (rfp_id,)).fetchone()[0]
+        self.assertEqual(checklist_count, 5) # Should pre-seed 5 items
+        conn.close()
+        print("[OK] Verified: RFP created and 5 checklist items pre-seeded successfully.")
+        
+        # 3. Save BoQ OEM Matrix
+        boq_payload = {
+            'items': [
+                {
+                    'item_name': 'Next-Gen Firewall',
+                    'quantity': 2,
+                    'mappings': {
+                        'Cisco': 'Firepower 1010',
+                        'Fortinet': 'FortiGate 60F'
+                    }
+                },
+                {
+                    'item_name': 'Core Switch',
+                    'quantity': 4,
+                    'mappings': {
+                        'Cisco': 'Catalyst 9300'
+                    }
+                }
+            ]
+        }
+        save_boq_resp = self.client.post(f'/rfps/{rfp_id}/save-boq', json=boq_payload)
+        self.assertEqual(save_boq_resp.status_code, 200)
+        
+        # Verify in DB
+        conn = sqlite3.connect('oem_tracker_test.db')
+        boq_count = conn.execute("SELECT COUNT(*) FROM rfp_boq_items WHERE rfp_id = ?", (rfp_id,)).fetchone()[0]
+        self.assertEqual(boq_count, 2)
+        
+        # Check mapping count
+        mapping_count = conn.execute("""
+            SELECT COUNT(*) FROM rfp_boq_oem_mappings m
+            JOIN rfp_boq_items i ON m.boq_item_id = i.id
+            WHERE i.rfp_id = ?
+        """, (rfp_id,)).fetchone()[0]
+        self.assertEqual(mapping_count, 3) # 2 mappings for item 1, 1 mapping for item 2
+        conn.close()
+        print("[OK] Verified: BoQ OEM Matrix details saved and retrieved successfully.")
+        
+        # 4. Toggle Checklist Item Status
+        conn = sqlite3.connect('oem_tracker_test.db')
+        checklist_item = conn.execute("SELECT id, status FROM rfp_checklist WHERE rfp_id = ?", (rfp_id,)).fetchone()
+        item_id, current_status = checklist_item[0], checklist_item[1]
+        conn.close()
+        
+        toggle_resp = self.client.post(f'/rfps/{rfp_id}/checklist/{item_id}/toggle')
+        self.assertEqual(toggle_resp.status_code, 200)
+        toggle_data = json.loads(toggle_resp.data)
+        self.assertEqual(toggle_data['new_status'], 'Received')
+        print("[OK] Verified: Document Checklist toggling AJAX handler updates successfully.")
+        
+        # 5. File Upload Size Limits
+        # Verify we can upload file
+        import io
+        small_file = (io.BytesIO(b"dummy document content"), "tender.pdf")
+        upload_resp = self.client.post(f'/rfps/{rfp_id}/upload', data={
+            'doc_type': 'rfp',
+            'file': small_file
+        }, content_type='multipart/form-data', follow_redirects=True)
+        self.assertEqual(upload_resp.status_code, 200)
+        self.assertIn(b"tender.pdf", upload_resp.data)
+        
+        # Verify size limit warning for file larger than 40 MB
+        large_content = b"0" * (41 * 1024 * 1024) # 41 MB
+        large_file = (io.BytesIO(large_content), "large.zip")
+        upload_large_resp = self.client.post(f'/rfps/{rfp_id}/upload', data={
+            'doc_type': 'rfp',
+            'file': large_file
+        }, content_type='multipart/form-data', follow_redirects=True)
+        self.assertEqual(upload_large_resp.status_code, 200)
+        self.assertIn(b"exceeds 40 MB limit", upload_large_resp.data)
+        print("[OK] Verified: File upload size constraints (40MB limit filters) are fully functional.")
+        
+        # 6. Universal Search Queries
+        search_match_resp = self.client.get('/rfps?search=99981')
+        self.assertEqual(search_match_resp.status_code, 200)
+        self.assertIn(b'GEM/2026/B/99981', search_match_resp.data)
+        
+        # Search by BoQ item
+        search_boq_resp = self.client.get('/rfps?search=Firewall')
+        self.assertEqual(search_boq_resp.status_code, 200)
+        self.assertIn(b'GEM/2026/B/99981', search_boq_resp.data)
+        
+        # Search by checklist item
+        search_checklist_resp = self.client.get('/rfps?search=Authorization')
+        self.assertEqual(search_checklist_resp.status_code, 200)
+        self.assertIn(b'GEM/2026/B/99981', search_checklist_resp.data)
+        
+        # Search for non-existent item
+        search_empty_resp = self.client.get('/rfps?search=nonexistentterm')
+        self.assertEqual(search_empty_resp.status_code, 200)
+        self.assertNotIn(f'href="/rfps/{rfp_id}"'.encode(), search_empty_resp.data)
+        print("[OK] Verified: Universal search correctly matches RFP numbers, BoQ specifications, and checklist items.")
 
         # ----------------------------------------------------
         # Scenario 10: Factory Reset Danger Zone

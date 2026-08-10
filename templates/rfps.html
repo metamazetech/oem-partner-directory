@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RFP Section - {{ portal_settings['portal_name'] }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.3">
+    <link rel="icon" type="image/x-icon" href="{% if portal_settings['favicon'] %}{{ url_for('uploaded_file', filename=portal_settings['favicon']) }}{% else %}{{ url_for('static', filename='favicon.ico') }}{% endif %}">
+    <script>
+        window.BASE_URL = "{{ url_for('dashboard') }}";
+    </script>
+</head>
+<body class="{{ session.get('theme', 'theme-slate-dark') }}">
+    <div class="app-container">
+        
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-container" style="display: flex; align-items: center; justify-content: center; max-width: 100%; padding: 6px 0; text-decoration: none; gap: 0.4rem;">
+                    <a href="{{ url_for('dashboard') }}" style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.25rem; color: var(--text-primary); letter-spacing: -0.03em; text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
+                        {% if portal_settings['portal_logo'] %}
+                            <img src="{{ url_for('uploaded_file', filename=portal_settings['portal_logo']) }}" style="max-height: 40px; max-width: 100%; object-fit: contain;" alt="Logo">
+                        {% else %}
+                            <span>📂</span> {{ portal_settings['portal_name'] }}
+                        {% endif %}
+                    </a>
+                    <span style="font-size: 0.6rem; color: var(--text-muted); background: rgba(255,255,255,0.05); border: 1px solid var(--border-glass); padding: 0.1rem 0.3rem; border-radius: 4px; font-weight: 700; vertical-align: middle;">v2.0.0</span>
+                </div>
+                <button id="mobile-nav-toggle" class="mobile-toggle-btn">☰</button>
+            </div>
+            
+            <div class="nav-container">
+                <nav>
+                    <ul class="nav-menu">
+                        <li class="nav-item">
+                            <a href="{{ url_for('dashboard') }}">
+                                <span>📊</span> Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="{{ url_for('oem_news_page') }}">
+                                <span>📰</span> OEM News
+                            </a>
+                        </li>
+                        <li class="nav-item active">
+                            <a href="{{ url_for('rfps_list') }}">
+                                <span>📋</span> RFP Section
+                            </a>
+                        </li>
+                        {% if session['role'] == 'admin' %}
+                        <li class="nav-item">
+                            <a href="{{ url_for('admin_panel') }}">
+                                <span>🛡️</span> Admin Panel
+                            </a>
+                        </li>
+                        {% endif %}
+                        <li class="nav-item">
+                            <a href="{{ url_for('logout') }}" style="color: #fca5a5;">
+                                <span>🚪</span> Sign Out
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+            
+            <!-- User profile display at the bottom of the sidebar -->
+            <div class="sidebar-user-profile" style="margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border-glass); display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.5rem;">
+                <div class="user-avatar" style="position: relative; width: 34px; height: 34px; border-radius: 50%; font-size: 0.85rem; font-weight: 700; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; flex-shrink: 0; margin: 0;">
+                    {{ session['username'][0].upper() }}
+                    <a href="javascript:void(0)" onclick="openModal('preferences-modal')" style="position: absolute; bottom: -3px; right: -3px; background: var(--primary); font-size: 0.55rem; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center; border-radius: 50%; text-decoration: none; border: 1px solid var(--border-glass);" title="Personalize Portal Layout & Theme">⚙️</a>
+                </div>
+                <div style="display: flex; flex-direction: column; min-width: 0;">
+                    <span style="font-size: 0.8rem; font-weight: 700; color: white; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left;">{{ session['username'] }}</span>
+                    <span style="font-size: 0.65rem; color: var(--text-secondary); line-height: 1.2; text-transform: capitalize; text-align: left;">{{ session['role'] }}</span>
+                </div>
+            </div>
+        </aside>
+        
+        <!-- Main Content Area -->
+        <main class="main-content">
+            
+            <div class="header-bar" style="margin-bottom: 2rem;">
+                <div>
+                    <h1 class="page-title">📋 RFP Procurement Opportunities</h1>
+                    <p style="color: var(--text-secondary); margin-top: 0.25rem;">Manage RFPs, track document checklists, map BoQ offerings, and upload bidding files.</p>
+                </div>
+                <div>
+                    <button class="btn btn-primary" onclick="openModal('create-rfp-modal')" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px;">
+                        <span>➕</span> Create RFP
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Flash messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert-message alert-{{ 'error' if category == 'error' else 'success' }}" style="margin-bottom: 1.5rem;">
+                            {% if category == 'error' %}⚠️{% else %}✓{% endif %}
+                            <span>{{ message }}</span>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
+            <!-- Universal Search Box -->
+            <section class="glass-card" style="padding: 1.25rem; margin-bottom: 2rem;">
+                <form action="{{ url_for('rfps_list') }}" method="GET" style="display: flex; gap: 0.75rem; align-items: center; margin: 0;">
+                    <div style="position: relative; flex-grow: 1; display: flex; align-items: center;">
+                        <input type="text" name="search" class="form-control" placeholder="🔍 Universal Search: search RFPs by number, contact, BoQ matrix items, checklists, or files..." value="{{ search_query or '' }}" style="width: 100%; padding-left: 2.5rem; background: rgba(15,23,42,0.4); border: 1px solid var(--border-glass);">
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="padding: 0.6rem 1.25rem;">Search</button>
+                    {% if search_query %}
+                        <a href="{{ url_for('rfps_list') }}" class="btn btn-secondary" style="text-decoration: none; padding: 0.6rem 1.25rem; display: inline-flex; align-items: center; justify-content: center;">Clear</a>
+                    {% endif %}
+                </form>
+            </section>
+            
+            <!-- RFP Opportunities List -->
+            <div id="rfps-list-container">
+                {% if rfps %}
+                    <div class="glass-card" style="padding: 0; overflow-x: auto; border: 1px solid var(--border-glass);">
+                        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
+                            <thead>
+                                <tr style="background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--border-glass);">
+                                    <th style="padding: 1rem; color: var(--text-secondary); font-weight: 700;">RFP Number</th>
+                                    <th style="padding: 1rem; color: var(--text-secondary); font-weight: 700;">Pre-Bid Date</th>
+                                    <th style="padding: 1rem; color: var(--text-secondary); font-weight: 700;">Submission Date</th>
+                                    <th style="padding: 1rem; color: var(--text-secondary); font-weight: 700;">Key Contact</th>
+                                    <th style="padding: 1rem; color: var(--text-secondary); font-weight: 700; text-align: right;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for rfp in rfps %}
+                                    <tr class="rfp-row" style="border-bottom: 1px solid rgba(255,255,255,0.03); transition: background 0.2s;" onmouseover="this.style.background='rgba(99,102,241,0.03)'" onmouseout="this.style.background='transparent'">
+                                        <td style="padding: 1rem; font-weight: 700;">
+                                            <a href="{{ url_for('rfp_detail', rfp_id=rfp['id']) }}" style="color: white; text-decoration: none; transition: color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='white'">
+                                                📄 {{ rfp['rfp_number'] }}
+                                            </a>
+                                        </td>
+                                        <td style="padding: 1rem; color: var(--text-primary);">
+                                            {{ rfp['pre_bid_date'] if rfp['pre_bid_date'] else 'N/A' }}
+                                        </td>
+                                        <td style="padding: 1rem; color: var(--text-primary);">
+                                            {{ rfp['submission_date'] if rfp['submission_date'] else 'N/A' }}
+                                        </td>
+                                        <td style="padding: 1rem;">
+                                            {% if rfp['contact_name'] %}
+                                                <div style="font-weight: 600; color: white; font-size: 0.85rem;">{{ rfp['contact_name'] }}</div>
+                                                <div style="font-size: 0.75rem; color: var(--text-muted);">{{ rfp['contact_email'] }}</div>
+                                            {% else %}
+                                                <span style="color: var(--text-muted); font-size: 0.8rem;">No details configured</span>
+                                            {% endif %}
+                                        </td>
+                                        <td style="padding: 1rem; text-align: right;">
+                                            <div style="display: inline-flex; gap: 0.4rem; align-items: center; justify-content: flex-end;">
+                                                <a href="{{ url_for('rfp_detail', rfp_id=rfp['id']) }}" class="btn btn-secondary btn-sm" style="text-decoration: none; padding: 0.25rem 0.6rem; font-size: 0.78rem; border-radius: 4px;">Workspace</a>
+                                                <form action="{{ url_for('rfp_delete', rfp_id=rfp['id']) }}" method="POST" style="margin: 0;" onsubmit="return confirm('Are you sure you want to permanently delete RFP {{ rfp['rfp_number'] }} and all its documents?');">
+                                                    <button type="submit" class="btn btn-danger btn-sm" style="padding: 0.25rem 0.6rem; font-size: 0.78rem; border-radius: 4px;">Delete</button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="glass-card" style="padding: 3rem; text-align: center; border: 1px dashed var(--border-glass);">
+                        <span style="font-size: 3rem; display: block; margin-bottom: 1rem;">📋</span>
+                        <h3 style="margin: 0 0 0.5rem 0; color: white;">No RFP Opportunities Found</h3>
+                        <p style="margin: 0 0 1.5rem 0; color: var(--text-secondary); font-size: 0.9rem;">Start by creating your first Request for Proposal opportunity record in the system.</p>
+                        <button class="btn btn-primary" onclick="openModal('create-rfp-modal')" style="padding: 0.5rem 1.25rem; font-size: 0.85rem; border-radius: 8px;">Create RFP</button>
+                    </div>
+                {% endif %}
+            </div>
+            
+        </main>
+    </div>
+    
+    <!-- Create RFP Modal -->
+    <div id="create-rfp-modal" class="modal" style="display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(15,23,42,0.85); backdrop-filter: blur(10px); align-items: center; justify-content: center;">
+        <div class="modal-content" style="background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.95)); border: 1px solid var(--border-glass); border-radius: 16px; padding: 1.5rem; width: 90%; max-width: 550px; text-align: left; box-shadow: 0 20px 50px rgba(0,0,0,0.5); margin: 5% auto;">
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-glass); padding-bottom: 0.75rem; margin-bottom: 1.25rem;">
+                <h3 class="modal-title" style="font-size: 1.15rem; font-weight: 700; color: white; display: flex; align-items: center; gap: 0.35rem; margin: 0;">📋 Create New RFP Opportunity</h3>
+                <button type="button" class="btn-close" onclick="closeModal('create-rfp-modal')" style="background: none; border: none; color: var(--text-secondary); font-size: 1.15rem; cursor: pointer; line-height: 1;">✕</button>
+            </div>
+            
+            <form action="{{ url_for('rfp_create') }}" method="POST">
+                <div class="modal-body">
+                    <!-- Basic Details -->
+                    <div style="display: grid; grid-template-columns: 1fr; gap: 1rem; margin-bottom: 1.25rem;">
+                        <div class="form-group">
+                            <label class="form-label" for="rfp_number">RFP Number / Tender Reference*</label>
+                            <input type="text" id="rfp_number" name="rfp_number" class="form-control" placeholder="e.g. GEM/2026/B/99981" required>
+                        </div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
+                        <div class="form-group">
+                            <label class="form-label" for="pre_bid_date">Pre-Bid Meeting Date</label>
+                            <input type="date" id="pre_bid_date" name="pre_bid_date" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="submission_date">Submission Due Date</label>
+                            <input type="date" id="submission_date" name="submission_date" class="form-control">
+                        </div>
+                    </div>
+                    
+                    <hr style="border: 0; border-top: 1px solid var(--border-glass); margin: 1.25rem 0;">
+                    
+                    <!-- Contact Person details -->
+                    <div style="font-weight: 700; color: white; font-size: 0.88rem; margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Key Client Contact Details</div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div class="form-group">
+                            <label class="form-label" for="contact_name">Contact Person Name</label>
+                            <input type="text" id="contact_name" name="contact_name" class="form-control" placeholder="e.g. John Doe">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="contact_phone">Phone Number</label>
+                            <input type="text" id="contact_phone" name="contact_phone" class="form-control" placeholder="e.g. +91 9988776655">
+                        </div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div class="form-group">
+                            <label class="form-label" for="contact_email">Email Address</label>
+                            <input type="email" id="contact_email" name="contact_email" class="form-control" placeholder="e.g. j.doe@client.gov.in">
+                        </div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr; gap: 1rem; margin-bottom: 0.5rem;">
+                        <div class="form-group">
+                            <label class="form-label" for="contact_address">Physical Address</label>
+                            <textarea id="contact_address" name="contact_address" class="form-control" placeholder="e.g. Procurement Office, Room 102, Dept of Technology, New Delhi" rows="2" style="resize: none;"></textarea>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--border-glass); padding-top: 0.75rem; margin-top: 1.25rem;">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="closeModal('create-rfp-modal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary btn-sm">Create RFP</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Preferences Modal (For sidebar gear icon action compatibility) -->
+    <div id="preferences-modal" class="modal" style="display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(15,23,42,0.85); backdrop-filter: blur(10px); align-items: center; justify-content: center;">
+        <div class="modal-content" style="background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.95)); border: 1px solid var(--border-glass); border-radius: 16px; padding: 1.5rem; width: 90%; max-width: 450px; text-align: left; box-shadow: 0 20px 50px rgba(0,0,0,0.5); margin: 10% auto;">
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-glass); padding-bottom: 0.75rem; margin-bottom: 1.25rem;">
+                <h3 class="modal-title" style="font-size: 1.15rem; font-weight: 700; color: white; display: flex; align-items: center; gap: 0.35rem; margin: 0;">⚙️ Personalize Theme</h3>
+                <button type="button" class="btn-close" onclick="closeModal('preferences-modal')" style="background: none; border: none; color: var(--text-secondary); font-size: 1.15rem; cursor: pointer; line-height: 1;">✕</button>
+            </div>
+            <div class="modal-body">
+                <form action="{{ url_for('save_preferences') }}" method="POST">
+                    <div class="form-group" style="margin-bottom: 1.25rem;">
+                        <label class="form-label" style="margin-bottom: 0.5rem; display: block;">Theme Preset</label>
+                        <select name="theme" class="form-control" style="background: rgba(15,23,42,0.6); color: white; border: 1px solid var(--border-glass);">
+                            <option value="theme-slate-dark" {% if session.get('theme') == 'theme-slate-dark' %}selected{% endif %}>Slate Dark (Default)</option>
+                            <option value="theme-blue-glass" {% if session.get('theme') == 'theme-blue-glass' %}selected{% endif %}>Blue Cyber Glass</option>
+                            <option value="theme-emerald-matrix" {% if session.get('theme') == 'theme-emerald-matrix' %}selected{% endif %}>Emerald Matrix</option>
+                            <option value="theme-sunset-neon" {% if session.get('theme') == 'theme-sunset-neon' %}selected{% endif %}>Sunset Neon</option>
+                        </select>
+                    </div>
+                    <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.5rem;">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="closeModal('preferences-modal')">Cancel</button>
+                        <button type="submit" class="btn btn-primary btn-sm">Apply Theme</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function openModal(modalId) {
+            const m = document.getElementById(modalId);
+            if (m) {
+                m.style.display = 'flex';
+            }
+        }
+        function closeModal(modalId) {
+            const m = document.getElementById(modalId);
+            if (m) {
+                m.style.display = 'none';
+            }
+        }
+        
+        // Mobile Toggle Navigation Compatibility
+        const mobileToggle = document.getElementById('mobile-nav-toggle');
+        if (mobileToggle) {
+            mobileToggle.addEventListener('click', function() {
+                const sidebar = document.querySelector('.sidebar');
+                if (sidebar) {
+                    sidebar.classList.toggle('active');
+                }
+            });
+        }
+    </script>
+</body>
+</html>

@@ -40,7 +40,12 @@ def to_digits(s):
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024 # 5MB limit
+app.config['MAX_CONTENT_LENGTH'] = 40 * 1024 * 1024 # 40MB limit
+
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    flash("File size exceeds 40 MB limit.", "error")
+    return redirect(request.referrer or url_for('rfps_list'))
 
 # Ensure upload directory exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -2496,6 +2501,365 @@ def clear_logs():
     conn.commit()
     conn.close()
     return redirect(url_for('admin_panel'))
+
+@app.route('/rfps')
+@login_required
+def rfps_list():
+    search_query = request.args.get('search', '').strip()
+    conn = database.get_db_connection()
+    
+    if search_query:
+        search_pattern = f"%{search_query}%"
+        rfps = conn.execute("""
+            SELECT DISTINCT r.* 
+            FROM rfps r
+            LEFT JOIN rfp_boq_items b ON r.id = b.rfp_id
+            LEFT JOIN rfp_checklist c ON r.id = c.rfp_id
+            LEFT JOIN rfp_documents d ON r.id = d.rfp_id
+            WHERE r.rfp_number LIKE ?
+               OR r.contact_name LIKE ?
+               OR r.contact_email LIKE ?
+               OR r.contact_phone LIKE ?
+               OR r.contact_address LIKE ?
+               OR b.item_name LIKE ?
+               OR c.doc_name LIKE ?
+               OR d.original_name LIKE ?
+            ORDER BY r.id DESC
+        """, (search_pattern,) * 8).fetchall()
+    else:
+        rfps = conn.execute("SELECT * FROM rfps ORDER BY id DESC").fetchall()
+        
+    conn.close()
+    return render_template('rfps.html', rfps=rfps, search_query=search_query)
+
+@app.route('/rfps/create', methods=['POST'])
+@login_required
+def rfp_create():
+    rfp_number = request.form.get('rfp_number', '').strip()
+    pre_bid_date = request.form.get('pre_bid_date', '').strip()
+    submission_date = request.form.get('submission_date', '').strip()
+    contact_name = request.form.get('contact_name', '').strip()
+    contact_address = request.form.get('contact_address', '').strip()
+    contact_email = request.form.get('contact_email', '').strip()
+    contact_phone = request.form.get('contact_phone', '').strip()
+    
+    if not rfp_number:
+        flash("RFP Number is required.", "error")
+        return redirect(url_for('rfps_list'))
+        
+    conn = database.get_db_connection()
+    try:
+        # Check duplicate
+        existing = conn.execute("SELECT id FROM rfps WHERE rfp_number = ?", (rfp_number,)).fetchone()
+        if existing:
+            flash(f"RFP Number '{rfp_number}' already exists.", "error")
+            return redirect(url_for('rfps_list'))
+            
+        cursor = conn.execute("""
+            INSERT INTO rfps (rfp_number, pre_bid_date, submission_date, contact_name, contact_address, contact_email, contact_phone, created_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (rfp_number, pre_bid_date, submission_date, contact_name, contact_address, contact_email, contact_phone, session['user_id']))
+        rfp_id = cursor.lastrowid
+        
+        # Pre-seed default document checklist
+        default_checklist = [
+            ("RFP Document", "Original RFP document containing scope and guidelines"),
+            ("Technical Bid", "Prepared technical compliance and response sheets"),
+            ("Financial Bid", "Commercial quote and price schedule document"),
+            ("OEM Authorization Letter (MAF)", "Manufacturer Authorization Form credentials"),
+            ("Tender Fee Receipt", "Receipt of payment for tender document purchase")
+        ]
+        for name, desc in default_checklist:
+            conn.execute("""
+                INSERT INTO rfp_checklist (rfp_id, doc_name, doc_description, status)
+                VALUES (?, ?, ?, 'Not Received')
+            """, (rfp_id, name, desc))
+            
+        conn.commit()
+        log_audit('RFP_CREATE', f"Created RFP: {rfp_number}")
+        flash(f"RFP '{rfp_number}' successfully created and checklist initialized.", "success")
+        return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+    except Exception as e:
+        flash(f"Error creating RFP: {e}", "error")
+        return redirect(url_for('rfps_list'))
+    finally:
+        conn.close()
+
+@app.route('/rfps/<int:rfp_id>')
+@login_required
+def rfp_detail(rfp_id):
+    conn = database.get_db_connection()
+    rfp = conn.execute("SELECT * FROM rfps WHERE id = ?", (rfp_id,)).fetchone()
+    if not rfp:
+        conn.close()
+        flash("RFP not found.", "error")
+        return redirect(url_for('rfps_list'))
+        
+    # Fetch checklist
+    checklist = conn.execute("SELECT * FROM rfp_checklist WHERE rfp_id = ? ORDER BY id ASC", (rfp_id,)).fetchall()
+    
+    # Fetch documents
+    documents = conn.execute("SELECT * FROM rfp_documents WHERE rfp_id = ? ORDER BY id DESC", (rfp_id,)).fetchall()
+    
+    # Fetch directory OEMs for BoQ column selector
+    oems_rows = conn.execute("SELECT DISTINCT company_name FROM contacts WHERE type = 'OEM' ORDER BY company_name").fetchall()
+    directory_oems = [r['company_name'] for r in oems_rows if r['company_name']]
+    
+    # Fetch BoQ matrix
+    items_rows = conn.execute("SELECT * FROM rfp_boq_items WHERE rfp_id = ? ORDER BY id ASC", (rfp_id,)).fetchall()
+    boq_matrix = []
+    oems_mapped_set = set()
+    
+    for item in items_rows:
+        mappings = conn.execute("SELECT oem_name, offering_details FROM rfp_boq_oem_mappings WHERE boq_item_id = ?", (item['id'],)).fetchall()
+        mapping_dict = {}
+        for m in mappings:
+            mapping_dict[m['oem_name']] = m['offering_details']
+            oems_mapped_set.add(m['oem_name'])
+            
+        boq_matrix.append({
+            'id': item['id'],
+            'item_name': item['item_name'],
+            'quantity': item['quantity'],
+            'mappings': mapping_dict
+        })
+        
+    oems_mapped = sorted(list(oems_mapped_set))
+    conn.close()
+    
+    return render_template(
+        'rfp_detail.html',
+        rfp=rfp,
+        checklist=checklist,
+        documents=documents,
+        directory_oems=directory_oems,
+        boq_matrix=boq_matrix,
+        oems_mapped=oems_mapped
+    )
+
+@app.route('/rfps/<int:rfp_id>/update-details', methods=['POST'])
+@login_required
+def rfp_update_details(rfp_id):
+    pre_bid_date = request.form.get('pre_bid_date', '').strip()
+    submission_date = request.form.get('submission_date', '').strip()
+    contact_name = request.form.get('contact_name', '').strip()
+    contact_address = request.form.get('contact_address', '').strip()
+    contact_email = request.form.get('contact_email', '').strip()
+    contact_phone = request.form.get('contact_phone', '').strip()
+    
+    conn = database.get_db_connection()
+    try:
+        conn.execute("""
+            UPDATE rfps 
+            SET pre_bid_date = ?, submission_date = ?, contact_name = ?, contact_address = ?, contact_email = ?, contact_phone = ?
+            WHERE id = ?
+        """, (pre_bid_date, submission_date, contact_name, contact_address, contact_email, contact_phone, rfp_id))
+        conn.commit()
+        log_audit('RFP_UPDATE', f"Updated details for RFP ID: {rfp_id}")
+        flash("RFP details successfully updated.", "success")
+    except Exception as e:
+        flash(f"Error updating RFP details: {e}", "error")
+    finally:
+        conn.close()
+    return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+
+@app.route('/rfps/<int:rfp_id>/save-boq', methods=['POST'])
+@login_required
+def rfp_save_boq(rfp_id):
+    data = request.get_json()
+    if not data:
+        return jsonify({"status": "error", "message": "No data received"}), 400
+        
+    conn = database.get_db_connection()
+    try:
+        # Clean existing items
+        conn.execute("DELETE FROM rfp_boq_items WHERE rfp_id = ?", (rfp_id,))
+        
+        items = data.get('items', [])
+        for item in items:
+            item_name = item.get('item_name', '').strip()
+            qty = int(item.get('quantity', 1))
+            if not item_name:
+                continue
+                
+            cursor = conn.execute("""
+                INSERT INTO rfp_boq_items (rfp_id, item_name, quantity)
+                VALUES (?, ?, ?)
+            """, (rfp_id, item_name, qty))
+            boq_item_id = cursor.lastrowid
+            
+            mappings = item.get('mappings', {})
+            for oem_name, details in mappings.items():
+                conn.execute("""
+                    INSERT INTO rfp_boq_oem_mappings (boq_item_id, oem_name, offering_details)
+                    VALUES (?, ?, ?)
+                """, (boq_item_id, oem_name.strip(), details.strip()))
+                
+        conn.commit()
+        log_audit('RFP_BOQ_SAVE', f"Updated BoQ Matrix for RFP ID: {rfp_id}")
+        return jsonify({"status": "success", "message": "BoQ Matrix successfully updated."})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/rfps/<int:rfp_id>/checklist/add', methods=['POST'])
+@login_required
+def rfp_checklist_add(rfp_id):
+    doc_name = request.form.get('doc_name', '').strip()
+    doc_description = request.form.get('doc_description', '').strip()
+    
+    if not doc_name:
+        flash("Document Name is required.", "error")
+        return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+        
+    conn = database.get_db_connection()
+    try:
+        conn.execute("""
+            INSERT INTO rfp_checklist (rfp_id, doc_name, doc_description)
+            VALUES (?, ?, ?)
+        """, (rfp_id, doc_name, doc_description))
+        conn.commit()
+        flash(f"Checklist item '{doc_name}' added successfully.", "success")
+    except Exception as e:
+        flash(f"Error adding checklist item: {e}", "error")
+    finally:
+        conn.close()
+    return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+
+@app.route('/rfps/<int:rfp_id>/checklist/<int:item_id>/toggle', methods=['POST'])
+@login_required
+def rfp_checklist_toggle(rfp_id, item_id):
+    conn = database.get_db_connection()
+    try:
+        item = conn.execute("SELECT status, doc_name FROM rfp_checklist WHERE id = ? AND rfp_id = ?", (item_id, rfp_id)).fetchone()
+        if not item:
+            conn.close()
+            return jsonify({"status": "error", "message": "Checklist item not found."}), 404
+            
+        new_status = 'Received' if item['status'] == 'Not Received' else 'Not Received'
+        conn.execute("UPDATE rfp_checklist SET status = ? WHERE id = ?", (new_status, item_id))
+        conn.commit()
+        log_audit('RFP_CHECKLIST_TOGGLE', f"Toggled status of checklist item: {item['doc_name']} to {new_status}")
+        return jsonify({"status": "success", "new_status": new_status})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/rfps/<int:rfp_id>/checklist/<int:item_id>/delete', methods=['POST'])
+@login_required
+def rfp_checklist_delete(rfp_id, item_id):
+    conn = database.get_db_connection()
+    try:
+        conn.execute("DELETE FROM rfp_checklist WHERE id = ? AND rfp_id = ?", (item_id, rfp_id))
+        conn.commit()
+        flash("Checklist item successfully removed.", "success")
+    except Exception as e:
+        flash(f"Error deleting checklist item: {e}", "error")
+    finally:
+        conn.close()
+    return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+
+@app.route('/rfps/<int:rfp_id>/upload', methods=['POST'])
+@login_required
+def rfp_document_upload(rfp_id):
+    if 'file' not in request.files:
+        flash("No file part.", "error")
+        return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+        
+    file = request.files['file']
+    doc_type = request.form.get('doc_type', 'rfp').strip()
+    
+    if file.filename == '':
+        flash("No file selected.", "error")
+        return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+        
+    # Enforce 40 MB max file size limit
+    MAX_SIZE_BYTES = 40 * 1024 * 1024
+    
+    # Read size
+    file.seek(0, os.SEEK_END)
+    file_size = file.tell()
+    file.seek(0)
+    
+    if file_size > MAX_SIZE_BYTES:
+        flash(f"File size exceeds 40 MB limit (Selected file size: {file_size / (1024*1024):.2f} MB). Please compress or split the file.", "error")
+        return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+        
+    ext = os.path.splitext(file.filename)[1].lower()
+    
+    import uuid
+    original_name = file.filename
+    safe_filename = f"rfp_{rfp_id}_{uuid.uuid4().hex[:8]}{ext}"
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], safe_filename)
+    
+    try:
+        file.save(filepath)
+        conn = database.get_db_connection()
+        conn.execute("""
+            INSERT INTO rfp_documents (rfp_id, filename, original_name, doc_type, file_size)
+            VALUES (?, ?, ?, ?, ?)
+        """, (rfp_id, safe_filename, original_name, doc_type, file_size))
+        conn.commit()
+        conn.close()
+        
+        log_audit('RFP_DOC_UPLOAD', f"Uploaded {doc_type}: {original_name} for RFP ID: {rfp_id}")
+        flash(f"Document '{original_name}' uploaded successfully.", "success")
+    except Exception as e:
+        flash(f"Error saving document: {e}", "error")
+        
+    return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+
+@app.route('/rfps/<int:rfp_id>/document/<int:doc_id>/delete', methods=['POST'])
+@login_required
+def rfp_document_delete(rfp_id, doc_id):
+    conn = database.get_db_connection()
+    try:
+        doc = conn.execute("SELECT filename, original_name FROM rfp_documents WHERE id = ? AND rfp_id = ?", (doc_id, rfp_id)).fetchone()
+        if doc:
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], doc['filename'])
+            if os.path.exists(filepath):
+                os.remove(filepath)
+            conn.execute("DELETE FROM rfp_documents WHERE id = ?", (doc_id,))
+            conn.commit()
+            log_audit('RFP_DOC_DELETE', f"Deleted document: {doc['original_name']} from RFP ID: {rfp_id}")
+            flash(f"Document '{doc['original_name']}' successfully deleted.", "success")
+        else:
+            flash("Document record not found.", "error")
+    except Exception as e:
+        flash(f"Error deleting document: {e}", "error")
+    finally:
+        conn.close()
+    return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+
+@app.route('/rfps/<int:rfp_id>/delete', methods=['POST'])
+@login_required
+def rfp_delete(rfp_id):
+    conn = database.get_db_connection()
+    try:
+        rfp = conn.execute("SELECT rfp_number FROM rfps WHERE id = ?", (rfp_id,)).fetchone()
+        if not rfp:
+            conn.close()
+            flash("RFP not found.", "error")
+            return redirect(url_for('rfps_list'))
+            
+        docs = conn.execute("SELECT filename FROM rfp_documents WHERE rfp_id = ?", (rfp_id,)).fetchall()
+        for doc in docs:
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], doc['filename'])
+            if os.path.exists(filepath):
+                try: os.remove(filepath)
+                except: pass
+                
+        conn.execute("DELETE FROM rfps WHERE id = ?", (rfp_id,))
+        conn.commit()
+        log_audit('RFP_DELETE', f"Deleted Master RFP: {rfp['rfp_number']}")
+        flash(f"RFP '{rfp['rfp_number']}' and all its associated documents/data have been permanently deleted.", "success")
+    except Exception as e:
+        flash(f"Error deleting RFP: {e}", "error")
+    finally:
+        conn.close()
+    return redirect(url_for('rfps_list'))
 
 # Initialize DB tables on import/startup (crucial for Passenger WSGI cPanel migrations)
 database.init_db()

@@ -345,10 +345,48 @@ class PortalTestCase(unittest.TestCase):
         # ----------------------------------------------------
         print("\nScenario 9.95: Testing RFP Section Features...")
         
-        # 1. Access RFP List Page
+        # 1. Access RFP List Page (initially no password set, so it should bypass)
         rfps_page_resp = self.client.get('/rfps')
         self.assertEqual(rfps_page_resp.status_code, 200)
         self.assertIn(b'RFP Procurement Opportunities', rfps_page_resp.data)
+        
+        # 1.1 Set RFP session password via Admin settings
+        self.client.post('/login', data={'username': 'admin', 'password': '@Admin#99!Directory'})
+        set_pwd_resp = self.client.post('/admin/rfp-password/update', data={
+            'rfp_access_password': 'SuperSecureRfpPassword'
+        }, follow_redirects=True)
+        self.assertEqual(set_pwd_resp.status_code, 200)
+        
+        # Clear session to simulate a new session
+        with self.client.session_transaction() as sess:
+            sess.pop('rfp_unlocked', None)
+            
+        # Log back in as a regular manager user
+        self.client.post('/login', data={'username': 'manager_user', 'password': 'ManagerPassword99!'})
+        
+        # 1.2 Access RFP List Page again -> should get redirected to unlock page
+        rfps_blocked_resp = self.client.get('/rfps')
+        self.assertEqual(rfps_blocked_resp.status_code, 302)
+        self.assertIn('/rfps/unlock', rfps_blocked_resp.location)
+        
+        # Follow redirect to unlock template
+        unlock_page_resp = self.client.get(rfps_blocked_resp.location)
+        self.assertEqual(unlock_page_resp.status_code, 200)
+        self.assertIn(b'RFP Workspace Locked', unlock_page_resp.data)
+        
+        # 1.3 Post incorrect password
+        unlock_fail_resp = self.client.post('/rfps/unlock', data={
+            'password': 'WrongPassword'
+        }, follow_redirects=True)
+        self.assertEqual(unlock_fail_resp.status_code, 200)
+        self.assertIn(b'Invalid RFP access password', unlock_fail_resp.data)
+        
+        # 1.4 Post correct password
+        unlock_success_resp = self.client.post('/rfps/unlock', data={
+            'password': 'SuperSecureRfpPassword'
+        }, follow_redirects=True)
+        self.assertEqual(unlock_success_resp.status_code, 200)
+        self.assertIn(b'RFP Procurement Opportunities', unlock_success_resp.data)
         
         # 2. Create RFP
         rfp_payload = {

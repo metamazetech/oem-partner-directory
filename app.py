@@ -154,6 +154,19 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+@app.before_request
+def check_rfp_access_lock():
+    if request.path.startswith('/rfps') and request.endpoint != 'rfp_unlock' and request.endpoint != 'static':
+        if not is_logged_in():
+            return
+        conn = database.get_db_connection()
+        row = conn.execute("SELECT value FROM portal_settings WHERE key = 'rfp_access_password'").fetchone()
+        conn.close()
+        if row and row['value'] and not session.get('rfp_unlocked'):
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+                return jsonify({"status": "error", "message": "RFP session is locked."}), 403
+            return redirect(url_for('rfp_unlock', next=request.full_path))
+
 # Log system actions to audit trail
 def log_audit(action, details, user_id=None):
     if user_id is None:
@@ -2104,6 +2117,25 @@ def restore_master_backup():
             
     return redirect(url_for('admin_panel'))
 
+@app.route('/admin/rfp-password/update', methods=['POST'])
+@admin_required
+def admin_update_rfp_password():
+    password = request.form.get('rfp_access_password', '').strip()
+    conn = database.get_db_connection()
+    try:
+        if password:
+            conn.execute("INSERT OR REPLACE INTO portal_settings (key, value) VALUES ('rfp_access_password', ?)", (password,))
+        else:
+            conn.execute("DELETE FROM portal_settings WHERE key = 'rfp_access_password'")
+        conn.commit()
+        log_audit('SETTINGS_RFP_PASSWORD', "Updated RFP section access password")
+        flash("RFP access password successfully updated.", "success")
+    except Exception as e:
+        flash(f"Error updating RFP access password: {e}", "error")
+    finally:
+        conn.close()
+    return redirect(url_for('admin_panel'))
+
 @app.route('/admin/settings/update', methods=['POST'])
 @admin_required
 def update_settings():
@@ -2516,6 +2548,34 @@ def clear_logs():
     conn.commit()
     conn.close()
     return redirect(url_for('admin_panel'))
+
+@app.route('/rfps/unlock', methods=['GET', 'POST'])
+@login_required
+def rfp_unlock():
+    next_url = request.args.get('next', '') or request.form.get('next', '') or url_for('rfps_list')
+    
+    # Check if password is set
+    conn = database.get_db_connection()
+    row = conn.execute("SELECT value FROM portal_settings WHERE key = 'rfp_access_password'").fetchone()
+    conn.close()
+    
+    if not row or not row['value']:
+        # No password set, bypass and mark unlocked
+        session['rfp_unlocked'] = True
+        return redirect(next_url)
+        
+    if request.method == 'POST':
+        password_attempt = request.form.get('password', '').strip()
+        if password_attempt == row['value']:
+            session['rfp_unlocked'] = True
+            log_audit('RFP_UNLOCK_SUCCESS', "Unlocked RFP section session")
+            flash("RFP section successfully unlocked.", "success")
+            return redirect(next_url)
+        else:
+            log_audit('RFP_UNLOCK_FAIL', "Failed RFP unlock attempt")
+            flash("Invalid RFP access password. Please try again.", "error")
+            
+    return render_template('rfp_unlock.html', next=next_url)
 
 @app.route('/rfps')
 @login_required

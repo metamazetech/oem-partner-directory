@@ -160,6 +160,23 @@
                         </tbody>
                     </table>
                 </div>
+                
+                <!-- RFP Section Access Password Settings -->
+                <div style="margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--border-glass);">
+                    <h3 style="font-size: 1rem; font-weight: 700; color: white; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.35rem;">
+                        🔑 RFP Section Session-Lock Password
+                    </h3>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1rem;">
+                        Define a password users must enter once per session to gain access to the RFP Tender workspace, checklists, BoQ matrix, and reminders. Leave blank to disable security screening.
+                    </p>
+                    <form action="{{ url_for('admin_update_rfp_password') }}" method="POST" style="display: flex; gap: 1rem; align-items: flex-end; max-width: 500px;">
+                        <div class="form-group" style="flex-grow: 1; margin: 0;">
+                            <label class="form-label" for="rfp_access_password" style="font-size: 0.8rem;">Access Password</label>
+                            <input type="password" id="rfp_access_password" name="rfp_access_password" class="form-control" value="{{ portal_settings.get('rfp_access_password', '') }}" placeholder="Enter password (e.g. RFP@Secure2026)" style="padding: 0.5rem 0.75rem; font-size: 0.85rem;">
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="padding: 0.5rem 1.25rem; font-size: 0.85rem; height: 38px;">Save Password</button>
+                    </form>
+                </div>
             </div>
             
             <!-- OEM Categories Management Card -->

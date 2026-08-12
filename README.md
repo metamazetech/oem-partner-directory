@@ -4,6 +4,19 @@ This guide provides step-by-step instructions for deploying and running the OEM 
 
 ---
 
+## 🌟 Key Features & Capabilities
+
+* **📱 Mobile App Experience (PWA)**: The portal is fully PWA compliant. Users can add it to their Android, iOS, or Desktop homescreens with custom launcher icons. Features safe-area notch layout optimizations and sticky bottom navigation.
+* **⚡ Offline Support & Speed**: Integrated service worker handles caching of static assets (CSS, JS, Fonts, Images) for instantaneous page loads and provides an offline fallback view if network connection is dropped.
+* **📊 OEM RFP Assignment Matrix**: View OEM mappings across multiple active procurement RFPs at a glance. Supports quick toggle filters and exporting assignment details to a comprehensive CSV file.
+* **📋 Responsive Grids & Sorting**: Columns inside Tender Checklists and BoQ mappings support instant A-to-Z / Z-to-A alphabetical sorting. Dense tables automatically reflow into clean cards on mobile device viewports.
+* **🔒 OWASP Cyber Security Hardened**: Meets OWASP application standards:
+  * Strict Content Security Policy (CSP) parameters.
+  * Secure Session Cookies flags (`HttpOnly`, `SameSite=Lax`) protecting against XSS and CSRF attacks.
+  * Frame-Options and Content-Type sniff protections.
+
+---
+
 ## 💻 Method 1: Local Server Installation (Windows / Linux / macOS)
 
 Follow these steps to run the application on your local machine or an internal company server.

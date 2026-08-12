@@ -11,6 +11,20 @@ from scraper import scrape_oem_website
 
 app = Flask(__name__)
 app.secret_key = 'presales_oem_distributor_tracker_secret_key_1928'
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+
+@app.after_request
+def add_header(response):
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '-1'
+    # Cyber Security Hardening Headers
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self';"
+    return response
 
 # Global sync state for non-blocking asynchronous master refresh
 import threading
@@ -407,6 +421,16 @@ Best regards,
         flash(f"⚠️ Mail Server Connection Error: {e}. Please contact your administrator.", "danger")
         
     return redirect(url_for('login'))
+
+@app.route('/manifest.json')
+def serve_manifest():
+    return send_from_directory('static', 'manifest.json', mimetype='application/json')
+
+@app.route('/service-worker.js')
+def serve_service_worker():
+    response = send_from_directory('static', 'service-worker.js', mimetype='application/javascript')
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    return response
 
 @app.route('/')
 @login_required
@@ -1634,35 +1658,53 @@ def clean_junk_chars(text):
 @app.route('/user/preferences', methods=['POST'])
 @login_required
 def save_preferences():
-    data = request.get_json()
-    if not data:
-        return jsonify({"status": "error", "message": "No data received"}), 400
+    is_ajax = request.is_json or (request.headers.get('Content-Type') or '').startswith('application/json')
+    
+    if is_ajax:
+        data = request.get_json() or {}
+        theme = data.get('theme', 'theme-slate-dark')
+        columns = data.get('columns', '2')
+        show_stats = data.get('showStats', True)
+        show_reminders = data.get('showReminders', True)
+        curr_pwd = data.get('curr_password', '').strip()
+        new_pwd = data.get('new_password', '').strip()
+    else:
+        theme = request.form.get('theme', 'theme-slate-dark')
+        columns = request.form.get('columns', '2')
+        show_stats = request.form.get('showStats') in ['true', 'on', True]
+        show_reminders = request.form.get('showReminders') in ['true', 'on', True]
+        curr_pwd = request.form.get('curr_password', '').strip()
+        new_pwd = request.form.get('new_password', '').strip()
         
-    theme = data.get('theme', 'theme-slate-dark')
-    columns = data.get('columns', '2')
-    show_stats = data.get('showStats', True)
-    show_reminders = data.get('showReminders', True)
-    
-    curr_pwd = data.get('curr_password', '').strip()
-    new_pwd = data.get('new_password', '').strip()
-    
     conn = database.get_db_connection()
     
     # Handle password change if requested
     if new_pwd:
         if not curr_pwd:
             conn.close()
-            return jsonify({"status": "error", "message": "Current password is required to change password."}), 400
+            if is_ajax:
+                return jsonify({"status": "error", "message": "Current password is required to change password."}), 400
+            else:
+                flash("Current password is required to change password.", "error")
+                return redirect(request.referrer or url_for('dashboard'))
             
         user = conn.execute("SELECT password_hash FROM users WHERE id = ?", (session['user_id'],)).fetchone()
         if not user or not check_password_hash(user['password_hash'], curr_pwd):
             conn.close()
-            return jsonify({"status": "error", "message": "Incorrect current password."}), 400
+            if is_ajax:
+                return jsonify({"status": "error", "message": "Incorrect current password."}), 400
+            else:
+                flash("Incorrect current password.", "error")
+                return redirect(request.referrer or url_for('dashboard'))
             
         strong, pwd_err = is_password_strong(new_pwd)
         if not strong:
             conn.close()
-            return jsonify({"status": "error", "message": pwd_err}), 400
+            if is_ajax:
+                return jsonify({"status": "error", "message": pwd_err}), 400
+            else:
+                flash(pwd_err, "error")
+                return redirect(request.referrer or url_for('dashboard'))
             
         hashed = generate_password_hash(new_pwd)
         conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hashed, session['user_id']))
@@ -1688,7 +1730,11 @@ def save_preferences():
     session['theme'] = theme
     session['dashboard_layout'] = layout_str
     
-    return jsonify({"status": "success", "message": "Preferences saved successfully!"})
+    if is_ajax:
+        return jsonify({"status": "success", "message": "Preferences saved successfully!"})
+    else:
+        flash("Preferences saved successfully!", "success")
+        return redirect(request.referrer or url_for('dashboard'))
 
 @app.route('/contact/<int:contact_id>/fetch-logo', methods=['POST'])
 @login_required
@@ -2087,6 +2133,7 @@ def restore_master_backup():
                 db_out.write(db_data)
             
             # Extract uploads absolutely to UPLOAD_FOLDER
+            restored_files_count = 0
             for name in namelist:
                 if name.startswith('uploads/') and not name.endswith('/'):
                     filename = os.path.basename(name)
@@ -2095,12 +2142,39 @@ def restore_master_backup():
                         file_data = zipf.read(name)
                         with open(target_path, 'wb') as out_file:
                             out_file.write(file_data)
+                        restored_files_count += 1
                     
         if os.path.exists(temp_zip_path):
             os.remove(temp_zip_path)
             
+        # Query restored element counts
+        conn = database.get_db_connection()
+        try:
+            restored_partners = conn.execute("SELECT COUNT(*) FROM contacts").fetchone()[0]
+            restored_categories = conn.execute("SELECT COUNT(*) FROM oem_groups").fetchone()[0]
+            restored_interactions = conn.execute("SELECT COUNT(*) FROM interactions").fetchone()[0]
+            restored_rfps = conn.execute("SELECT COUNT(*) FROM rfps").fetchone()[0]
+            restored_checklist = conn.execute("SELECT COUNT(*) FROM rfp_checklist").fetchone()[0]
+            restored_attachments = conn.execute("SELECT COUNT(*) FROM rfp_documents").fetchone()[0]
+            restored_reminders = conn.execute("SELECT COUNT(*) FROM rfp_reminders").fetchone()[0]
+            restored_rfp_ints = conn.execute("SELECT COUNT(*) FROM rfp_interactions").fetchone()[0]
+        except Exception as e:
+            restored_partners = restored_categories = restored_interactions = 0
+            restored_rfps = restored_checklist = restored_attachments = restored_reminders = restored_rfp_ints = 0
+        finally:
+            conn.close()
+
         log_audit('PORTAL_RESTORE', f"Admin {session['username']} successfully restored a master backup.")
-        flash('Portal master backup successfully restored! Database and uploaded cards/logos updated.', 'success')
+        flash(f"Portal master backup successfully restored! "
+              f"Restored: {restored_partners} Vendor Partners, "
+              f"{restored_categories} Categories, "
+              f"{restored_interactions} OEM Interactions, "
+              f"{restored_rfps} RFPs, "
+              f"{restored_checklist} Checklist Rows, "
+              f"{restored_attachments} RFP Attachments, "
+              f"{restored_reminders} RFP Reminders, "
+              f"{restored_rfp_ints} RFP Interactions. "
+              f"Restored: {restored_files_count} uploaded files.", 'success')
         
     except Exception as e:
         # Revert
@@ -2604,8 +2678,180 @@ def rfps_list():
     else:
         rfps = conn.execute("SELECT * FROM rfps ORDER BY id DESC").fetchall()
         
+    # Gathers OEM to RFP assignment mapping
+    all_rfps = {r['id']: r['rfp_number'] for r in conn.execute("SELECT id, rfp_number FROM rfps").fetchall()}
+    all_boq = conn.execute("SELECT rfp_id, item_name, selected_oems FROM rfp_boq_items").fetchall()
+    all_checklist = conn.execute("SELECT rfp_id, doc_name, oem_name FROM rfp_checklist").fetchall()
+    
+    oem_rfps = {}
+    oem_rows = conn.execute("SELECT DISTINCT company_name FROM contacts WHERE type = 'OEM' ORDER BY company_name").fetchall()
+    for row in oem_rows:
+        oem = row['company_name']
+        if oem:
+            oem_rfps[oem] = {}
+            
+    for item in all_boq:
+        rfp_id = item['rfp_id']
+        rfp_num = all_rfps.get(rfp_id)
+        if not rfp_num:
+            continue
+        selected = item['selected_oems'] or ""
+        for oem_raw in selected.split(','):
+            oem = oem_raw.strip()
+            if not oem:
+                continue
+            if oem not in oem_rfps:
+                oem_rfps[oem] = {}
+            if rfp_id not in oem_rfps[oem]:
+                oem_rfps[oem][rfp_id] = {'rfp_number': rfp_num, 'items': set(), 'docs': set()}
+            oem_rfps[oem][rfp_id]['items'].add(item['item_name'])
+            
+    for item in all_checklist:
+        rfp_id = item['rfp_id']
+        rfp_num = all_rfps.get(rfp_id)
+        if not rfp_num:
+            continue
+        oem = (item['oem_name'] or "").strip()
+        if not oem:
+            continue
+        if oem not in oem_rfps:
+            oem_rfps[oem] = {}
+        if rfp_id not in oem_rfps[oem]:
+            oem_rfps[oem][rfp_id] = {'rfp_number': rfp_num, 'items': set(), 'docs': set()}
+        oem_rfps[oem][rfp_id]['docs'].add(item['doc_name'])
+        
+    matched_rfp_ids = {rfp['id'] for rfp in rfps}
+    
+    oem_rfp_mapping = []
+    for oem, rfps_dict in oem_rfps.items():
+        assigned = []
+        for rfp_id, info in rfps_dict.items():
+            if rfp_id not in matched_rfp_ids:
+                continue
+            details = []
+            if info['items']:
+                details.append(f"BoQ: {', '.join(sorted(list(info['items'])))}")
+            if info['docs']:
+                details.append(f"Checklist: {', '.join(sorted(list(info['docs'])))}")
+            assigned.append({
+                'id': rfp_id,
+                'rfp_number': info['rfp_number'],
+                'details': " | ".join(details)
+            })
+        assigned.sort(key=lambda x: x['rfp_number'])
+        oem_rfp_mapping.append({
+            'oem_name': oem,
+            'rfp_count': len(assigned),
+            'rfps': assigned
+        })
+        
+    oem_rfp_mapping.sort(key=lambda x: x['oem_name'].lower())
+    
     conn.close()
-    return render_template('rfps.html', rfps=rfps, search_query=search_query)
+    return render_template('rfps.html', rfps=rfps, search_query=search_query, oem_rfp_mapping=oem_rfp_mapping)
+
+@app.route('/rfps/export-oem-matrix-csv')
+@login_required
+def export_oem_matrix_csv():
+    if session.get('role') not in ['manager', 'admin']:
+        flash("You do not have permission to export OEM matrix data.", "error")
+        return redirect(url_for('rfps_list'))
+        
+    conn = database.get_db_connection()
+    rfps_rows = conn.execute("SELECT * FROM rfps").fetchall()
+    rfps_dict = {r['id']: r for r in rfps_rows}
+    
+    boq_items = conn.execute("SELECT rfp_id, item_name, selected_oems, oems_doc_status FROM rfp_boq_items").fetchall()
+    checklist_items = conn.execute("SELECT rfp_id, doc_name, oem_name, status FROM rfp_checklist").fetchall()
+    
+    csv_rows = []
+    
+    # Process BoQ items
+    for item in boq_items:
+        rfp_id = item['rfp_id']
+        rfp = rfps_dict.get(rfp_id)
+        if not rfp:
+            continue
+        selected = item['selected_oems'] or ""
+        doc_received_oems = [o.strip().lower() for o in (item['oems_doc_status'] or "").split(',') if o.strip()]
+        
+        for oem_raw in selected.split(','):
+            oem = oem_raw.strip()
+            if not oem:
+                continue
+            
+            status = "Received" if oem.lower() in doc_received_oems else "Pending"
+            
+            csv_rows.append({
+                'oem_name': oem,
+                'rfp_number': rfp['rfp_number'],
+                'pre_bid_date': rfp['pre_bid_date'] or 'N/A',
+                'submission_date': rfp['submission_date'] or 'N/A',
+                'assignment_type': 'BoQ Specification',
+                'detail': item['item_name'],
+                'status': status
+            })
+            
+    # Process Checklist items
+    for item in checklist_items:
+        rfp_id = item['rfp_id']
+        rfp = rfps_dict.get(rfp_id)
+        if not rfp:
+            continue
+        oem = (item['oem_name'] or "").strip()
+        if not oem:
+            continue
+            
+        csv_rows.append({
+            'oem_name': oem,
+            'rfp_number': rfp['rfp_number'],
+            'pre_bid_date': rfp['pre_bid_date'] or 'N/A',
+            'submission_date': rfp['submission_date'] or 'N/A',
+            'assignment_type': 'Tender Checklist',
+            'detail': item['doc_name'],
+            'status': item['status'] or 'Pending'
+        })
+        
+    conn.close()
+    
+    csv_rows.sort(key=lambda x: (x['oem_name'].lower(), x['rfp_number'].lower(), x['assignment_type']))
+    
+    import csv
+    import io
+    from flask import Response
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Headers
+    writer.writerow([
+        'OEM Name', 
+        'RFP Number', 
+        'Pre-Bid Date', 
+        'Submission Date', 
+        'Assignment Type', 
+        'Assigned Item / Document', 
+        'Status'
+    ])
+    
+    for row in csv_rows:
+        writer.writerow([
+            row['oem_name'],
+            row['rfp_number'],
+            row['pre_bid_date'],
+            row['submission_date'],
+            row['assignment_type'],
+            row['detail'],
+            row['status']
+        ])
+        
+    csv_data = output.getvalue()
+    
+    return Response(
+        csv_data,
+        mimetype="text/csv",
+        headers={"Content-disposition": "attachment; filename=oem_rfp_assignment_matrix.csv"}
+    )
 
 @app.route('/rfps/create', methods=['POST'])
 @login_required
@@ -2671,7 +2917,7 @@ def rfp_detail(rfp_id):
         return redirect(url_for('rfps_list'))
         
     # Fetch checklist
-    checklist = conn.execute("SELECT * FROM rfp_checklist WHERE rfp_id = ? ORDER BY id ASC", (rfp_id,)).fetchall()
+    checklist = conn.execute("SELECT * FROM rfp_checklist WHERE rfp_id = ? ORDER BY doc_name ASC", (rfp_id,)).fetchall()
     
     # Fetch documents
     documents = conn.execute("SELECT * FROM rfp_documents WHERE rfp_id = ? ORDER BY id DESC", (rfp_id,)).fetchall()
@@ -2683,26 +2929,16 @@ def rfp_detail(rfp_id):
     # Fetch BoQ matrix
     items_rows = conn.execute("SELECT * FROM rfp_boq_items WHERE rfp_id = ? ORDER BY id ASC", (rfp_id,)).fetchall()
     boq_matrix = []
-    oems_mapped_set = set()
-    
     for item in items_rows:
-        mappings = conn.execute("SELECT oem_name, offering_details, remarks FROM rfp_boq_oem_mappings WHERE boq_item_id = ?", (item['id'],)).fetchall()
-        mapping_dict = {}
-        for m in mappings:
-            mapping_dict[m['oem_name']] = {
-                'model': m['offering_details'] or "",
-                'remarks': m['remarks'] or ""
-            }
-            oems_mapped_set.add(m['oem_name'])
-            
         boq_matrix.append({
             'id': item['id'],
             'item_name': item['item_name'],
             'quantity': item['quantity'],
-            'mappings': mapping_dict
+            'selected_oems': item['selected_oems'] or "",
+            'oems_doc_status': item['oems_doc_status'] or "",
+            'remarks': item['remarks'] or ""
         })
-        
-    oems_mapped = sorted(list(oems_mapped_set))
+    oems_mapped = []
     
     # Query RFP reminders
     rfp_reminders = conn.execute("SELECT * FROM rfp_reminders WHERE rfp_id = ? ORDER BY reminder_date ASC", (rfp_id,)).fetchall()
@@ -2938,28 +3174,18 @@ def rfp_save_boq(rfp_id):
         for item in items:
             item_name = item.get('item_name', '').strip()
             qty = int(item.get('quantity', 1))
+            selected_oems = item.get('selected_oems', '').strip()
+            oems_doc_status = item.get('oems_doc_status', '').strip()
+            remarks = item.get('remarks', '').strip()
+            document_required = item.get('document_required', 'No').strip()
+            
             if not item_name:
                 continue
                 
-            cursor = conn.execute("""
-                INSERT INTO rfp_boq_items (rfp_id, item_name, quantity)
-                VALUES (?, ?, ?)
-            """, (rfp_id, item_name, qty))
-            boq_item_id = cursor.lastrowid
-            
-            mappings = item.get('mappings', {})
-            for oem_name, details in mappings.items():
-                model_val = ""
-                remarks_val = ""
-                if isinstance(details, dict):
-                    model_val = details.get('model', '').strip()
-                    remarks_val = details.get('remarks', '').strip()
-                else:
-                    model_val = str(details).strip()
-                conn.execute("""
-                    INSERT INTO rfp_boq_oem_mappings (boq_item_id, oem_name, offering_details, remarks)
-                    VALUES (?, ?, ?, ?)
-                """, (boq_item_id, oem_name.strip(), model_val, remarks_val))
+            conn.execute("""
+                INSERT INTO rfp_boq_items (rfp_id, item_name, quantity, selected_oems, oems_doc_status, remarks, document_required)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (rfp_id, item_name, qty, selected_oems, oems_doc_status, remarks, document_required))
                 
         conn.commit()
         log_audit('RFP_BOQ_SAVE', f"Updated BoQ Matrix for RFP ID: {rfp_id}")
@@ -2981,23 +3207,10 @@ def rfp_export_boq_csv(rfp_id):
         
     # Fetch BoQ items
     items = conn.execute("SELECT * FROM rfp_boq_items WHERE rfp_id = ? ORDER BY id ASC", (rfp_id,)).fetchall()
+    conn.close()
     
-    # Fetch mapped OEMs to establish header columns
-    mappings_all = conn.execute("""
-        SELECT DISTINCT oem_name FROM rfp_boq_oem_mappings m
-        JOIN rfp_boq_items i ON m.boq_item_id = i.id
-        WHERE i.rfp_id = ?
-        ORDER BY oem_name
-    """, (rfp_id,)).fetchall()
-    oems = [m['oem_name'] for m in mappings_all if m['oem_name']]
+    headers = ['BoQ Item / Specification', 'Qty', 'Associated OEMs', 'Oems Doc Received', 'Remarks', 'Document Required']
     
-    # Build headers: [BoQ Item / Specification, Qty, OEM1 Model, OEM1 Remarks, OEM2 Model, OEM2 Remarks, ...]
-    headers = ['BoQ Item / Specification', 'Qty']
-    for oem in oems:
-        headers.append(f'{oem} Model')
-        headers.append(f'{oem} Remarks')
-        
-    # Generate CSV response
     import io
     import csv
     output = io.StringIO()
@@ -3005,25 +3218,19 @@ def rfp_export_boq_csv(rfp_id):
     writer.writerow(headers)
     
     for item in items:
-        row = [item['item_name'], item['quantity']]
-        
-        # Fetch mappings for this item
-        mappings_item = conn.execute("SELECT oem_name, offering_details, remarks FROM rfp_boq_oem_mappings WHERE boq_item_id = ?", (item['id'],)).fetchall()
-        map_dict = {m['oem_name']: {'model': m['offering_details'] or "", 'remarks': m['remarks'] or ""} for m in mappings_item}
-        
-        for oem in oems:
-            oem_data = map_dict.get(oem, {'model': "", 'remarks': ""})
-            row.append(oem_data['model'])
-            row.append(oem_data['remarks'])
-            
+        row = [
+            item['item_name'], 
+            item['quantity'], 
+            item['selected_oems'] or "", 
+            item['oems_doc_status'] or "", 
+            item['remarks'] or "",
+            item['document_required'] or "No"
+        ]
         writer.writerow(row)
         
-    conn.close()
-    
     csv_data = output.getvalue()
     output.close()
     
-    # Format filename: e.g. RFP_GEM-2026-B-99981_BoQ_Matrix.csv
     safe_rfp_num = "".join(c if c.isalnum() or c in ('-', '_') else '_' for c in rfp['rfp_number'])
     filename = f"RFP_{safe_rfp_num}_BoQ_Matrix.csv"
     
@@ -3032,6 +3239,134 @@ def rfp_export_boq_csv(rfp_id):
     response.headers["Content-Disposition"] = f"attachment; filename={filename}"
     response.headers["Content-Type"] = "text/csv"
     return response
+
+@app.route('/rfps/<int:rfp_id>/import-boq-csv', methods=['POST'])
+@login_required
+def rfp_import_boq_csv(rfp_id):
+    if 'boq_csv_file' not in request.files:
+        flash("No file selected.", "error")
+        return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+        
+    file = request.files['boq_csv_file']
+    if file.filename == '':
+        flash("No file selected.", "error")
+        return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+        
+    if not file.filename.endswith('.csv'):
+        flash("Invalid file format. Please upload a CSV file.", "error")
+        return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+        
+    import csv
+    import io
+    
+    try:
+        # Read file stream
+        stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+        csv_reader = csv.reader(stream)
+        
+        # Read rows
+        rows = list(csv_reader)
+        if not rows:
+            flash("CSV file is empty.", "error")
+            return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+            
+        header = [h.strip().lower() for h in rows[0]]
+        
+        # Find indexes
+        item_idx = -1
+        qty_idx = -1
+        oems_idx = -1
+        status_idx = -1
+        remarks_idx = -1
+        req_idx = -1
+        
+        for idx, h in enumerate(header):
+            if 'item' in h or 'specification' in h or 'desc' in h or 'spec' in h:
+                if item_idx == -1: item_idx = idx
+            elif 'qty' in h or 'quant' in h:
+                if qty_idx == -1: qty_idx = idx
+            elif 'recd' in h or 'received' in h or 'doc_status' in h or 'status' in h:
+                if status_idx == -1: status_idx = idx
+            elif 'oem' in h:
+                if oems_idx == -1: oems_idx = idx
+            elif 'remark' in h:
+                if remarks_idx == -1: remarks_idx = idx
+            elif 'required' in h or 'req' in h:
+                if req_idx == -1: req_idx = idx
+                
+        # Fallbacks if headers not found
+        if item_idx == -1: item_idx = 0
+        if qty_idx == -1: qty_idx = 1 if len(header) > 1 else -1
+        
+        conn = database.get_db_connection()
+        
+        imported_count = 0
+        for row in rows[1:]: # Skip header
+            if not row or len(row) <= item_idx:
+                continue
+            item_name = row[item_idx].strip()
+            if not item_name:
+                continue
+                
+            # Quantity parsing
+            quantity = 1
+            if qty_idx != -1 and len(row) > qty_idx:
+                try:
+                    quantity = int(float(row[qty_idx].strip()))
+                except:
+                    quantity = 1
+                    
+            # OEM names parsing
+            oems_str = ""
+            if oems_idx != -1 and len(row) > oems_idx:
+                oems_str = row[oems_idx].strip()
+                
+            # Document received status parsing
+            status_str = ""
+            if status_idx != -1 and len(row) > status_idx:
+                status_str = row[status_idx].strip()
+                
+            # Remarks parsing
+            remarks_str = ""
+            if remarks_idx != -1 and len(row) > remarks_idx:
+                remarks_str = row[remarks_idx].strip()
+                
+            # Document required parsing
+            doc_required = "No"
+            if req_idx != -1 and len(row) > req_idx:
+                raw_val = row[req_idx].strip().lower()
+                if raw_val in ['yes', 'y', '1', 'true', 'on']:
+                    doc_required = "Yes"
+                else:
+                    doc_required = "No"
+                
+            conn.execute("""
+                INSERT INTO rfp_boq_items (rfp_id, item_name, quantity, selected_oems, oems_doc_status, remarks, document_required)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (rfp_id, item_name, quantity, oems_str, status_str, remarks_str, doc_required))
+            imported_count += 1
+            
+        conn.commit()
+        conn.close()
+        
+        log_audit('RFP_BOQ_IMPORT_CSV', f"Imported {imported_count} BoQ items from CSV for RFP ID: {rfp_id}")
+        flash(f"Successfully imported {imported_count} BoQ items from CSV!", "success")
+        
+        if request.headers.get('Accept') == 'application/json' or request.is_json:
+            return jsonify({
+                "status": "success",
+                "message": f"Successfully imported {imported_count} BoQ items from CSV!",
+                "imported_count": imported_count
+            })
+    except Exception as e:
+        flash(f"Error importing CSV: {str(e)}", "error")
+        if request.headers.get('Accept') == 'application/json' or request.is_json:
+            return jsonify({
+                "status": "error",
+                "message": f"Error importing CSV: {str(e)}"
+            }), 500
+        
+    return redirect(url_for('rfp_detail', rfp_id=rfp_id))
 
 @app.route('/rfps/<int:rfp_id>/checklist/add', methods=['POST'])
 @login_required
@@ -3074,6 +3409,114 @@ def rfp_checklist_add(rfp_id):
     finally:
         conn.close()
     return redirect(url_for('rfp_detail', rfp_id=rfp_id))
+
+@app.route('/rfps/checklist-sample-csv', methods=['GET'])
+@login_required
+def rfp_checklist_sample_csv():
+    import io
+    import csv
+    from flask import Response
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Document Name', 'Description', 'Associated OEM', 'Status', 'Remarks'])
+    writer.writerow(['Authorization Letter (MAF)', 'Manufacturer Authorization Form', 'Cisco', 'Pending', 'Required from Cisco'])
+    writer.writerow(['Compliance Sheet', 'Technical compliance verification sheet', 'Fortinet', 'Received', 'All specs compliant'])
+    
+    response = Response(output.getvalue(), mimetype='text/csv')
+    response.headers['Content-Disposition'] = 'attachment; filename=rfp_checklist_sample.csv'
+    return response
+
+@app.route('/rfps/boq-sample-csv', methods=['GET'])
+@login_required
+def rfp_boq_sample_csv():
+    import io
+    import csv
+    from flask import Response
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['BoQ Item / Specification', 'Qty', 'Associated OEMs', 'Oems Doc Received', 'Remarks', 'Document Required'])
+    writer.writerow(['Next-Gen Firewall', '2', 'Cisco, Fortinet', 'Cisco', 'Include licenses', 'Yes'])
+    writer.writerow(['Core Switch', '4', 'Cisco', 'Cisco', 'Include stacking cables', 'No'])
+    
+    response = Response(output.getvalue(), mimetype='text/csv')
+    response.headers['Content-Disposition'] = 'attachment; filename=rfp_boq_sample.csv'
+    return response
+
+@app.route('/rfps/<int:rfp_id>/import-checklist-csv', methods=['POST'])
+@login_required
+def rfp_import_checklist_csv(rfp_id):
+    file = request.files.get('file')
+    if not file or not file.filename:
+        return jsonify({"status": "error", "message": "No file uploaded."}), 400
+        
+    if not file.filename.endswith('.csv'):
+        return jsonify({"status": "error", "message": "Invalid file format. Only CSV allowed."}), 400
+        
+    import io
+    import csv
+    
+    try:
+        stream = io.StringIO(file.stream.read().decode('utf-8-sig'), newline=None)
+        reader = csv.reader(stream)
+        headers = next(reader, None)
+        if not headers:
+            return jsonify({"status": "error", "message": "Empty CSV file."}), 400
+            
+        # Map headers case-insensitively
+        header_map = {}
+        for idx, h in enumerate(headers):
+            h_clean = h.strip().lower()
+            if h_clean in ['document name', 'doc_name', 'name']:
+                header_map['doc_name'] = idx
+            elif h_clean in ['description', 'doc_description', 'document description']:
+                header_map['doc_description'] = idx
+            elif h_clean in ['associated oem', 'oem_name', 'oem']:
+                header_map['oem_name'] = idx
+            elif h_clean in ['status']:
+                header_map['status'] = idx
+            elif h_clean in ['remarks']:
+                header_map['remarks'] = idx
+                
+        if 'doc_name' not in header_map:
+            return jsonify({"status": "error", "message": "CSV header must include 'Document Name'."}), 400
+            
+        imported_count = 0
+        conn = database.get_db_connection()
+        try:
+            for row in reader:
+                if not row or not any(field.strip() for field in row):
+                    continue
+                
+                doc_name = row[header_map['doc_name']].strip() if 'doc_name' in header_map and len(row) > header_map['doc_name'] else ''
+                if not doc_name:
+                    continue
+                    
+                doc_description = row[header_map['doc_description']].strip() if 'doc_description' in header_map and len(row) > header_map['doc_description'] else ''
+                oem_name = row[header_map['oem_name']].strip() if 'oem_name' in header_map and len(row) > header_map['oem_name'] else ''
+                status_raw = row[header_map['status']].strip() if 'status' in header_map and len(row) > header_map['status'] else 'Pending'
+                remarks = row[header_map['remarks']].strip() if 'remarks' in header_map and len(row) > header_map['remarks'] else ''
+                
+                # Normalize status to Received or Pending
+                status = 'Received' if status_raw.lower() == 'received' else 'Pending'
+                
+                conn.execute("""
+                    INSERT INTO rfp_checklist (rfp_id, doc_name, doc_description, oem_name, status, remarks)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (rfp_id, doc_name, doc_description or None, oem_name or None, status, remarks or None))
+                imported_count += 1
+            conn.commit()
+        finally:
+            conn.close()
+            
+        return jsonify({
+            "status": "success",
+            "message": f"Successfully imported {imported_count} checklist items.",
+            "imported_count": imported_count
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Error parsing CSV: {str(e)}"}), 500
 
 @app.route('/rfps/<int:rfp_id>/checklist/<int:item_id>/toggle', methods=['POST'])
 @login_required
@@ -3269,7 +3712,7 @@ def rfp_export_checklist_csv(rfp_id):
         return redirect(url_for('rfps_list'))
         
     # Fetch checklist items
-    items = conn.execute("SELECT * FROM rfp_checklist WHERE rfp_id = ? ORDER BY id ASC", (rfp_id,)).fetchall()
+    items = conn.execute("SELECT * FROM rfp_checklist WHERE rfp_id = ? ORDER BY doc_name ASC", (rfp_id,)).fetchall()
     conn.close()
     
     # Generate CSV response

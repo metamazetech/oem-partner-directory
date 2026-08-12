@@ -204,6 +204,10 @@ def init_db():
         rfp_id INTEGER NOT NULL,
         item_name TEXT NOT NULL,
         quantity INTEGER NOT NULL,
+        selected_oems TEXT,
+        oems_doc_status TEXT,
+        remarks TEXT,
+        document_required TEXT DEFAULT 'No',
         FOREIGN KEY (rfp_id) REFERENCES rfps(id) ON DELETE CASCADE
     )
     ''')
@@ -303,6 +307,13 @@ def init_db():
     for col in [('oem_name', 'TEXT'), ('format_file', 'TEXT'), ('uploaded_file', 'TEXT'), ('remarks', 'TEXT')]:
         try:
             cursor.execute(f"ALTER TABLE rfp_checklist ADD COLUMN {col[0]} {col[1]}")
+        except sqlite3.OperationalError:
+            pass
+            
+    # Add rfp_boq_items columns safety migration block
+    for col in [('selected_oems', 'TEXT'), ('oems_doc_status', 'TEXT'), ('remarks', 'TEXT'), ('document_required', 'TEXT DEFAULT "No"')]:
+        try:
+            cursor.execute(f"ALTER TABLE rfp_boq_items ADD COLUMN {col[0]} {col[1]}")
         except sqlite3.OperationalError:
             pass
         

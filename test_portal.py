@@ -450,17 +450,18 @@ class PortalTestCase(unittest.TestCase):
                 {
                     'item_name': 'Next-Gen Firewall',
                     'quantity': 2,
-                    'mappings': {
-                        'Cisco': {'model': 'Firepower 1010', 'remarks': 'Include licenses'},
-                        'Fortinet': 'FortiGate 60F'
-                    }
+                    'selected_oems': 'Cisco, Fortinet',
+                    'oems_doc_status': 'Cisco',
+                    'remarks': 'Include licenses',
+                    'document_required': 'Yes'
                 },
                 {
                     'item_name': 'Core Switch',
                     'quantity': 4,
-                    'mappings': {
-                        'Cisco': {'model': 'Catalyst 9300', 'remarks': 'Include stacking cables'}
-                    }
+                    'selected_oems': 'Cisco',
+                    'oems_doc_status': 'Cisco',
+                    'remarks': 'Include stacking cables',
+                    'document_required': 'No'
                 }
             ]
         }
@@ -472,23 +473,18 @@ class PortalTestCase(unittest.TestCase):
         boq_count = conn.execute("SELECT COUNT(*) FROM rfp_boq_items WHERE rfp_id = ?", (rfp_id,)).fetchone()[0]
         self.assertEqual(boq_count, 2)
         
-        # Check mapping count
-        mapping_count = conn.execute("""
-            SELECT COUNT(*) FROM rfp_boq_oem_mappings m
-            JOIN rfp_boq_items i ON m.boq_item_id = i.id
-            WHERE i.rfp_id = ?
-        """, (rfp_id,)).fetchone()[0]
-        self.assertEqual(mapping_count, 3) # 2 mappings for item 1, 1 mapping for item 2
-        
-        # Check remarks column values
-        remarks_list = conn.execute("""
-            SELECT remarks FROM rfp_boq_oem_mappings m
-            JOIN rfp_boq_items i ON m.boq_item_id = i.id
-            WHERE i.rfp_id = ? AND m.oem_name = 'Cisco'
-            ORDER BY i.id
-        """, (rfp_id,)).fetchall()
-        self.assertEqual(remarks_list[0][0], 'Include licenses')
-        self.assertEqual(remarks_list[1][0], 'Include stacking cables')
+        # Check database columns directly
+        items_db = conn.execute("SELECT item_name, selected_oems, oems_doc_status, remarks, document_required FROM rfp_boq_items WHERE rfp_id = ? ORDER BY id", (rfp_id,)).fetchall()
+        self.assertEqual(items_db[0][0], 'Next-Gen Firewall')
+        self.assertEqual(items_db[0][1], 'Cisco, Fortinet')
+        self.assertEqual(items_db[0][2], 'Cisco')
+        self.assertEqual(items_db[0][3], 'Include licenses')
+        self.assertEqual(items_db[0][4], 'Yes')
+        self.assertEqual(items_db[1][0], 'Core Switch')
+        self.assertEqual(items_db[1][1], 'Cisco')
+        self.assertEqual(items_db[1][2], 'Cisco')
+        self.assertEqual(items_db[1][3], 'Include stacking cables')
+        self.assertEqual(items_db[1][4], 'No')
         conn.close()
         print("[OK] Verified: BoQ OEM Matrix details and remarks saved and retrieved successfully.")
         
@@ -579,6 +575,43 @@ class PortalTestCase(unittest.TestCase):
         self.assertIn(b'Awaiting signature', export_chk_resp.data)
         print("[OK] Verified: RFP checklist export to CSV is functional and returns correct submission records.")
         
+        # 4.9 Checklist CSV Sample Download & Import
+        sample_chk_resp = self.client.get('/rfps/checklist-sample-csv')
+        self.assertEqual(sample_chk_resp.status_code, 200)
+        self.assertEqual(sample_chk_resp.mimetype, 'text/csv')
+        self.assertIn(b'Document Name,Description,Associated OEM,Status,Remarks', sample_chk_resp.data)
+        
+        # Test Import Checklist CSV
+        import io
+        csv_data = (
+            "Document Name,Description,Associated OEM,Status,Remarks\n"
+            "Technical Proposal,Detailed technical bid,Cisco,Pending,Needs validation\n"
+            "Commercial Proposal,Financial quotes,Fortinet,Received,Finalized\n"
+        )
+        import_file = (io.BytesIO(csv_data.encode('utf-8')), "checklist_import.csv")
+        import_resp = self.client.post(f'/rfps/{rfp_id}/import-checklist-csv', data={
+            'file': import_file
+        }, content_type='multipart/form-data')
+        self.assertEqual(import_resp.status_code, 200)
+        self.assertIn(b'"imported_count":2', import_resp.data)
+        
+        # Verify in database
+        conn = sqlite3.connect('oem_tracker_test.db')
+        checklist_items = conn.execute("SELECT doc_name, oem_name, status, remarks FROM rfp_checklist WHERE rfp_id = ? AND doc_name IN ('Technical Proposal', 'Commercial Proposal')", (rfp_id,)).fetchall()
+        self.assertEqual(len(checklist_items), 2)
+        # Sort by doc_name for predictable assertion
+        checklist_items = sorted(checklist_items, key=lambda x: x[0])
+        self.assertEqual(checklist_items[0][0], 'Commercial Proposal')
+        self.assertEqual(checklist_items[0][1], 'Fortinet')
+        self.assertEqual(checklist_items[0][2], 'Received')
+        self.assertEqual(checklist_items[0][3], 'Finalized')
+        self.assertEqual(checklist_items[1][0], 'Technical Proposal')
+        self.assertEqual(checklist_items[1][1], 'Cisco')
+        self.assertEqual(checklist_items[1][2], 'Pending')
+        self.assertEqual(checklist_items[1][3], 'Needs validation')
+        conn.close()
+        print("[OK] Verified: RFP checklist CSV sample download and import function operates correctly.")
+        
         # 5. File Upload Size Limits
         # Verify we can upload file
         import io
@@ -606,10 +639,25 @@ class PortalTestCase(unittest.TestCase):
         self.assertEqual(export_resp.status_code, 200)
         self.assertEqual(export_resp.mimetype, 'text/csv')
         self.assertIn(b'BoQ Item / Specification,Qty', export_resp.data)
-        self.assertIn(b'Cisco Model,Cisco Remarks', export_resp.data)
+        self.assertIn(b'Associated OEMs,Oems Doc Received,Remarks,Document Required', export_resp.data)
         self.assertIn(b'Next-Gen Firewall,2', export_resp.data)
         self.assertIn(b'Core Switch,4', export_resp.data)
         print("[OK] Verified: RFP BoQ matrix export to CSV is functional and matches format requirements.")
+        
+        # 5.6 BoQ Sample CSV
+        sample_boq_resp = self.client.get('/rfps/boq-sample-csv')
+        self.assertEqual(sample_boq_resp.status_code, 200)
+        self.assertEqual(sample_boq_resp.mimetype, 'text/csv')
+        self.assertIn(b'BoQ Item / Specification,Qty,Associated OEMs,Oems Doc Received,Remarks,Document Required', sample_boq_resp.data)
+        print("[OK] Verified: RFP BoQ matrix CSV sample download operates correctly.")
+        
+        # 5.65 OEM RFP Assignment Matrix CSV Export
+        matrix_export_resp = self.client.get('/rfps/export-oem-matrix-csv')
+        self.assertEqual(matrix_export_resp.status_code, 200)
+        self.assertEqual(matrix_export_resp.mimetype, 'text/csv')
+        self.assertIn(b'OEM Name,RFP Number,Pre-Bid Date,Submission Date,Assignment Type,Assigned Item / Document,Status', matrix_export_resp.data)
+        self.assertIn(b'Cisco,GEM/2026/B/99981', matrix_export_resp.data)
+        print("[OK] Verified: Global OEM RFP assignment matrix CSV export functions correctly with RFP details.")
         
         # 5.75 RFP Reminders & Follow-ups
         # Create a reminder

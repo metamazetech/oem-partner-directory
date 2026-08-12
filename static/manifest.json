@@ -1,0 +1,24 @@
+{
+  "name": "NextNode Systems OEM Portal",
+  "short_name": "OEM Portal",
+  "description": "Collaborative OEM Tracker, RFP Procurement & BoQ Product Mapping Workspace.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#0b0f19",
+  "theme_color": "#6366f1",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/static/images/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/images/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ]
+}

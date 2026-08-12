@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OEM News Feed - {{ portal_settings['portal_name'] }}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.3">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.4">
     <link rel="icon" type="image/x-icon" href="{% if portal_settings['favicon'] %}{{ url_for('uploaded_file', filename=portal_settings['favicon']) }}{% else %}{{ url_for('static', filename='favicon.ico') }}{% endif %}">
     <script>
         window.BASE_URL = "{{ url_for('dashboard') }}";
@@ -177,6 +177,7 @@
         }
     </style>
     
+    <script src="{{ url_for('static', filename='js/main.js') }}?v=1.4"></script>
     <script>
         function filterNews(oemName) {
             const cards = document.querySelectorAll('.news-card');

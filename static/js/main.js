@@ -127,6 +127,8 @@ document.addEventListener('DOMContentLoaded', () => {
             closeModal(e.target.id);
         }
     });
+    
+    initExportInterceptors();
 });
 
 // Trigger AJAX Website Scraper on OEM detail page
@@ -1563,5 +1565,673 @@ window.addEventListener('click', () => {
 
 window.toggleActionsDropdown = toggleActionsDropdown;
 window.closeActionsDropdown = closeActionsDropdown;
+
+// Global Searchable Autocomplete Select Dropdown Widget
+function initSearchableSelects() {
+    const selects = document.querySelectorAll('select:not(.no-searchable-select)');
+    console.log("Initializing searchable autocomplete selects for " + selects.length + " dropdowns.");
+    
+    selects.forEach(select => {
+        if (select.dataset.searchableSelectInit) return;
+        if (!select.parentNode) return;
+        select.dataset.searchableSelectInit = 'true';
+        
+        // Hide native select
+        select.style.display = 'none';
+        
+        // Create wrapper container
+        const wrapper = document.createElement('div');
+        wrapper.className = 'searchable-select-wrapper';
+        wrapper.style.position = 'relative';
+        wrapper.style.width = select.style.width || '100%';
+        wrapper.style.display = 'inline-block';
+        
+        // Create search input textbox
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'form-control searchable-select-input';
+        input.style.cursor = 'pointer';
+        input.style.width = '100%';
+        input.style.background = 'rgba(15, 23, 42, 0.6)';
+        input.style.border = '1px solid rgba(255, 255, 255, 0.08)';
+        input.style.color = 'white';
+        input.style.paddingRight = '2.5rem';
+        input.style.borderRadius = '8px';
+        input.style.boxSizing = 'border-box';
+        
+        // Read native select attributes to replicate placeholder/styling
+        const placeholderText = select.options[0] ? select.options[0].text : 'Select...';
+        input.placeholder = placeholderText;
+        
+        // Set initial value based on selected option
+        const selectedOpt = select.options[select.selectedIndex];
+        if (selectedOpt && select.value !== "") {
+            input.value = selectedOpt.text;
+        }
+        
+        // Create dropdown menu list container
+        const menu = document.createElement('div');
+        menu.className = 'searchable-select-menu';
+        menu.style.display = 'none';
+        menu.style.position = 'absolute';
+        menu.style.top = '100%';
+        menu.style.left = '0';
+        menu.style.right = '0';
+        menu.style.background = '#1e293b';
+        menu.style.border = '1px solid rgba(255, 255, 255, 0.1)';
+        menu.style.borderRadius = '8px';
+        menu.style.zIndex = '9999';
+        menu.style.maxHeight = '200px';
+        menu.style.overflowY = 'auto';
+        menu.style.boxShadow = '0 10px 25px rgba(0, 0, 0, 0.5)';
+        menu.style.marginTop = '4px';
+        
+        wrapper.appendChild(input);
+        wrapper.appendChild(menu);
+        
+        // Insert wrapper in place of original select
+        select.parentNode.insertBefore(wrapper, select);
+        
+        // Function to rebuild options list inside the menu
+        function rebuildOptions(filterText = '') {
+            menu.innerHTML = '';
+            const normalizedFilter = filterText.toLowerCase();
+            let matchesCount = 0;
+            
+            for (let idx = 0; idx < select.options.length; idx++) {
+                const opt = select.options[idx];
+                if (idx === 0 && opt.value === "" && select.options.length > 1) {
+                    continue;
+                }
+                
+                const optText = opt.text;
+                if (optText.toLowerCase().includes(normalizedFilter)) {
+                    const item = document.createElement('div');
+                    item.className = 'searchable-select-item';
+                    item.style.padding = '0.5rem 0.75rem';
+                    item.style.color = 'white';
+                    item.style.cursor = 'pointer';
+                    item.style.fontSize = '0.85rem';
+                    item.style.transition = 'background 0.2s ease';
+                    item.style.textAlign = 'left';
+                    
+                    if (select.value === opt.value) {
+                        item.classList.add('selected');
+                        item.style.background = '#3b82f6';
+                    }
+                    
+                    item.innerText = optText;
+                    item.dataset.value = opt.value;
+                    item.dataset.index = idx;
+                    
+                    item.addEventListener('mouseenter', () => {
+                        if (select.value !== opt.value) {
+                            item.style.background = 'rgba(255, 255, 255, 0.08)';
+                            item.style.color = '#3b82f6';
+                        }
+                    });
+                    item.addEventListener('mouseleave', () => {
+                        if (select.value !== opt.value) {
+                            item.style.background = 'transparent';
+                            item.style.color = 'white';
+                        } else {
+                            item.style.background = '#3b82f6';
+                            item.style.color = 'white';
+                        }
+                    });
+                    
+                    item.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        select.selectedIndex = idx;
+                        input.value = optText;
+                        menu.style.display = 'none';
+                        const event = new Event('change', { bubbles: true });
+                        select.dispatchEvent(event);
+                    });
+                    
+                    menu.appendChild(item);
+                    matchesCount++;
+                }
+            }
+            
+            if (matchesCount === 0) {
+                const noResults = document.createElement('div');
+                noResults.className = 'searchable-select-no-results';
+                noResults.style.padding = '0.5rem 0.75rem';
+                noResults.style.color = 'var(--text-muted)';
+                noResults.style.fontSize = '0.85rem';
+                noResults.style.fontStyle = 'italic';
+                noResults.style.textAlign = 'center';
+                noResults.innerText = 'No matching options found';
+                menu.appendChild(noResults);
+            }
+        }
+        
+        let highlightedIdx = -1;
+        
+        function getVisibleItems() {
+            return menu.querySelectorAll('.searchable-select-item');
+        }
+        
+        function updateHighlight(items, direction) {
+            items.forEach((item) => {
+                const isSelected = item.classList.contains('selected');
+                if (isSelected) {
+                    item.style.background = '#3b82f6';
+                    item.style.color = 'white';
+                } else {
+                    item.style.background = 'transparent';
+                    item.style.color = 'white';
+                }
+                item.classList.remove('highlighted');
+            });
+            
+            if (direction === 'down') {
+                highlightedIdx = (highlightedIdx + 1) % items.length;
+            } else if (direction === 'up') {
+                highlightedIdx = (highlightedIdx - 1 + items.length) % items.length;
+            }
+            
+            const target = items[highlightedIdx];
+            if (target) {
+                target.classList.add('highlighted');
+                target.style.background = 'rgba(255, 255, 255, 0.15)';
+                target.style.color = '#3b82f6';
+                target.scrollIntoView({ block: 'nearest' });
+            }
+        }
+        
+        // Open/close dropdown logic
+        input.addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.querySelectorAll('.searchable-select-menu').forEach(m => {
+                if (m !== menu) m.style.display = 'none';
+            });
+            
+            const isOpen = menu.style.display === 'block';
+            menu.style.display = isOpen ? 'none' : 'block';
+            if (!isOpen) {
+                input.value = '';
+                highlightedIdx = -1;
+                rebuildOptions('');
+                input.focus();
+            } else {
+                const opt = select.options[select.selectedIndex];
+                if (opt && select.value !== "") {
+                    input.value = opt.text;
+                }
+            }
+        });
+        
+        input.addEventListener('input', () => {
+            menu.style.display = 'block';
+            highlightedIdx = -1;
+            rebuildOptions(input.value);
+        });
+
+        // Keyboard Navigation handler
+        input.addEventListener('keydown', (e) => {
+            const items = getVisibleItems();
+            if (items.length === 0) return;
+            
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (menu.style.display !== 'block') {
+                    menu.style.display = 'block';
+                    highlightedIdx = -1;
+                    rebuildOptions(input.value);
+                }
+                updateHighlight(items, 'down');
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                updateHighlight(items, 'up');
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                const activeItem = menu.querySelector('.searchable-select-item.highlighted');
+                if (activeItem) {
+                    activeItem.click();
+                } else if (items[0]) {
+                    items[0].click();
+                }
+            } else if (e.key === 'Escape') {
+                menu.style.display = 'none';
+                const opt = select.options[select.selectedIndex];
+                if (opt && select.value !== "") {
+                    input.value = opt.text;
+                }
+            }
+        });
+        
+        document.addEventListener('click', (e) => {
+            if (!wrapper.contains(e.target)) {
+                menu.style.display = 'none';
+                const opt = select.options[select.selectedIndex];
+                if (opt && select.value !== "") {
+                    input.value = opt.text;
+                } else {
+                    input.value = '';
+                }
+            }
+        });
+    });
+}
+
+// Bind export actions to animated progress bars
+function initExportInterceptors() {
+    const exportSelectors = [
+        'a[href*="/export-boq-csv"]',
+        'a[href*="/export-checklist-csv"]',
+        'a[href$="/export/csv"]',
+        'a[href$="/admin/backup"]',
+        'a[href*="/export-checklist-template"]'
+    ];
+    
+    document.querySelectorAll(exportSelectors.join(',')).forEach(link => {
+        if (link.dataset.exportIntercepted) return;
+        link.dataset.exportIntercepted = 'true';
+        
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const href = this.getAttribute('href');
+            
+            let title = "Exporting Data";
+            let startMsg = "Connecting to SQLite database...";
+            let step1 = "Querying data records...";
+            let step2 = "Structuring table fields...";
+            let step3 = "Compiling binary download stream...";
+            
+            if (href.includes('export-boq-csv')) {
+                title = "Exporting BoQ Matrix";
+                step1 = "Selecting parsed specification items...";
+                step2 = "Aggregating associated OEMs and submission checkboxes...";
+            } else if (href.includes('export-checklist-csv')) {
+                title = "Exporting Tender Checklist";
+                step1 = "Retrieving checklist documents & remarks...";
+                step2 = "Formatting verification flags...";
+            } else if (href.includes('admin/backup')) {
+                title = "Creating Portal Backup";
+                startMsg = "Packaging files...";
+                step1 = "Creating SQLite database dump...";
+                step2 = "Compressing attachment uploads directory...";
+                step3 = "Building final secure backup ZIP archive...";
+            }
+            
+            showProgressOverlay(title, startMsg);
+            
+            setTimeout(() => {
+                updateProgressBar(30, step1);
+                setTimeout(() => {
+                    updateProgressBar(70, step2);
+                    setTimeout(() => {
+                        updateProgressBar(90, step3);
+                        setTimeout(() => {
+                            updateProgressBar(100, "Download initiated!");
+                            setTimeout(() => {
+                                hideProgressOverlay();
+                                window.location.href = href;
+                            }, 500);
+                        }, 500);
+                    }, 400);
+                }, 400);
+            }, 300);
+        });
+    });
+}
+
+// Auto-run or bind on DOMContentLoaded
+if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', () => {
+        initSearchableSelects();
+        initExportInterceptors();
+        initAllSorting();
+    });
+} else {
+    initSearchableSelects();
+    initExportInterceptors();
+    initAllSorting();
+}
+
+function initAllSorting() {
+    if (document.getElementById('rfps-table-body')) {
+        initDragAndDropSort('rfps-table-body', 'rfps_list_order');
+    }
+    if (document.getElementById('checklist-table-body')) {
+        const rfpId = window.RFP_ID || 'general';
+        initDragAndDropSort('checklist-table-body', `rfp_checklist_order_${rfpId}`);
+    }
+}
+
+function initDragAndDropSort(tbodyId, storageKey) {
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
+    
+    let rows = Array.from(tbody.querySelectorAll('tr'));
+    if (rows.length === 0) return;
+    
+    // Sort logic
+    const savedOrderStr = localStorage.getItem(storageKey);
+    if (savedOrderStr) {
+        try {
+            const savedOrder = JSON.parse(savedOrderStr);
+            rows.sort((a, b) => {
+                const idA = a.getAttribute('data-id');
+                const idB = b.getAttribute('data-id');
+                const idxA = savedOrder.indexOf(idA);
+                const idxB = savedOrder.indexOf(idB);
+                if (idxA === -1 && idxB === -1) return 0;
+                if (idxA === -1) return 1;
+                if (idxB === -1) return -1;
+                return idxA - idxB;
+            });
+        } catch (e) {
+            console.error("Error parsing saved order for " + storageKey, e);
+        }
+    } else {
+        // Default: Sort alphabetically (A to Z) by data-name, or fall back to innerText
+        rows.sort((a, b) => {
+            const attrA = a.getAttribute('data-name');
+            const attrB = b.getAttribute('data-name');
+            
+            let nameA = attrA ? attrA.trim() : '';
+            let nameB = attrB ? attrB.trim() : '';
+            
+            if (!nameA) {
+                const divA = a.querySelector('td div');
+                nameA = divA ? divA.textContent.trim() : '';
+            }
+            if (!nameB) {
+                const divB = b.querySelector('td div');
+                nameB = divB ? divB.textContent.trim() : '';
+            }
+            
+            return nameA.toLowerCase().localeCompare(nameB.toLowerCase());
+        });
+    }
+    
+    // Append rows in sorted order
+    rows.forEach(row => tbody.appendChild(row));
+    
+    // Wire drag & drop
+    rows.forEach(row => {
+        row.setAttribute('draggable', 'true');
+        row.style.cursor = 'grab';
+        
+        row.addEventListener('dragstart', handleDragStart);
+        row.addEventListener('dragover', handleDragOver);
+        row.addEventListener('dragleave', handleDragLeave);
+        row.addEventListener('drop', handleDrop);
+        row.addEventListener('dragend', handleDragEnd);
+    });
+    
+    let dragSrcEl = null;
+    
+    function handleDragStart(e) {
+        dragSrcEl = this;
+        this.style.opacity = '0.4';
+        this.style.border = '2px dashed var(--primary)';
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/html', this.outerHTML);
+    }
+    
+    function handleDragOver(e) {
+        if (e.preventDefault) {
+            e.preventDefault(); 
+        }
+        e.dataTransfer.dropEffect = 'move';
+        this.classList.add('drag-over');
+        this.style.background = 'rgba(99, 102, 241, 0.15)';
+        return false;
+    }
+    
+    function handleDragLeave(e) {
+        this.classList.remove('drag-over');
+        this.style.background = '';
+    }
+    
+    function handleDrop(e) {
+        if (e.stopPropagation) {
+            e.stopPropagation();
+        }
+        
+        if (dragSrcEl !== this) {
+            const allRows = Array.from(tbody.querySelectorAll('tr'));
+            const dragIdx = allRows.indexOf(dragSrcEl);
+            const dropIdx = allRows.indexOf(this);
+            
+            if (dragIdx < dropIdx) {
+                this.parentNode.insertBefore(dragSrcEl, this.nextSibling);
+            } else {
+                this.parentNode.insertBefore(dragSrcEl, this);
+            }
+            
+            // Save new order to localStorage
+            const newOrder = Array.from(tbody.querySelectorAll('tr')).map(r => r.getAttribute('data-id'));
+            localStorage.setItem(storageKey, JSON.stringify(newOrder));
+        }
+        return false;
+    }
+    
+    function handleDragEnd(e) {
+        this.style.opacity = '1';
+        this.style.border = '';
+        const allRows = tbody.querySelectorAll('tr');
+        allRows.forEach(r => {
+            r.classList.remove('drag-over');
+            r.style.background = '';
+            r.style.opacity = '1';
+            r.style.border = '';
+        });
+    }
+}
+
+function toggleTableSort(tbodyId, keySelector, button) {
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
+    
+    let rows = Array.from(tbody.querySelectorAll('tr'));
+    if (rows.length === 0) return;
+    
+    let currentDir = button.getAttribute('data-dir') || '';
+    let newDir = 'asc';
+    
+    if (currentDir === 'asc') {
+        newDir = 'desc';
+    } else {
+        newDir = 'asc';
+    }
+    
+    button.setAttribute('data-dir', newDir);
+    
+    const iconSpan = button.querySelector('.sort-icon');
+    if (iconSpan) {
+        iconSpan.textContent = newDir === 'asc' ? '▲ A-Z' : '▼ Z-A';
+    }
+    
+    rows.sort((a, b) => {
+        let valA = '';
+        let valB = '';
+        
+        const elA = a.querySelector(keySelector);
+        const elB = b.querySelector(keySelector);
+        
+        if (elA) {
+            if (elA.tagName === 'INPUT' || elA.tagName === 'SELECT' || elA.tagName === 'TEXTAREA') {
+                valA = elA.value || elA.getAttribute('value') || '';
+            } else {
+                valA = elA.textContent || '';
+            }
+        }
+        
+        if (elB) {
+            if (elB.tagName === 'INPUT' || elB.tagName === 'SELECT' || elB.tagName === 'TEXTAREA') {
+                valB = elB.value || elB.getAttribute('value') || '';
+            } else {
+                valB = elB.textContent || '';
+            }
+        }
+        
+        valA = valA.trim().toLowerCase();
+        valB = valB.trim().toLowerCase();
+        
+        if (newDir === 'asc') {
+            return valA.localeCompare(valB);
+        } else {
+            return valB.localeCompare(valA);
+        }
+    });
+    
+    rows.forEach(row => tbody.appendChild(row));
+    
+    let storageKey = '';
+    if (tbodyId === 'rfps-table-body') {
+        storageKey = 'rfps_list_order';
+    } else if (tbodyId === 'checklist-table-body') {
+        const rfpId = window.RFP_ID || 'general';
+        storageKey = `rfp_checklist_order_${rfpId}`;
+    }
+    
+    if (storageKey) {
+        const newOrder = rows.map(r => r.getAttribute('data-id'));
+        localStorage.setItem(storageKey, JSON.stringify(newOrder));
+    }
+}
+
+window.initSearchableSelects = initSearchableSelects;
+window.initExportInterceptors = initExportInterceptors;
+window.initDragAndDropSort = initDragAndDropSort;
+window.initAllSorting = initAllSorting;
+window.toggleTableSort = toggleTableSort;
+
+// Register Service Worker for PWA
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/service-worker.js')
+            .then(reg => console.log('Service Worker registered successfully:', reg.scope))
+            .catch(err => console.error('Service Worker registration failed:', err));
+    });
+}
+
+// Inject Manifest & PWA Meta tags into <head> dynamically
+(function injectPWAMeta() {
+    const head = document.head;
+    if (!head) return;
+    
+    // Manifest Link
+    if (!document.querySelector('link[rel="manifest"]')) {
+        const link = document.createElement('link');
+        link.rel = 'manifest';
+        link.href = '/manifest.json';
+        head.appendChild(link);
+    }
+    
+    // Apple Web App Capable Meta
+    if (!document.querySelector('meta[name="apple-mobile-web-app-capable"]')) {
+        const meta = document.createElement('meta');
+        meta.name = 'apple-mobile-web-app-capable';
+        meta.content = 'yes';
+        head.appendChild(meta);
+    }
+    
+    // Apple Status Bar Style Meta
+    if (!document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]')) {
+        const meta = document.createElement('meta');
+        meta.name = 'apple-mobile-web-app-status-bar-style';
+        meta.content = 'black-translucent';
+        head.appendChild(meta);
+    }
+    
+    // Theme Color Meta
+    if (!document.querySelector('meta[name="theme-color"]')) {
+        const meta = document.createElement('meta');
+        meta.name = 'theme-color';
+        meta.content = '#6366f1';
+        head.appendChild(meta);
+    }
+})();
+
+// Inject Mobile bottom nav & top header & responsive table tags
+(function injectMobileLayout() {
+    document.addEventListener('DOMContentLoaded', () => {
+        if (document.getElementById('pwa-mobile-bottom-nav')) return;
+        
+        // 1. Mobile Bottom Navigation
+        const bottomNav = document.createElement('div');
+        bottomNav.id = 'pwa-mobile-bottom-nav';
+        bottomNav.className = 'mobile-bottom-nav';
+        
+        const path = window.location.pathname;
+        const isDashboard = path === '/' || path.includes('/dashboard') || path === '/dashboard.html';
+        const isNews = path.includes('/news');
+        const isRfps = path.includes('/rfps');
+        const isAdmin = path.includes('/admin');
+        
+        bottomNav.innerHTML = `
+            <a href="/" class="mobile-nav-item ${isDashboard ? 'active' : ''}">
+                <span class="icon">📊</span>
+                <span class="label">Dashboard</span>
+            </a>
+            <a href="/news" class="mobile-nav-item ${isNews ? 'active' : ''}">
+                <span class="icon">📰</span>
+                <span class="label">OEM News</span>
+            </a>
+            <a href="/rfps" class="mobile-nav-item ${isRfps ? 'active' : ''}">
+                <span class="icon">📋</span>
+                <span class="label">RFPs</span>
+            </a>
+            <a href="/admin" class="mobile-nav-item ${isAdmin ? 'active' : ''}">
+                <span class="icon">🛡️</span>
+                <span class="label">Admin</span>
+            </a>
+        `;
+        document.body.appendChild(bottomNav);
+        
+        // 2. Mobile Top Header
+        const mainContent = document.querySelector('.main-content');
+        if (mainContent) {
+            const topHeader = document.createElement('div');
+            topHeader.id = 'pwa-mobile-top-header';
+            topHeader.className = 'mobile-top-header';
+            topHeader.innerHTML = `
+                <div class="logo">
+                    <span>📂</span> OEM Portal
+                </div>
+                <div class="user-action" onclick="openModal('preferences-modal')">
+                    ⚙️
+                </div>
+            `;
+            mainContent.insertBefore(topHeader, mainContent.firstChild);
+        }
+        
+        // 3. Auto data-labels for table mobile card layouts
+        document.querySelectorAll('table').forEach(table => {
+            const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim());
+            if (headers.length === 0) return;
+            
+            table.querySelectorAll('tbody tr').forEach(row => {
+                row.querySelectorAll('td').forEach((cell, index) => {
+                    if (headers[index]) {
+                        cell.setAttribute('data-label', headers[index]);
+                    }
+                });
+            });
+        });
+    });
+})();
+
+function copyToClipboard(text, btn) {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '✓';
+        btn.style.color = '#34d399';
+        setTimeout(() => {
+            btn.innerHTML = originalHtml;
+            btn.style.color = '';
+        }, 1500);
+    }).catch(err => {
+        console.error('Failed to copy text:', err);
+    });
+}
+window.copyToClipboard = copyToClipboard;
 
 

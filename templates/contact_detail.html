@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ contact['company_name'] }} - {{ portal_settings['portal_name'] }}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.3">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.4">
     <link rel="icon" type="image/x-icon" href="{% if portal_settings['favicon'] %}{{ url_for('uploaded_file', filename=portal_settings['favicon']) }}{% else %}{{ url_for('static', filename='favicon.ico') }}{% endif %}">
     <style>
         .portfolio-grid {
@@ -217,22 +217,24 @@
                                 <div style="background:rgba(255,255,255,0.01); border:1px solid var(--border-glass); padding:1rem; border-radius:12px; position:relative;">
                                     <div style="font-weight:700; font-size:1.05rem; color:var(--text-primary);">{{ person['name'] }}</div>
                                     <div style="font-size:0.8rem; color:var(--primary); font-weight:600; margin-bottom:0.75rem; text-transform:uppercase; letter-spacing:0.02em;">{{ person['designation'] or 'Pre-Sales Contact' }}</div>
-                                    
-                                    <div class="contact-details" style="margin-bottom:0.75rem; font-size:0.8rem; gap:0.25rem;">
-                                        {% if person['email'] %}
-                                            <div class="contact-detail-item">
-                                                <span>✉️</span> <a href="mailto:{{ person['email'] }}" style="color:var(--text-secondary); word-break:break-all;">{{ person['email'] }}</a>
-                                            </div>
-                                        {% endif %}
-                                        {% if person['phone'] %}
-                                            <div class="contact-detail-item">
-                                                <span>📞</span> 
-                                                <a href="https://wa.me/{{ person['phone']|to_digits }}" target="_blank" style="color:var(--text-secondary); text-decoration:none;" title="Chat on WhatsApp">
-                                                    {{ person['phone'] }} 💬
-                                                </a>
-                                            </div>
-                                        {% endif %}
-                                    </div>
+                                        <div class="contact-details" style="margin-bottom:0.75rem; font-size:0.8rem; gap:0.25rem;">
+                                            {% if person['email'] %}
+                                                <div class="contact-detail-item">
+                                                    <span>✉️</span> <a href="mailto:{{ person['email'] }}" style="color:var(--text-secondary); word-break:break-all;">{{ person['email'] }}</a>
+                                                    <button type="button" class="copy-btn" onclick="event.stopPropagation(); copyToClipboard('{{ person['email'] }}', this);" style="background: none; border: none; padding: 0 0.25rem; color: var(--text-muted); cursor: pointer; font-size: 0.72rem; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle;" title="Copy Email">📋</button>
+                                                </div>
+                                            {% endif %}
+                                            {% if person['phone'] %}
+                                                <div class="contact-detail-item">
+                                                    <span>📞</span> 
+                                                    <a href="https://wa.me/{{ person['phone']|to_digits }}" target="_blank" style="color:var(--text-secondary); text-decoration:none;" title="Chat on WhatsApp">
+                                                        {{ person['phone'] }} 💬
+                                                    </a>
+                                                    <button type="button" class="copy-btn" onclick="event.stopPropagation(); copyToClipboard('{{ person['phone'] }}', this);" style="background: none; border: none; padding: 0 0.25rem; color: var(--text-muted); cursor: pointer; font-size: 0.72rem; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle;" title="Copy Phone Number">📋</button>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+
                                     
                                     {% if session['role'] != 'viewer' %}
                                     <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
@@ -780,7 +782,7 @@
         </div>
     </div>
     
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}?v=1.4"></script>
     <script>
         function fetchLogoFromInternet(contactId) {
             const btn = document.getElementById('btn-fetch-logo');

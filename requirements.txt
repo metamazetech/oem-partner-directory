@@ -3,3 +3,4 @@ requests
 beautifulsoup4
 pytesseract
 opencv-python-headless
+pypdf

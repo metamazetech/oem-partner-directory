@@ -5,7 +5,8 @@ from werkzeug.security import generate_password_hash
 DB_PATH = os.environ.get('DATABASE_PATH', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'oem_tracker.db'))
 
 def get_db_connection():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn.execute("PRAGMA foreign_keys = ON")
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -88,6 +89,34 @@ def init_db():
     )
     ''')
     
+    # Create Currency Rates table for Work Tools calculator
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS currency_rates (
+        code TEXT PRIMARY KEY,
+        rate REAL NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    ''')
+    
+    # Pre-seed default rates if empty
+    cursor.execute("SELECT COUNT(*) FROM currency_rates")
+    if cursor.fetchone()[0] == 0:
+        import datetime
+        today_str = datetime.date.today().strftime('%Y-%m-%d')
+        default_rates = [
+            ('USD', 1.0, today_str),
+            ('EUR', 0.92, today_str),
+            ('GBP', 0.79, today_str),
+            ('JPY', 155.0, today_str),
+            ('CAD', 1.37, today_str),
+            ('AUD', 1.51, today_str),
+            ('INR', 83.5, today_str),
+            ('AED', 3.67, today_str),
+            ('SGD', 1.35, today_str)
+        ]
+        cursor.executemany("INSERT INTO currency_rates (code, rate, updated_at) VALUES (?, ?, ?)", default_rates)
+        print("Pre-seeded default currency rates.")
+
     # Pre-seed default settings individually
     cursor.execute("INSERT OR IGNORE INTO portal_settings (key, value) VALUES (?, ?)", ('portal_name', 'OEM Directory'))
     cursor.execute("INSERT OR IGNORE INTO portal_settings (key, value) VALUES (?, ?)", ('portal_logo', ''))

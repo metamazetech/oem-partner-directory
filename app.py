@@ -3961,6 +3961,140 @@ def fetch_news_manually():
     flash("OEM News fetch completed or running in the background. The latest announcements have been synced.", "success")
     return redirect(url_for('oem_news_page'))
 
+# --- WORK TOOLS ENDPOINTS ---
+
+def sync_rates_from_api():
+    import requests
+    import datetime
+    try:
+        response = requests.get("https://open.er-api.com/v6/latest/USD", timeout=8)
+        if response.status_code == 200:
+            data = response.json()
+            rates = data.get('rates', {})
+            today_str = datetime.date.today().strftime('%Y-%m-%d')
+            conn = database.get_db_connection()
+            for code, rate in rates.items():
+                if code in ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'INR', 'AED', 'SGD', 'CNY', 'CHF', 'SAR', 'QAR']:
+                    conn.execute("INSERT OR REPLACE INTO currency_rates (code, rate, updated_at) VALUES (?, ?, ?)", (code, rate, today_str))
+            conn.commit()
+            conn.close()
+            return True
+    except Exception as e:
+        print("Failed to sync rates from open API:", e)
+    return False
+
+def check_sync_currency_rates():
+    try:
+        import datetime
+        conn = database.get_db_connection()
+        row = conn.execute("SELECT updated_at FROM currency_rates LIMIT 1").fetchone()
+        today_str = datetime.date.today().strftime('%Y-%m-%d')
+        conn.close()
+        if not row or row['updated_at'] != today_str:
+            sync_rates_from_api()
+    except Exception as e:
+        print("Error in lazy rates sync:", e)
+
+@app.route('/work-tools')
+def work_tools():
+    check_sync_currency_rates()
+    conn = database.get_db_connection()
+    rates_rows = conn.execute("SELECT code, rate, updated_at FROM currency_rates ORDER BY code").fetchall()
+    settings_rows = conn.execute("SELECT key, value FROM portal_settings").fetchall()
+    conn.close()
+    
+    portal_settings = {r['key']: r['value'] for r in settings_rows}
+    role = session.get('role')
+    theme = session.get('theme', 'theme-slate-dark')
+    
+    return render_template(
+        'work_tools.html',
+        rates=rates_rows,
+        portal_settings=portal_settings,
+        theme=theme,
+        role=role
+    )
+
+@app.route('/work-tools/update-rates', methods=['POST'])
+def update_rates():
+    success = sync_rates_from_api()
+    if success:
+        flash("Live exchange rates successfully synchronized.", "success")
+    else:
+        flash("Could not sync live rates. Using cached rates.", "error")
+    return redirect(url_for('work_tools'))
+
+@app.route('/work-tools/convert-pdf', methods=['POST'])
+def convert_pdf():
+    if 'pdf_file' not in request.files:
+        flash("No file part uploaded.", "error")
+        return redirect(url_for('work_tools'))
+    
+    file = request.files['pdf_file']
+    if file.filename == '':
+        flash("No file selected.", "error")
+        return redirect(url_for('work_tools'))
+        
+    out_format = request.form.get('format', 'word')
+    
+    import io
+    import re
+    from flask import Response
+    from pypdf import PdfReader
+    
+    try:
+        pdf_bytes = file.read()
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+        
+        extracted_text = []
+        for page in reader.pages:
+            t = page.extract_text()
+            if t:
+                extracted_text.append(t)
+                
+        full_text = "\n\n".join(extracted_text)
+        
+        if out_format == 'excel':
+            output = io.StringIO()
+            import csv
+            writer = csv.writer(output)
+            
+            for line in full_text.split('\n'):
+                line = line.strip()
+                if not line:
+                    continue
+                parts = re.split(r'\s{2,}|\t', line)
+                writer.writerow(parts)
+                
+            csv_data = output.getvalue()
+            return Response(
+                csv_data,
+                mimetype="text/csv",
+                headers={"Content-disposition": "attachment; filename=extracted_pdf_data.csv"}
+            )
+        else:
+            html_doc = f"""<html>
+            <head>
+                <meta charset="utf-8">
+                <title>Converted Document</title>
+                <style>
+                    body {{ font-family: Arial, sans-serif; line-height: 1.6; white-space: pre-wrap; }}
+                </style>
+            </head>
+            <body>
+                {full_text}
+            </body>
+            </html>"""
+            return Response(
+                html_doc,
+                mimetype="application/msword",
+                headers={"Content-disposition": "attachment; filename=converted_pdf_document.doc"}
+            )
+            
+    except Exception as e:
+        flash(f"Error converting PDF file: {e}", "error")
+        return redirect(url_for('work_tools'))
+
 if __name__ == '__main__':
     # Run locally (accessible on local network: host='0.0.0.0' makes it accessible by team)
     app.run(host='0.0.0.0', port=5000, debug=True)

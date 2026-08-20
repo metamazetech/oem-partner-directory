@@ -1,0 +1,1383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Work Tools | {{ portal_settings.get('portal_name', 'OEM Portal') }}</title>
+    {% if portal_settings.get('favicon') %}
+        <link rel="icon" type="image/x-icon" href="{{ url_for('uploaded_file', filename=portal_settings.get('favicon')) }}">
+    {% else %}
+        <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    {% endif %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap">
+    <style>
+        .bucket-tab-content {
+            display: none;
+        }
+        .bucket-tab-content.active {
+            display: block;
+        }
+        .bucket-tab-btn {
+            padding: 0.35rem 0.6rem;
+            font-size: 0.72rem;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            white-space: nowrap;
+            transition: var(--transition);
+        }
+        .bucket-tab-btn:hover {
+            background: rgba(255,255,255,0.08);
+            color: white;
+        }
+        .bucket-tab-btn.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+        .bucket-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 0.6rem 0.8rem;
+            margin-bottom: 0.5rem;
+            cursor: grab;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: white;
+            font-size: 0.82rem;
+            transition: var(--transition);
+        }
+        .bucket-item:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: var(--primary);
+            transform: translateY(-1px);
+        }
+        .drop-zone {
+            background: rgba(0, 0, 0, 0.15);
+            border: 2px dashed rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
+            min-height: 180px;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            transition: var(--transition);
+            margin-bottom: 1rem;
+        }
+        .drop-zone.dragover {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.05);
+        }
+        .drop-item {
+            background: rgba(99, 102, 241, 0.12);
+            border: 1px solid rgba(99, 102, 241, 0.25);
+            border-radius: 6px;
+            padding: 0.5rem 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: white;
+            font-size: 0.8rem;
+        }
+        .drop-item button {
+            background: none;
+            border: none;
+            color: #ef4444;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        .cloud-comparison-bar {
+            height: 24px;
+            border-radius: 6px;
+            overflow: hidden;
+            display: flex;
+            background: rgba(255, 255, 255, 0.05);
+            margin-bottom: 1rem;
+        }
+        .cloud-comparison-fill {
+            height: 100%;
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            padding-left: 0.5rem;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+        
+        /* Power Load Table styling */
+        .power-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1rem;
+        }
+        .power-table th, .power-table td {
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            color: white;
+            font-size: 0.82rem;
+        }
+        .power-table th {
+            text-align: left;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body class="{{ theme }}">
+    <div class="app-container">
+        
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-container" style="display: flex; align-items: center; justify-content: center; max-width: 100%; padding: 6px 0; text-decoration: none; gap: 0.4rem;">
+                    <a href="{{ url_for('dashboard') }}" style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.25rem; color: var(--text-primary); letter-spacing: -0.03em; text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
+                        {% if portal_settings.get('portal_logo') %}
+                            <img src="{{ url_for('uploaded_file', filename=portal_settings.get('portal_logo')) }}" style="max-height: 40px; max-width: 100%; object-fit: contain;" alt="Logo">
+                        {% else %}
+                            <span>📂</span> {{ portal_settings.get('portal_name', 'OEM Portal') }}
+                        {% endif %}
+                    </a>
+                </div>
+            </div>
+            
+            <div class="nav-container">
+                <nav>
+                    <ul class="nav-menu">
+                        {% if role %}
+                            <li class="nav-item">
+                                <a href="{{ url_for('dashboard') }}">
+                                    <span>📊</span> Dashboard
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{{ url_for('oem_news_page') }}">
+                                    <span>📰</span> OEM News
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{{ url_for('rfps_list') }}">
+                                    <span>📋</span> RFP Section
+                                </a>
+                            </li>
+                            {% if role == 'admin' %}
+                                <li class="nav-item">
+                                    <a href="{{ url_for('admin_panel') }}">
+                                        <span>🛡️</span> Admin Panel
+                                    </a>
+                                </li>
+                            {% endif %}
+                        {% else %}
+                            <li class="nav-item">
+                                <a href="{{ url_for('dashboard') }}">
+                                    <span>🔑</span> Portal Login
+                                </a>
+                            </li>
+                        {% endif %}
+                        <li class="nav-item active">
+                            <a href="/work-tools">
+                                <span>🛠️</span> Work Tools
+                            </a>
+                        </li>
+                        {% if role %}
+                            <li class="nav-item">
+                                <a href="{{ url_for('logout') }}" style="color: #fca5a5;">
+                                    <span>🚪</span> Sign Out
+                                </a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            </div>
+        </aside>
+        
+        <!-- Main Content Area -->
+        <main class="main-content">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div style="margin-bottom: 1.5rem;">
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ 'success' if category == 'success' else 'danger' }}" style="padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 0.5rem; font-size: 0.85rem; display: flex; align-items: center; justify-content: space-between;">
+                                <span>{{ message }}</span>
+                                <button onclick="this.parentElement.remove()" style="background: none; border: none; color: inherit; cursor: pointer; font-weight: bold;">&times;</button>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+            
+            <div class="header-bar" style="margin-bottom: 1.5rem;">
+                <div>
+                    <h1 class="page-title" style="margin: 0; font-size: 1.8rem;">🛠️ Portal Work Tools</h1>
+                    <p style="color: var(--text-secondary); margin-top: 0.25rem; font-size: 0.85rem;">Public engineering and transaction calculators for vendor partners.</p>
+                </div>
+            </div>
+            
+            <div class="dashboard-layout-grid" style="grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                
+                <!-- TOOL 1: UNIT CONVERTER -->
+                <div class="glass-card" style="padding: 1.5rem;">
+                    <h2 class="card-title" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">📐 Unit Converter</h2>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.25rem;">Convert metric and imperial units for length, area, weight, and volume.</p>
+                    
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label">Measurement Type</label>
+                        <select id="converter-type" class="form-control" onchange="loadConverterUnits()">
+                            <option value="length">Length</option>
+                            <option value="area">Area</option>
+                            <option value="weight">Weight/Mass</option>
+                            <option value="volume">Volume</option>
+                        </select>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div>
+                            <label class="form-label">From Value</label>
+                            <input type="number" id="converter-from-value" class="form-control" value="1" oninput="performConversion()">
+                        </div>
+                        <div>
+                            <label class="form-label">From Unit</label>
+                            <select id="converter-from-unit" class="form-control" onchange="performConversion()"></select>
+                        </div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div>
+                            <label class="form-label">Converted Value</label>
+                            <input type="text" id="converter-to-value" class="form-control" readonly style="background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.05); color: var(--primary); font-weight: 700;">
+                        </div>
+                        <div>
+                            <label class="form-label">To Unit</label>
+                            <select id="converter-to-unit" class="form-control" onchange="performConversion()"></select>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- TOOL 2: CURRENCY CALCULATOR -->
+                <div class="glass-card" style="padding: 1.5rem; display: flex; flex-direction: column;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+                        <h2 class="card-title" style="display: flex; align-items: center; gap: 0.5rem; margin: 0;">💱 Currency Calculator</h2>
+                        <form action="/work-tools/update-rates" method="POST" style="margin: 0;">
+                            <button type="submit" class="btn btn-secondary btn-sm" style="font-size: 0.72rem; padding: 0.25rem 0.5rem; border-radius: 4px;">🔄 Sync Live Rates</button>
+                        </form>
+                    </div>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.25rem;">Convert financial rates using real-time global exchange markers.</p>
+                    
+                    <div class="form-row" style="margin-bottom: 1rem; display: flex; gap: 1rem;">
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label">Amount</label>
+                            <input type="number" id="currency-amount" class="form-control" value="100" oninput="performCurrencyConversion()">
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label">From</label>
+                            <select id="currency-from" class="form-control" onchange="performCurrencyConversion()">
+                                {% for r in rates %}
+                                    <option value="{{ r['code'] }}" {% if r['code'] == 'USD' %}selected{% endif %}>{{ r['code'] }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label">To</label>
+                            <select id="currency-to" class="form-control" onchange="performCurrencyConversion()">
+                                {% for r in rates %}
+                                    <option value="{{ r['code'] }}" {% if r['code'] == 'INR' %}selected{% endif %}>{{ r['code'] }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: auto; padding: 1rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; text-align: center;">
+                        <div id="currency-result-value" style="font-size: 1.5rem; font-weight: 800; color: white;">0.00</div>
+                        <div id="currency-rates-timestamp" style="font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem;">Rates updated: Loading...</div>
+                    </div>
+                </div>
+                
+                <!-- TOOL 3: PDF TO WORD & EXCEL -->
+                <div class="glass-card" style="padding: 1.5rem;">
+                    <h2 class="card-title" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">📄 In-Memory PDF Converter</h2>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.25rem;">Extract document text into editable Word (.doc) or tabular Excel (.csv) formats.</p>
+                    
+                    <form action="/work-tools/convert-pdf" method="POST" enctype="multipart/form-data">
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label class="form-label">Select PDF Document</label>
+                            <input type="file" name="pdf_file" class="form-control" accept=".pdf" required style="padding: 0.4rem;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 1.25rem;">
+                            <label class="form-label">Output Format</label>
+                            <div style="display: flex; gap: 1.5rem; margin-top: 0.25rem;">
+                                <label style="display: flex; align-items: center; gap: 0.4rem; color: white; font-size: 0.85rem; cursor: pointer;">
+                                    <input type="radio" name="format" value="word" checked> Editable Word Document (.doc)
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 0.4rem; color: white; font-size: 0.85rem; cursor: pointer;">
+                                    <input type="radio" name="format" value="excel"> Structured CSV/Excel (.csv)
+                                </label>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                            📥 Upload & Convert Document
+                        </button>
+                    </form>
+                </div>
+
+                <!-- TOOL 4: MATHEMATICAL POCKET CALCULATOR -->
+                <div class="glass-card" style="padding: 1.5rem; display: flex; flex-direction: column;">
+                    <h2 class="card-title" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">🧮 Pocket Calculator</h2>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.25rem;">Quick math calculations, percentages, and algebraic evaluations.</p>
+                    
+                    <div style="margin-bottom: 0.75rem;">
+                        <input type="text" id="math-display" readonly style="width: 100%; height: 46px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 0.5rem 1rem; color: white; font-size: 1.35rem; text-align: right; font-family: monospace;" placeholder="0">
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.4rem; margin-top: auto;">
+                        <button type="button" class="btn btn-secondary" onclick="pressMath('C')" style="padding: 0.6rem; font-size: 0.85rem;">C</button>
+                        <button type="button" class="btn btn-secondary" onclick="pressMath('(')" style="padding: 0.6rem; font-size: 0.85rem;">(</button>
+                        <button type="button" class="btn btn-secondary" onclick="pressMath(')')" style="padding: 0.6rem; font-size: 0.85rem;">)</button>
+                        <button type="button" class="btn btn-primary" onclick="pressMath('/')" style="padding: 0.6rem; font-size: 0.85rem;">/</button>
+                        
+                        <button type="button" class="btn btn-secondary" onclick="pressMath('7')" style="padding: 0.6rem; font-size: 0.85rem; background: rgba(255,255,255,0.02);">7</button>
+                        <button type="button" class="btn btn-secondary" onclick="pressMath('8')" style="padding: 0.6rem; font-size: 0.85rem; background: rgba(255,255,255,0.02);">8</button>
+                        <button type="button" class="btn btn-secondary" onclick="pressMath('9')" style="padding: 0.6rem; font-size: 0.85rem; background: rgba(255,255,255,0.02);">9</button>
+                        <button type="button" class="btn btn-primary" onclick="pressMath('*')" style="padding: 0.6rem; font-size: 0.85rem;">*</button>
+                        
+                        <button type="button" class="btn btn-secondary" onclick="pressMath('4')" style="padding: 0.6rem; font-size: 0.85rem; background: rgba(255,255,255,0.02);">4</button>
+                        <button type="button" class="btn btn-secondary" onclick="pressMath('5')" style="padding: 0.6rem; font-size: 0.85rem; background: rgba(255,255,255,0.02);">5</button>
+                        <button type="button" class="btn btn-secondary" onclick="pressMath('6')" style="padding: 0.6rem; font-size: 0.85rem; background: rgba(255,255,255,0.02);">6</button>
+                        <button type="button" class="btn btn-primary" onclick="pressMath('-')" style="padding: 0.6rem; font-size: 0.85rem;">-</button>
+                        
+                        <button type="button" class="btn btn-secondary" onclick="pressMath('1')" style="padding: 0.6rem; font-size: 0.85rem; background: rgba(255,255,255,0.02);">1</button>
+                        <button type="button" class="btn btn-secondary" onclick="pressMath('2')" style="padding: 0.6rem; font-size: 0.85rem; background: rgba(255,255,255,0.02);">2</button>
+                        <button type="button" class="btn btn-secondary" onclick="pressMath('3')" style="padding: 0.6rem; font-size: 0.85rem; background: rgba(255,255,255,0.02);">3</button>
+                        <button type="button" class="btn btn-primary" onclick="pressMath('+')" style="padding: 0.6rem; font-size: 0.85rem;">+</button>
+                        
+                        <button type="button" class="btn btn-secondary" onclick="pressMath('0')" style="padding: 0.6rem; font-size: 0.85rem; background: rgba(255,255,255,0.02); grid-column: span 2;">0</button>
+                        <button type="button" class="btn btn-secondary" onclick="pressMath('.')" style="padding: 0.6rem; font-size: 0.85rem; background: rgba(255,255,255,0.02);">.</button>
+                        <button type="button" class="btn btn-success" onclick="pressMath('=')" style="padding: 0.6rem; font-size: 0.85rem; background: var(--primary);"> = </button>
+                    </div>
+                </div>
+
+                <!-- NEW TOOL 5: CCTV CAMERA BANDWIDTH & STORAGE CALCULATOR -->
+                <div class="glass-card" style="padding: 1.5rem; grid-column: span 2;">
+                    <h2 class="card-title" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">📹 CCTV Storage & Network Bandwidth Calculator</h2>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.5rem;">Sizing tool for CCTV surveillance layouts. Compute total real-time network throughput and total storage drive capacity configurations.</p>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 320px; gap: 1.5rem;">
+                        <!-- Inputs Panel -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Number of Cameras</label>
+                                <input type="number" id="cctv-qty" class="form-control" value="16" min="1" oninput="calculateCctv()">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Resolution / Megapixels</label>
+                                <select id="cctv-resolution" class="form-control" onchange="calculateCctv()">
+                                    <option value="d1">D1 / CIF (~0.4 MP)</option>
+                                    <option value="2mp" selected>1080p / 2 MP (Full HD)</option>
+                                    <option value="4mp">4 MP (QHD)</option>
+                                    <option value="5mp">5 MP</option>
+                                    <option value="8mp">8 MP / 4K (Ultra HD)</option>
+                                    <option value="12mp">12 MP</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Frame Rate (FPS)</label>
+                                <select id="cctv-fps" class="form-control" onchange="calculateCctv()">
+                                    <option value="5">5 fps</option>
+                                    <option value="10">10 fps</option>
+                                    <option value="15" selected>15 fps</option>
+                                    <option value="20">20 fps</option>
+                                    <option value="25">25 fps</option>
+                                    <option value="30">30 fps</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Video Compression Codec</label>
+                                <select id="cctv-codec" class="form-control" onchange="calculateCctv()">
+                                    <option value="h264">H.264 (AVC)</option>
+                                    <option value="h265" selected>H.265 (HEVC - High Efficiency)</option>
+                                    <option value="mjpeg">MJPEG (Raw frames)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Scene Activity / Complexity</label>
+                                <select id="cctv-complexity" class="form-control" onchange="calculateCctv()">
+                                    <option value="low">Low (Quiet corridor / static scene)</option>
+                                    <option value="medium" selected>Medium (Standard office / retail lobby)</option>
+                                    <option value="high">High (Traffic intersection / busy street)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Recording Days (Retention)</label>
+                                <input type="number" id="cctv-days" class="form-control" value="30" min="1" oninput="calculateCctv()">
+                            </div>
+                            <div class="form-group" style="grid-column: span 2;">
+                                <label class="form-label">Recording Schedule Mode</label>
+                                <select id="cctv-schedule" class="form-control" onchange="calculateCctv()">
+                                    <option value="1.0" selected>Continuous (24 Hours / Day)</option>
+                                    <option value="0.5">Daytime Only (12 Hours / Day)</option>
+                                    <option value="0.35">Motion Detection (~35% activity / day)</option>
+                                    <option value="0.2">Low Motion / Schedule (~5h / day)</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- Outputs Panel -->
+                        <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; gap: 0.85rem; justify-content: center;">
+                            <h3 style="font-size: 0.9rem; color: white; margin: 0; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 0.25rem;">📈 CCTV Sizing Results</h3>
+                            
+                            <div style="display: flex; flex-direction: column; gap: 0.6rem; font-size: 0.8rem;">
+                                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 0.2rem;">
+                                    <span style="color: var(--text-secondary);">Bitrate per Camera:</span>
+                                    <span id="cctv-cam-bitrate" style="font-weight: 700; color: white;">0.00 Mbps</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 0.2rem;">
+                                    <span style="color: var(--text-secondary);">Total Network Bandwidth:</span>
+                                    <span id="cctv-total-bandwidth" style="font-weight: 700; color: var(--primary);">0.00 Mbps</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 0.2rem;">
+                                    <span style="color: var(--text-secondary);">Required Raw Storage:</span>
+                                    <span id="cctv-total-storage" style="font-weight: 700; color: white;">0.00 TB</span>
+                                </div>
+                                <div style="display: flex; flex-direction: column; gap: 0.2rem; background: rgba(99, 102, 241, 0.08); padding: 0.5rem; border-radius: 6px; margin-top: 0.25rem;">
+                                    <span style="color: var(--text-secondary); font-size: 0.72rem; font-weight: 600;">Recommended Drive Configuration:</span>
+                                    <span id="cctv-drive-rec" style="font-weight: 700; color: #34d399; font-size: 0.82rem; margin-top: 2px;">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TOOL 6: DATA CENTER POWER LOAD CALCULATOR -->
+                <div class="glass-card" style="padding: 1.5rem; grid-column: span 2;">
+                    <h2 class="card-title" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">⚡ Data Center Capacity Planner & Power Load Calculator</h2>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.25rem;">Estimate sizing requirements, active load (W), current draw (Amperes), apparent power (VA), cabinet space utilization (U), and UPS battery runtime.</p>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 320px; gap: 1.5rem;">
+                        
+                        <!-- Input table of devices -->
+                        <div>
+                            <table class="power-table">
+                                <thead>
+                                    <tr>
+                                        <th>Appliance / Device Name</th>
+                                        <th style="width: 170px;">Preset Profile Type</th>
+                                        <th style="width: 50px;">Qty</th>
+                                        <th style="width: 75px;">Watts (ea)</th>
+                                        <th style="width: 65px;">PF</th>
+                                        <th style="width: 70px;">Rack Space</th>
+                                        <th style="width: 40px; text-align: center;">X</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="power-calc-tbody">
+                                    <tr id="prow_init1">
+                                        <td><input type="text" class="form-control form-control-sm p-name" value="Core Web Servers" style="font-size: 0.8rem; padding: 0.35rem;"></td>
+                                        <td>
+                                            <select class="form-control form-control-sm p-type" onchange="presetPowerWatts(this)" style="font-size: 0.8rem; padding: 0.35rem;">
+                                                <option value="server1u" selected>1U Server (~350W)</option>
+                                                <option value="server2u">2U Server (~600W)</option>
+                                                <option value="serverblade">Blade Chassis (~2.5kW)</option>
+                                                <option value="storage">SAN Storage Shelf (~700W)</option>
+                                                <option value="switch_poe">24-Port Switch (~120W)</option>
+                                                <option value="switch_poe_high">48-Port PoE+ Switch (~890W)</option>
+                                                <option value="poe_device">PoE Device (Class 3 ~15W)</option>
+                                                <option value="poe_device_plus">PoE+ Device (Class 4 ~30W)</option>
+                                                <option value="router">Core Router/Firewall (~200W)</option>
+                                                <option value="kvm">KVM Console (~40W)</option>
+                                                <option value="custom">Custom Equipment</option>
+                                            </select>
+                                        </td>
+                                        <td><input type="number" class="form-control form-control-sm p-qty" value="4" min="1" oninput="calculatePowerLoad()" style="width: 50px; font-size: 0.8rem; padding: 0.35rem;"></td>
+                                        <td><input type="number" class="form-control form-control-sm p-watts" value="350" min="0" oninput="calculatePowerLoad()" style="width: 75px; font-size: 0.8rem; padding: 0.35rem;"></td>
+                                        <td><input type="number" class="form-control form-control-sm p-pf" value="0.95" min="0.1" max="1.0" step="0.05" oninput="calculatePowerLoad()" style="width: 65px; font-size: 0.8rem; padding: 0.35rem;"></td>
+                                        <td>
+                                            <select class="form-control form-control-sm p-ru" onchange="calculatePowerLoad()" style="font-size: 0.8rem; padding: 0.35rem;">
+                                                <option value="0">0 U</option>
+                                                <option value="1" selected>1 U</option>
+                                                <option value="2">2 U</option>
+                                                <option value="3">3 U</option>
+                                                <option value="4">4 U</option>
+                                                <option value="7">7 U</option>
+                                                <option value="10">10 U</option>
+                                            </select>
+                                        </td>
+                                        <td style="text-align: center;"><button type="button" class="btn btn-secondary btn-sm" onclick="this.closest('tr').remove(); calculatePowerLoad();" style="color: #ef4444; padding: 0.2rem 0.4rem;">&times;</button></td>
+                                    </tr>
+                                    <tr id="prow_init2">
+                                        <td><input type="text" class="form-control form-control-sm p-name" value="Database Storage Shelf" style="font-size: 0.8rem; padding: 0.35rem;"></td>
+                                        <td>
+                                            <select class="form-control form-control-sm p-type" onchange="presetPowerWatts(this)" style="font-size: 0.8rem; padding: 0.35rem;">
+                                                <option value="server1u">1U Server (~350W)</option>
+                                                <option value="server2u">2U Server (~600W)</option>
+                                                <option value="serverblade">Blade Chassis (~2.5kW)</option>
+                                                <option value="storage" selected>SAN Storage Shelf (~700W)</option>
+                                                <option value="switch_poe">24-Port Switch (~120W)</option>
+                                                <option value="switch_poe_high">48-Port PoE+ Switch (~890W)</option>
+                                                <option value="poe_device">PoE Device (Class 3 ~15W)</option>
+                                                <option value="poe_device_plus">PoE+ Device (Class 4 ~30W)</option>
+                                                <option value="router">Core Router/Firewall (~200W)</option>
+                                                <option value="kvm">KVM Console (~40W)</option>
+                                                <option value="custom">Custom Equipment</option>
+                                            </select>
+                                        </td>
+                                        <td><input type="number" class="form-control form-control-sm p-qty" value="2" min="1" oninput="calculatePowerLoad()" style="width: 50px; font-size: 0.8rem; padding: 0.35rem;"></td>
+                                        <td><input type="number" class="form-control form-control-sm p-watts" value="700" min="0" oninput="calculatePowerLoad()" style="width: 75px; font-size: 0.8rem; padding: 0.35rem;"></td>
+                                        <td><input type="number" class="form-control form-control-sm p-pf" value="0.90" min="0.1" max="1.0" step="0.05" oninput="calculatePowerLoad()" style="width: 65px; font-size: 0.8rem; padding: 0.35rem;"></td>
+                                        <td>
+                                            <select class="form-control form-control-sm p-ru" onchange="calculatePowerLoad()" style="font-size: 0.8rem; padding: 0.35rem;">
+                                                <option value="0">0 U</option>
+                                                <option value="1">1 U</option>
+                                                <option value="2">2 U</option>
+                                                <option value="3" selected>3 U</option>
+                                                <option value="4">4 U</option>
+                                                <option value="7">7 U</option>
+                                                <option value="10">10 U</option>
+                                            </select>
+                                        </td>
+                                        <td style="text-align: center;"><button type="button" class="btn btn-secondary btn-sm" onclick="this.closest('tr').remove(); calculatePowerLoad();" style="color: #ef4444; padding: 0.2rem 0.4rem;">&times;</button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            
+                            <button type="button" class="btn btn-secondary" onclick="addPowerRow()" style="font-size: 0.8rem; padding: 0.4rem 1rem;">➕ Add Appliance Row</button>
+                        </div>
+                        
+                        <!-- Calculations results panel -->
+                        <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; gap: 0.85rem;">
+                            <h3 style="font-size: 0.9rem; color: white; margin: 0; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 0.25rem;">🔋 Calculated Load Outputs</h3>
+                            
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                                <div>
+                                    <label class="form-label" style="font-size: 0.72rem;">Voltage (Volt)</label>
+                                    <select id="power-voltage" class="form-control" onchange="calculatePowerLoad()" style="font-size: 0.8rem; padding: 0.3rem;">
+                                        <option value="110">110 V (US)</option>
+                                        <option value="120">120 V (US)</option>
+                                        <option value="208" selected>208 V (3-Phase)</option>
+                                        <option value="220">220 V</option>
+                                        <option value="230">230 V (EU)</option>
+                                        <option value="240">240 V</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="form-label" style="font-size: 0.72rem;">Electrical Phase</label>
+                                    <select id="power-phase" class="form-control" onchange="calculatePowerLoad()" style="font-size: 0.8rem; padding: 0.3rem;">
+                                        <option value="1" selected>Single-Phase</option>
+                                        <option value="3">3-Phase (Balanced)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <!-- Battery Runtime Autonomy sizing sub-section -->
+                            <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid rgba(255,255,255,0.03); border-radius: 8px; padding: 0.5rem; display: flex; flex-direction: column; gap: 0.4rem;">
+                                <span style="font-size: 0.75rem; font-weight: 700; color: white;">⚡ UPS Battery Autonomy Planner</span>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem;">
+                                    <div>
+                                        <label style="font-size: 0.65rem; color: var(--text-secondary); display: block; margin-bottom: 2px;">Battery Pack (Ah)</label>
+                                        <input type="number" id="ups-ah" class="form-control" value="100" min="10" oninput="calculatePowerLoad()" style="font-size: 0.75rem; padding: 0.25rem;">
+                                    </div>
+                                    <div>
+                                        <label style="font-size: 0.65rem; color: var(--text-secondary); display: block; margin-bottom: 2px;">DC Voltage (V)</label>
+                                        <select id="ups-dc-volt" class="form-control" onchange="calculatePowerLoad()" style="font-size: 0.75rem; padding: 0.25rem;">
+                                            <option value="12">12 V</option>
+                                            <option value="24">24 V</option>
+                                            <option value="48" selected>48 V</option>
+                                            <option value="96">96 V</option>
+                                            <option value="120">120 V</option>
+                                            <option value="240">240 V</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.8rem;">
+                                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 0.2rem;">
+                                    <span style="color: var(--text-secondary);">Active Power:</span>
+                                    <span id="p-total-watts" style="font-weight: 700; color: white;">0.00 kW</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 0.2rem;">
+                                    <span style="color: var(--text-secondary);">Apparent Load:</span>
+                                    <span id="p-total-va" style="font-weight: 700; color: white;">0.00 kVA</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 0.2rem;">
+                                    <span style="color: var(--text-secondary);">Current Draw:</span>
+                                    <span id="p-total-amps" style="font-weight: 700; color: var(--primary);">0.00 A</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 0.2rem;">
+                                    <span style="color: var(--text-secondary);">Space Allocation:</span>
+                                    <span id="p-total-ru" style="font-weight: 700; color: white;">0 U (0% of 42U)</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 0.2rem;">
+                                    <span style="color: var(--text-secondary);">Heat Load (BTU/hr):</span>
+                                    <span id="p-total-btu" style="font-weight: 700; color: white;">0 BTU/h</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 0.2rem;">
+                                    <span style="color: var(--text-secondary);">UPS Runtime Est:</span>
+                                    <span id="p-ups-runtime" style="font-weight: 700; color: #34d399;">N/A</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; background: rgba(99, 102, 241, 0.08); padding: 0.4rem; border-radius: 6px; margin-top: 0.25rem;">
+                                    <span style="color: var(--text-secondary); font-weight: 600;">Recommended UPS:</span>
+                                    <span id="p-ups-rec" style="font-weight: 700; color: #34d399;">0.00 kVA</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                    </div>
+                </div>
+                
+                <!-- TOOL 7: CLOUD INFRASTRUCTURE COMPARATIVE CALCULATOR -->
+                <div class="glass-card" style="padding: 1.5rem; grid-column: span 2;">
+                    <h2 class="card-title" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">☁️ Cloud Infrastructure Comparative Calculator</h2>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.5rem;">Drag resource specifications from the left bucket categories, drop them into the configuration board, and calculate real-time comparative cloud rates.</p>
+                    
+                    <div style="display: grid; grid-template-columns: 310px 1fr; gap: 1.5rem;">
+                        
+                        <!-- Draggable specifications bucket -->
+                        <div>
+                            <h3 style="font-size: 0.9rem; color: white; margin-bottom: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 0.25rem;">🪣 Infrastructure Bucket</h3>
+                            
+                            <!-- Categories Tabs -->
+                            <div style="display: flex; gap: 0.25rem; margin-bottom: 0.75rem; overflow-x: auto; padding-bottom: 0.25rem;">
+                                <button type="button" class="bucket-tab-btn active" onclick="switchBucketTab('compute')">CPU</button>
+                                <button type="button" class="bucket-tab-btn" onclick="switchBucketTab('memory')">RAM</button>
+                                <button type="button" class="bucket-tab-btn" onclick="switchBucketTab('storage')">Disk</button>
+                                <button type="button" class="bucket-tab-btn" onclick="switchBucketTab('software')">OS & DB</button>
+                                <button type="button" class="bucket-tab-btn" onclick="switchBucketTab('other')">Net/Support</button>
+                            </div>
+                            
+                            <div style="display: flex; flex-direction: column; max-height: 380px; overflow-y: auto; padding-right: 0.25rem;">
+                                
+                                <!-- Tab 1: Compute -->
+                                <div id="bucket-tab-compute" class="bucket-tab-content active">
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="cpu1" data-name="1 vCPU (Basic Instance)" data-type="cpu" data-aws="35" data-azure="37">
+                                        <span>💻 1 vCPU (Basic)</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="cpu2" data-name="2 vCPUs (General Instance)" data-type="cpu" data-aws="70" data-azure="73">
+                                        <span>💻 2 vCPUs (General)</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="cpu4" data-name="4 vCPUs (Production Instance)" data-type="cpu" data-aws="140" data-azure="146">
+                                        <span>💻 4 vCPUs (Production)</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="cpu8" data-name="8 vCPUs (High Compute)" data-type="cpu" data-aws="280" data-azure="292">
+                                        <span>💻 8 vCPUs (High Perf)</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="cpu16" data-name="16 vCPUs (Enterprise Compute)" data-type="cpu" data-aws="560" data-azure="584">
+                                        <span>💻 16 vCPUs (Enterprise)</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="cpu32" data-name="32 vCPUs (Massive Instance)" data-type="cpu" data-aws="1120" data-azure="1168">
+                                        <span>💻 32 vCPUs (Massive)</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="cpu64" data-name="64 vCPUs (Supercomputing)" data-type="cpu" data-aws="2240" data-azure="2336">
+                                        <span>💻 64 vCPUs (Supercomp)</span>
+                                    </div>
+                                </div>
+                                
+                                <!-- Tab 2: Memory -->
+                                <div id="bucket-tab-memory" class="bucket-tab-content">
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="ram2" data-name="RAM (2 GB)" data-type="ram" data-aws="2.5" data-azure="2.75">
+                                        <span>🧠 RAM (2 GB)</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="ram4" data-name="RAM (4 GB)" data-type="ram" data-aws="5" data-azure="5.5">
+                                        <span>🧠 RAM (4 GB)</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="ram8" data-name="RAM (8 GB)" data-type="ram" data-aws="10" data-azure="11">
+                                        <span>🧠 RAM (8 GB)</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="ram16" data-name="RAM (16 GB)" data-type="ram" data-aws="20" data-azure="22">
+                                        <span>🧠 RAM (16 GB)</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="ram32" data-name="RAM (32 GB)" data-type="ram" data-aws="40" data-azure="44">
+                                        <span>🧠 RAM (32 GB)</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="ram64" data-name="RAM (64 GB)" data-type="ram" data-aws="80" data-azure="88">
+                                        <span>🧠 RAM (64 GB)</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="ram128" data-name="RAM (128 GB)" data-type="ram" data-aws="160" data-azure="176">
+                                        <span>🧠 RAM (128 GB)</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="ram256" data-name="RAM (256 GB)" data-type="ram" data-aws="320" data-azure="352">
+                                        <span>🧠 RAM (256 GB)</span>
+                                    </div>
+                                </div>
+                                
+                                <!-- Tab 3: Disk / Storage -->
+                                <div id="bucket-tab-storage" class="bucket-tab-content">
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="st50" data-name="SSD Storage (50 GB)" data-type="storage" data-aws="4" data-azure="4.5">
+                                        <span>💾 SSD (50 GB)</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="st100" data-name="SSD Storage (100 GB)" data-type="storage" data-aws="8" data-azure="9">
+                                        <span>💾 SSD (100 GB)</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="st250" data-name="SSD Storage (250 GB)" data-type="storage" data-aws="20" data-azure="22.5">
+                                        <span>💾 SSD (250 GB)</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="st500" data-name="SSD Storage (500 GB)" data-type="storage" data-aws="40" data-azure="45">
+                                        <span>💾 SSD (500 GB)</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="st1000" data-name="SSD Storage (1 TB)" data-type="storage" data-aws="80" data-azure="90">
+                                        <span>💾 SSD (1 TB)</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="st2000" data-name="SSD Storage (2 TB)" data-type="storage" data-aws="160" data-azure="180">
+                                        <span>💾 SSD (2 TB)</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="st5000" data-name="SSD Storage (5 TB)" data-type="storage" data-aws="400" data-azure="450">
+                                        <span>💾 SSD (5 TB)</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="st10000" data-name="SSD Storage (10 TB)" data-type="storage" data-aws="800" data-azure="900">
+                                        <span>💾 SSD (10 TB)</span>
+                                    </div>
+                                </div>
+                                
+                                <!-- Tab 4: OS & DB Licensing -->
+                                <div id="bucket-tab-software" class="bucket-tab-content">
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="oslin" data-name="Linux OS (Ubuntu/CentOS)" data-type="software" data-aws="0" data-azure="0">
+                                        <span>🐧 Linux OS (Free)</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="oswin" data-name="Windows Server License" data-type="software" data-aws="30" data-azure="28">
+                                        <span>🪟 Windows OS License</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="dbmy" data-name="Managed MySQL Instance" data-type="software" data-aws="50" data-azure="52">
+                                        <span>🗄️ Managed MySQL DB</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="dbpg" data-name="Managed PostgreSQL Instance" data-type="software" data-aws="55" data-azure="57">
+                                        <span>🗄️ Managed PostgreSQL DB</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="dbms" data-name="Microsoft SQL Server (Std)" data-type="software" data-aws="150" data-azure="145">
+                                        <span>🗄️ MS SQL Server DB</span>
+                                    </div>
+                                </div>
+                                
+                                <!-- Tab 5: Network / Support / Egress -->
+                                <div id="bucket-tab-other" class="bucket-tab-content">
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="bw100" data-name="Egress Bandwidth (100 GB)" data-type="network" data-aws="9" data-azure="8">
+                                        <span>📶 Egress (100 GB)</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="bw500" data-name="Egress Bandwidth (500 GB)" data-type="network" data-aws="45" data-azure="40">
+                                        <span>📶 Egress (500 GB)</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="bw1000" data-name="Egress Bandwidth (1 TB)" data-type="network" data-aws="90" data-azure="80">
+                                        <span>📶 Egress (1 TB)</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="bw5000" data-name="Egress Bandwidth (5 TB)" data-type="network" data-aws="450" data-azure="400">
+                                        <span>📶 Egress (5 TB)</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="bw10000" data-name="Egress Bandwidth (10 TB)" data-type="network" data-aws="900" data-azure="800">
+                                        <span>📶 Egress (10 TB)</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="bw50000" data-name="Egress Bandwidth (50 TB)" data-type="network" data-aws="4500" data-azure="4000">
+                                        <span>📶 Egress (50 TB)</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="supdev" data-name="Developer Support Plan" data-type="support" data-aws="29" data-azure="29">
+                                        <span>🤝 Developer Support Plan</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="supbus" data-name="Business Support Plan" data-type="support" data-aws="100" data-azure="100">
+                                        <span>🤝 Business Support Plan</span>
+                                    </div>
+                                    <div class="bucket-item" draggable="true" ondragstart="dragSpec(event)" data-id="supent" data-name="Enterprise Support Plan" data-type="support" data-aws="1500" data-azure="1000">
+                                        <span>🤝 Enterprise Support Plan</span>
+                                    </div>
+                                </div>
+                                
+                            </div>
+                        </div>
+                        
+                        <!-- Drop zone configuration builder -->
+                        <div style="display: flex; flex-direction: column;">
+                            <h3 style="font-size: 0.9rem; color: white; margin-bottom: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 0.25rem;">🛠️ Target Configuration Board</h3>
+                            
+                            <div id="infra-drop-zone" class="drop-zone" ondragover="allowDrop(event)" ondragleave="dragLeave(event)" ondrop="dropSpec(event)">
+                                <div id="drop-zone-placeholder" style="margin: auto; text-align: center; color: var(--text-secondary); font-size: 0.85rem;">
+                                    <span style="font-size: 2rem; display: block; margin-bottom: 0.5rem;">📥</span>
+                                    Drop specifications here to build your setup
+                                </div>
+                            </div>
+                            
+                            <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-bottom: 1.5rem;">
+                                <button type="button" class="btn btn-secondary" onclick="clearDropZone()" style="padding: 0.5rem 1rem; font-size: 0.8rem;">🧹 Reset Config</button>
+                                <button type="button" class="btn btn-primary" onclick="calculateCloudCosts()" style="padding: 0.5rem 1.5rem; font-size: 0.85rem; font-weight: 700;">⚡ Calculate Cost Comparison</button>
+                            </div>
+                            
+                            <!-- Dynamic pricing comparison output card -->
+                            <div id="cloud-results-card" class="glass-card" style="display: none; padding: 1.25rem; border-color: rgba(99, 102, 241, 0.2);">
+                                <h4 style="font-size: 0.95rem; color: white; margin-bottom: 1rem;">📊 Monthly Comparative Estimations</h4>
+                                
+                                <div style="margin-bottom: 1.25rem;">
+                                    <!-- AWS Progress estimation -->
+                                    <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 0.25rem; color: white;">
+                                        <span>Amazon Web Services (AWS)</span>
+                                        <span id="aws-total-price-label" style="font-weight: 700;">$0.00 / mo</span>
+                                    </div>
+                                    <div class="cloud-comparison-bar">
+                                        <div id="aws-fill-bar" class="cloud-comparison-fill" style="width: 0%; background: linear-gradient(90deg, #f97316, #fca5a5);"></div>
+                                    </div>
+                                    
+                                    <!-- Azure Progress estimation -->
+                                    <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 0.25rem; color: white;">
+                                        <span>Microsoft Azure</span>
+                                        <span id="azure-total-price-label" style="font-weight: 700;">$0.00 / mo</span>
+                                    </div>
+                                    <div class="cloud-comparison-bar">
+                                        <div id="azure-fill-bar" class="cloud-comparison-fill" style="width: 0%; background: linear-gradient(90deg, #0284c7, #bae6fd);"></div>
+                                    </div>
+                                </div>
+                                
+                                <div id="pricing-recommendation" style="font-size: 0.85rem; font-weight: 700; color: #34d399; text-align: center; background: rgba(52, 211, 153, 0.08); padding: 0.6rem; border-radius: 6px;">
+                                    AWS is 10% cheaper for this configuration.
+                                </div>
+                            </div>
+                        </div>
+                        
+                    </div>
+                </div>
+                
+            </div>
+        </main>
+    </div>
+
+    <!-- Calculations and converters JavaScript modules -->
+    <script>
+        // 1. UNIT CONVERTER ENGINE
+        const converterData = {
+            length: {
+                units: ['meters', 'feet', 'inches', 'centimeters', 'kilometers', 'miles'],
+                factors: {
+                    meters: 1,
+                    feet: 0.3048,
+                    inches: 0.0254,
+                    centimeters: 0.01,
+                    kilometers: 1000,
+                    miles: 1609.344
+                }
+            },
+            area: {
+                units: ['square_meters', 'square_feet', 'acres', 'hectares'],
+                factors: {
+                    square_meters: 1,
+                    square_feet: 0.092903,
+                    acres: 4046.856,
+                    hectares: 10000
+                }
+            },
+            weight: {
+                units: ['kilograms', 'pounds', 'ounces', 'grams'],
+                factors: {
+                    kilograms: 1,
+                    pounds: 0.45359237,
+                    ounces: 0.028349523,
+                    grams: 0.001
+                }
+            },
+            volume: {
+                units: ['liters', 'gallons', 'milliliters', 'cubic_feet'],
+                factors: {
+                    liters: 1,
+                    gallons: 3.78541,
+                    milliliters: 0.001,
+                    cubic_feet: 28.3168
+                }
+            }
+        };
+
+        function loadConverterUnits() {
+            const type = document.getElementById('converter-type').value;
+            const fromSelect = document.getElementById('converter-from-unit');
+            const toSelect = document.getElementById('converter-to-unit');
+            
+            fromSelect.innerHTML = '';
+            toSelect.innerHTML = '';
+            
+            const units = converterData[type].units;
+            units.forEach((u, index) => {
+                const label = u.replace('_', ' ').toUpperCase();
+                fromSelect.options.add(new Option(label, u));
+                toSelect.options.add(new Option(label, u));
+            });
+            
+            toSelect.selectedIndex = units.length > 1 ? 1 : 0;
+            performConversion();
+        }
+
+        function performConversion() {
+            const type = document.getElementById('converter-type').value;
+            const fromVal = parseFloat(document.getElementById('converter-from-value').value);
+            const fromUnit = document.getElementById('converter-from-unit').value;
+            const toUnit = document.getElementById('converter-to-unit').value;
+            
+            if (isNaN(fromVal)) {
+                document.getElementById('converter-to-value').value = '';
+                return;
+            }
+            
+            const factors = converterData[type].factors;
+            const valInBase = fromVal * factors[fromUnit];
+            const valInTarget = valInBase / factors[toUnit];
+            
+            document.getElementById('converter-to-value').value = valInTarget.toLocaleString(undefined, {
+                maximumFractionDigits: 5
+            });
+        }
+
+        // 2. CURRENCY CALCULATOR ENGINE
+        const currencyExchange = {};
+        {% for r in rates %}
+            currencyExchange["{{ r['code'] }}"] = { rate: {{ r['rate'] }}, date: "{{ r['updated_at'] }}" };
+        {% endfor %}
+
+        function performCurrencyConversion() {
+            const amount = parseFloat(document.getElementById('currency-amount').value);
+            const fromCode = document.getElementById('currency-from').value;
+            const toCode = document.getElementById('currency-to').value;
+            
+            const resultLabel = document.getElementById('currency-result-value');
+            const stampLabel = document.getElementById('currency-rates-timestamp');
+            
+            if (isNaN(amount) || !currencyExchange[fromCode] || !currencyExchange[toCode]) {
+                resultLabel.textContent = '0.00';
+                return;
+            }
+            
+            const usdAmount = amount / currencyExchange[fromCode].rate;
+            const finalAmount = usdAmount * currencyExchange[toCode].rate;
+            
+            resultLabel.textContent = `${finalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${toCode}`;
+            stampLabel.textContent = `Rates updated: ${currencyExchange[fromCode].date}`;
+        }
+
+        // 3. MATH CALCULATOR ENGINE
+        let mathExpression = "";
+        function pressMath(val) {
+            const display = document.getElementById('math-display');
+            if (val === 'C') {
+                mathExpression = "";
+                display.value = "";
+            } else if (val === '=') {
+                try {
+                    if (/^[0-9+\-*/().\s]+$/.test(mathExpression)) {
+                        const result = eval(mathExpression);
+                        display.value = result;
+                        mathExpression = result.toString();
+                    } else {
+                        display.value = "Error";
+                        mathExpression = "";
+                    }
+                } catch (e) {
+                    display.value = "Error";
+                    mathExpression = "";
+                }
+            } else {
+                mathExpression += val;
+                display.value = mathExpression;
+            }
+        }
+
+        // Keyboard support for pocket calculator
+        document.addEventListener('keydown', (e) => {
+            const activeEl = document.activeElement;
+            if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA')) {
+                return;
+            }
+            const key = e.key;
+            if (/^[0-9+\-*/().]$/.test(key)) {
+                pressMath(key);
+            } else if (key === 'Enter' || key === '=') {
+                pressMath('=');
+            } else if (key === 'Escape' || key === 'c' || key === 'C') {
+                pressMath('C');
+            } else if (key === 'Backspace') {
+                const display = document.getElementById('math-display');
+                mathExpression = mathExpression.slice(0, -1);
+                display.value = mathExpression;
+            }
+        });
+
+        // 4. CCTV STORAGE & BANDWIDTH CALCULATOR ENGINE
+        function calculateCctv() {
+            const qty = parseFloat(document.getElementById('cctv-qty').value) || 1;
+            const res = document.getElementById('cctv-resolution').value;
+            const fps = parseFloat(document.getElementById('cctv-fps').value) || 15;
+            const codec = document.getElementById('cctv-codec').value;
+            const complexity = document.getElementById('cctv-complexity').value;
+            const days = parseFloat(document.getElementById('cctv-days').value) || 30;
+            const schedule = parseFloat(document.getElementById('cctv-schedule').value) || 1.0;
+            
+            // Baseline bitrate (Mbps) per camera at 30fps Medium complexity (H.264)
+            let baseMbps = 4.0;
+            if (res === 'd1') baseMbps = 0.8;
+            else if (res === '2mp') baseMbps = 4.0;
+            else if (res === '4mp') baseMbps = 6.0;
+            else if (res === '5mp') baseMbps = 8.0;
+            else if (res === '8mp') baseMbps = 12.0;
+            else if (res === '12mp') baseMbps = 18.0;
+            
+            // Codec Factor
+            let codecFactor = 1.0;
+            if (codec === 'h265') codecFactor = 0.5;
+            else if (codec === 'mjpeg') codecFactor = 4.0;
+            
+            // FPS Factor
+            let fpsFactor = 1.0;
+            if (fps === 5) fpsFactor = 0.3;
+            else if (fps === 10) fpsFactor = 0.5;
+            else if (fps === 15) fpsFactor = 0.7;
+            else if (fps === 20) fpsFactor = 0.85;
+            else if (fps === 25) fpsFactor = 0.95;
+            
+            // Complexity Factor
+            let compFactor = 1.0;
+            if (complexity === 'low') compFactor = 0.7;
+            else if (complexity === 'high') compFactor = 1.4;
+            
+            const bitratePerCam = baseMbps * codecFactor * fpsFactor * compFactor;
+            const totalBandwidth = bitratePerCam * qty;
+            
+            const secondsInDay = 86400;
+            const totalBits = totalBandwidth * 1000000 * secondsInDay * days * schedule;
+            const totalBytes = totalBits / 8;
+            const totalGB = totalBytes / (1024 * 1024 * 1024);
+            const totalTB = totalGB / 1024;
+            
+            document.getElementById('cctv-cam-bitrate').textContent = bitratePerCam.toFixed(2) + ' Mbps';
+            document.getElementById('cctv-total-bandwidth').textContent = totalBandwidth.toFixed(2) + ' Mbps';
+            document.getElementById('cctv-total-storage').textContent = totalTB.toFixed(2) + ' TB';
+            
+            let recommendedDrives = "";
+            if (totalTB < 4) {
+                recommendedDrives = "1x 4TB WD Purple / SkyHawk drive";
+            } else if (totalTB < 8) {
+                recommendedDrives = "1x 8TB WD Purple / SkyHawk drive";
+            } else {
+                const count10tb = Math.ceil(totalTB / 10);
+                recommendedDrives = `${count10tb}x 10TB Surveillance-grade drives`;
+            }
+            document.getElementById('cctv-drive-rec').textContent = recommendedDrives;
+        }
+
+        // 5. BUCKET TAB SWITCHING
+        function switchBucketTab(tabId) {
+            document.querySelectorAll('.bucket-tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelectorAll('.bucket-tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            event.target.classList.add('active');
+            document.getElementById(`bucket-tab-${tabId}`).classList.add('active');
+        }
+
+        // 6. DATA CENTER POWER LOAD CALCULATOR ENGINE
+        function addPowerRow() {
+            const tbody = document.getElementById('power-calc-tbody');
+            const rowId = 'prow_' + Date.now();
+            const tr = document.createElement('tr');
+            tr.id = rowId;
+            tr.innerHTML = `
+                <td><input type="text" class="form-control form-control-sm p-name" value="Custom Appliance" style="font-size: 0.8rem; padding: 0.35rem;"></td>
+                <td>
+                    <select class="form-control form-control-sm p-type" onchange="presetPowerWatts(this)" style="font-size: 0.8rem; padding: 0.35rem;">
+                        <option value="server1u">1U Server (~350W)</option>
+                        <option value="server2u">2U Server (~600W)</option>
+                        <option value="serverblade">Blade Chassis (~2.5kW)</option>
+                        <option value="storage">SAN Storage Shelf (~700W)</option>
+                        <option value="switch_poe">24-Port Switch (~120W)</option>
+                        <option value="switch_poe_high">48-Port PoE+ Switch (~890W)</option>
+                        <option value="poe_device">PoE Device (Class 3 ~15W)</option>
+                        <option value="poe_device_plus">PoE+ Device (Class 4 ~30W)</option>
+                        <option value="router">Core Router/Firewall (~200W)</option>
+                        <option value="kvm">KVM Console (~40W)</option>
+                        <option value="custom" selected>Custom Equipment</option>
+                    </select>
+                </td>
+                <td><input type="number" class="form-control form-control-sm p-qty" value="1" min="1" oninput="calculatePowerLoad()" style="width: 50px; font-size: 0.8rem; padding: 0.35rem;"></td>
+                <td><input type="number" class="form-control form-control-sm p-watts" value="200" min="0" oninput="calculatePowerLoad()" style="width: 75px; font-size: 0.8rem; padding: 0.35rem;"></td>
+                <td><input type="number" class="form-control form-control-sm p-pf" value="0.90" min="0.1" max="1.0" step="0.05" oninput="calculatePowerLoad()" style="width: 65px; font-size: 0.8rem; padding: 0.35rem;"></td>
+                <td>
+                    <select class="form-control form-control-sm p-ru" onchange="calculatePowerLoad()" style="font-size: 0.8rem; padding: 0.35rem;">
+                        <option value="0" selected>0 U</option>
+                        <option value="1">1 U</option>
+                        <option value="2">2 U</option>
+                        <option value="3">3 U</option>
+                        <option value="4">4 U</option>
+                        <option value="7">7 U</option>
+                        <option value="10">10 U</option>
+                    </select>
+                </td>
+                <td style="text-align: center;"><button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('${rowId}').remove(); calculatePowerLoad();" style="color: #ef4444; padding: 0.2rem 0.4rem;">&times;</button></td>
+            `;
+            tbody.appendChild(tr);
+            calculatePowerLoad();
+        }
+        
+        function presetPowerWatts(selectEl) {
+            const tr = selectEl.closest('tr');
+            const type = selectEl.value;
+            const wattsInput = tr.querySelector('.p-watts');
+            const nameInput = tr.querySelector('.p-name');
+            const pfInput = tr.querySelector('.p-pf');
+            const ruInput = tr.querySelector('.p-ru');
+            
+            if (type === 'server1u') {
+                nameInput.value = "1U Rack Server";
+                wattsInput.value = 350;
+                pfInput.value = 0.95;
+                ruInput.value = 1;
+            } else if (type === 'server2u') {
+                nameInput.value = "2U Rack Server";
+                wattsInput.value = 600;
+                pfInput.value = 0.95;
+                ruInput.value = 2;
+            } else if (type === 'serverblade') {
+                nameInput.value = "Blade Server Chassis";
+                wattsInput.value = 2500;
+                pfInput.value = 0.98;
+                ruInput.value = 7;
+            } else if (type === 'storage') {
+                nameInput.value = "SAN Storage Shelf";
+                wattsInput.value = 700;
+                pfInput.value = 0.90;
+                ruInput.value = 3;
+            } else if (type === 'switch_poe') {
+                nameInput.value = "24-Port Switch";
+                wattsInput.value = 120;
+                pfInput.value = 0.95;
+                ruInput.value = 1;
+            } else if (type === 'switch_poe_high') {
+                nameInput.value = "48-Port PoE+ Switch";
+                wattsInput.value = 890;
+                pfInput.value = 0.95;
+                ruInput.value = 1;
+            } else if (type === 'poe_device') {
+                nameInput.value = "PoE Class 3 IP Camera";
+                wattsInput.value = 15;
+                pfInput.value = 0.90;
+                ruInput.value = 0;
+            } else if (type === 'poe_device_plus') {
+                nameInput.value = "PoE+ Class 4 Access Point";
+                wattsInput.value = 30;
+                pfInput.value = 0.90;
+                ruInput.value = 0;
+            } else if (type === 'router') {
+                nameInput.value = "Core Security Firewall";
+                wattsInput.value = 200;
+                pfInput.value = 0.95;
+                ruInput.value = 1;
+            } else if (type === 'kvm') {
+                nameInput.value = "Slide-Out KVM Console";
+                wattsInput.value = 40;
+                pfInput.value = 0.85;
+                ruInput.value = 1;
+            }
+            calculatePowerLoad();
+        }
+
+        function calculatePowerLoad() {
+            const voltage = parseFloat(document.getElementById('power-voltage').value);
+            const phase = parseInt(document.getElementById('power-phase').value) || 1;
+            const rows = document.querySelectorAll('#power-calc-tbody tr');
+            
+            let totalWatts = 0;
+            let totalVA = 0;
+            let totalRU = 0;
+            
+            rows.forEach(row => {
+                const qty = parseFloat(row.querySelector('.p-qty').value) || 0;
+                const watts = parseFloat(row.querySelector('.p-watts').value) || 0;
+                const pf = parseFloat(row.querySelector('.p-pf').value) || 0.9;
+                const ru = parseInt(row.querySelector('.p-ru').value) || 0;
+                
+                const wattsSub = qty * watts;
+                const vaSub = wattsSub / (pf || 1.0);
+                const ruSub = qty * ru;
+                
+                totalWatts += wattsSub;
+                totalVA += vaSub;
+                totalRU += ruSub;
+            });
+            
+            let totalAmps = 0;
+            if (totalVA > 0) {
+                if (phase === 3) {
+                    totalAmps = totalVA / (voltage * 1.73205);
+                } else {
+                    totalAmps = totalVA / voltage;
+                }
+            }
+            
+            const upsCapacity = totalVA * 1.25;
+            const btuHr = totalWatts * 3.412142;
+            
+            const batteryAh = parseFloat(document.getElementById('ups-ah').value) || 100;
+            const batteryVolts = parseFloat(document.getElementById('ups-dc-volt').value) || 48;
+            const efficiency = 0.85;
+            
+            let runtimeMinLabel = "N/A";
+            if (totalVA > 0) {
+                const runtimeHours = (batteryAh * batteryVolts * efficiency) / totalVA;
+                const runtimeMinutes = runtimeHours * 60;
+                
+                if (runtimeMinutes >= 60) {
+                    const hrs = Math.floor(runtimeHours);
+                    const mins = Math.round((runtimeHours - hrs) * 60);
+                    runtimeMinLabel = `${hrs}h ${mins}m`;
+                } else {
+                    runtimeMinLabel = `${Math.round(runtimeMinutes)} mins`;
+                }
+            }
+            
+            const ruPercent = ((totalRU / 42) * 100).toFixed(0);
+            
+            document.getElementById('p-total-watts').textContent = (totalWatts / 1000).toFixed(2) + ' kW';
+            document.getElementById('p-total-va').textContent = (totalVA / 1000).toFixed(2) + ' kVA';
+            document.getElementById('p-total-amps').textContent = totalAmps.toFixed(2) + ' A';
+            document.getElementById('p-total-ru').textContent = `${totalRU} U (${ruPercent}% of 42U Rack)`;
+            document.getElementById('p-total-btu').textContent = Math.round(btuHr).toLocaleString() + ' BTU/h';
+            document.getElementById('p-ups-runtime').textContent = runtimeMinLabel;
+            document.getElementById('p-ups-rec').textContent = (upsCapacity / 1000).toFixed(2) + ' kVA';
+        }
+
+        // Initialize static components
+        document.addEventListener('DOMContentLoaded', () => {
+            loadConverterUnits();
+            performCurrencyConversion();
+            calculatePowerLoad();
+            calculateCctv();
+        });
+
+        // 7. CLOUD INFRA STRUCTURE CALCULATION (DRAG AND DROP)
+        let dropZoneItems = [];
+
+        function dragSpec(ev) {
+            ev.dataTransfer.setData("specId", ev.target.dataset.id);
+            ev.dataTransfer.setData("specName", ev.target.dataset.name);
+            ev.dataTransfer.setData("specType", ev.target.dataset.type);
+            ev.dataTransfer.setData("priceAws", ev.target.dataset.aws);
+            ev.dataTransfer.setData("priceAzure", ev.target.dataset.azure);
+        }
+
+        function allowDrop(ev) {
+            ev.preventDefault();
+            ev.currentTarget.classList.add('dragover');
+        }
+
+        function dragLeave(ev) {
+            ev.currentTarget.classList.remove('dragover');
+        }
+
+        function dropSpec(ev) {
+            ev.preventDefault();
+            ev.currentTarget.classList.remove('dragover');
+            
+            const id = ev.dataTransfer.getData("specId");
+            const name = ev.dataTransfer.getData("specName");
+            const type = ev.dataTransfer.getData("specType");
+            const awsPrice = parseFloat(ev.dataTransfer.getData("priceAws"));
+            const azurePrice = parseFloat(ev.dataTransfer.getData("priceAzure"));
+            
+            if (!id || isNaN(awsPrice)) return;
+            
+            dropZoneItems.push({
+                uniqueId: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                id: id,
+                name: name,
+                type: type,
+                aws: awsPrice,
+                azure: azurePrice
+            });
+            
+            renderDropZone();
+        }
+
+        function removeDropItem(uniqueId) {
+            dropZoneItems = dropZoneItems.filter(item => item.uniqueId !== uniqueId);
+            renderDropZone();
+        }
+
+        function clearDropZone() {
+            dropZoneItems = [];
+            renderDropZone();
+            document.getElementById('cloud-results-card').style.display = 'none';
+        }
+
+        function renderDropZone() {
+            const zone = document.getElementById('infra-drop-zone');
+            
+            if (dropZoneItems.length === 0) {
+                zone.innerHTML = `
+                    <div id="drop-zone-placeholder" style="margin: auto; text-align: center; color: var(--text-secondary); font-size: 0.85rem;">
+                        <span style="font-size: 2rem; display: block; margin-bottom: 0.5rem;">📥</span>
+                        Drop specifications here to build your setup
+                    </div>
+                `;
+                return;
+            }
+            
+            zone.innerHTML = '';
+            dropZoneItems.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'drop-item';
+                div.innerHTML = `
+                    <span>${item.name}</span>
+                    <button type="button" onclick="removeDropItem('${item.uniqueId}')" title="Remove element">&times;</button>
+                `;
+                zone.appendChild(div);
+            });
+        }
+
+        function calculateCloudCosts() {
+            if (dropZoneItems.length === 0) {
+                alert("Please drag and drop at least one configuration component to evaluate prices.");
+                return;
+            }
+            
+            let awsTotal = 0;
+            let azureTotal = 0;
+            
+            dropZoneItems.forEach(item => {
+                awsTotal += item.aws;
+                azureTotal += item.azure;
+            });
+            
+            const resultsCard = document.getElementById('cloud-results-card');
+            const awsLabel = document.getElementById('aws-total-price-label');
+            const azureLabel = document.getElementById('azure-total-price-label');
+            const awsFill = document.getElementById('aws-fill-bar');
+            const azureFill = document.getElementById('azure-fill-bar');
+            const recommendation = document.getElementById('pricing-recommendation');
+            
+            awsLabel.textContent = `$${awsTotal.toFixed(2)} / mo`;
+            azureLabel.textContent = `$${azureTotal.toFixed(2)} / mo`;
+            
+            const maxVal = Math.max(awsTotal, azureTotal, 1);
+            const awsPercent = (awsTotal / maxVal) * 100;
+            const azurePercent = (azureTotal / maxVal) * 100;
+            
+            awsFill.style.width = `${awsPercent}%`;
+            azureFill.style.width = `${azurePercent}%`;
+            
+            awsFill.textContent = `$${awsTotal.toFixed(0)}`;
+            azureFill.textContent = `$${azureTotal.toFixed(0)}`;
+            
+            if (awsTotal === azureTotal) {
+                recommendation.textContent = "Both AWS and Azure are priced identically for this deployment.";
+                recommendation.style.color = '#e2e8f0';
+                recommendation.style.background = 'rgba(255, 255, 255, 0.05)';
+            } else if (awsTotal < azureTotal) {
+                const pct = ((azureTotal - awsTotal) / azureTotal * 100).toFixed(0);
+                recommendation.textContent = `Amazon Web Services (AWS) is ${pct}% cheaper for this configuration.`;
+                recommendation.style.color = '#34d399';
+                recommendation.style.background = 'rgba(52, 211, 153, 0.08)';
+            } else {
+                const pct = ((awsTotal - azureTotal) / awsTotal * 100).toFixed(0);
+                recommendation.textContent = `Microsoft Azure is ${pct}% cheaper for this configuration.`;
+                recommendation.style.color = '#34d399';
+                recommendation.style.background = 'rgba(52, 211, 153, 0.08)';
+            }
+            
+            resultsCard.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

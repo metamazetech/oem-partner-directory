@@ -14,6 +14,13 @@ This guide provides step-by-step instructions for deploying and running the OEM 
   * Strict Content Security Policy (CSP) parameters.
   * Secure Session Cookies flags (`HttpOnly`, `SameSite=Lax`) protecting against XSS and CSRF attacks.
   * Frame-Options and Content-Type sniff protections.
+* **🛠️ Public Work Tools Dashboard**: A collection of offline-first engineering and transaction calculators:
+  * **📐 Unit Converter**: Metric-to-imperial converters for length, area, weight, and volume.
+  * **💱 Currency Calculator**: Global exchange rate conversions with daily automated syncing and manual real-time update triggers.
+  * **🧮 Pocket Calculator**: Full mathematical calculator widget with keypad support (operators, decimals, backspace, clear).
+  * **📹 CCTV Storage & Bandwidth Calculator**: Computes individual bitrates, network bandwidth (Mbps), and disk storage capacity requirements (TB) based on MP size, FPS, H.264/H.265 compression, scene activity, and recording schedules.
+  * **⚡ Data Center Capacity & Power Load Calculator**: Sizing tool calculating active power (kW), apparent power (kVA), heat dissipation (BTU/h), current draw (supporting Single-Phase and balanced 3-Phase configurations), cabinet rack units (U) usage, and UPS battery backup runtime.
+  * **📄 In-Memory PDF Converter**: Local text extractor exporting uploads directly to editable Word (`.doc`) or tabular CSV (`.csv`) formats.
 
 ---
 

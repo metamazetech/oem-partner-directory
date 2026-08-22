@@ -61,6 +61,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const isSearchingOrFiltering = query !== '' || filterVal !== 'all' || groupVal !== 'all';
         
         const categoryGroups = document.querySelectorAll('.category-group');
+        let totalContactsCount = 0;
+        let oemContactsCount = 0;
+        let distContactsCount = 0;
+        
         categoryGroups.forEach(groupBlock => {
             const contentDiv = groupBlock.querySelector('.category-content');
             const countBadge = groupBlock.querySelector('.category-count');
@@ -74,6 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const type = card.getAttribute('data-type');
                 const group = card.getAttribute('data-group') || 'Other';
                 const portfolio = (card.getAttribute('data-portfolio') || '').toLowerCase();
+                const count = parseInt(card.getAttribute('data-contacts-count') || '1', 10);
                 
                 const matchesQuery = company.includes(query) || name.includes(query) || portfolio.includes(query);
                 const matchesType = filterVal === 'all' || type === filterVal;
@@ -82,6 +87,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (matchesQuery && matchesType && matchesGroup) {
                     card.style.display = 'flex';
                     visibleCardsInGroup++;
+                    
+                    totalContactsCount += count;
+                    if (type === 'OEM') {
+                        oemContactsCount += count;
+                    } else if (type === 'Distributor') {
+                        distContactsCount += count;
+                    }
                 } else {
                     card.style.display = 'none';
                 }
@@ -104,8 +116,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 groupBlock.style.display = 'none';
             }
         });
+        
+        const totalStat = document.getElementById('stat-total-partners');
+        const oemStat = document.getElementById('stat-oems');
+        const distStat = document.getElementById('stat-distributors');
+        if (totalStat) totalStat.innerText = totalContactsCount;
+        if (oemStat) oemStat.innerText = oemContactsCount;
+        if (distStat) distStat.innerText = distContactsCount;
     }
-    
     if (searchInput) searchInput.addEventListener('input', filterCards);
     if (filterSelect) filterSelect.addEventListener('change', filterCards);
     if (groupSelect) groupSelect.addEventListener('change', filterCards);
@@ -1282,6 +1300,10 @@ function applyDashboardPreferences(prefs) {
     const selectTheme = document.getElementById('pref-theme');
     if (selectTheme && window.USER_THEME) {
         selectTheme.value = window.USER_THEME;
+        const customThemeContainer = document.getElementById('custom-theme-picker-container');
+        if (customThemeContainer) {
+            customThemeContainer.style.display = (window.USER_THEME === 'theme-custom') ? 'flex' : 'none';
+        }
     }
     
     const radio1 = document.getElementById('cols-1');
@@ -1326,6 +1348,17 @@ function saveUserPreferences() {
         showStats: showStats,
         showReminders: showReminders
     };
+    
+    if (theme === 'theme-custom') {
+        data.customColors = {
+            bg_color: document.getElementById('custom-bg-color').value,
+            sidebar_color: document.getElementById('custom-sidebar-color').value,
+            card_color: document.getElementById('custom-card-color').value,
+            accent_color: document.getElementById('custom-accent-color').value,
+            text_color: document.getElementById('custom-text-color').value,
+            text_muted: document.getElementById('custom-text-muted').value
+        };
+    }
     
     if (newPwd) {
         if (!currPwd) {
@@ -1453,6 +1486,21 @@ document.addEventListener('DOMContentLoaded', () => {
         applyDashboardPreferences(window.USER_PREFERENCES);
     }
     
+    // Setup theme picker event handler
+    const prefThemeSelect = document.getElementById('pref-theme');
+    const customThemeContainer = document.getElementById('custom-theme-picker-container');
+    if (prefThemeSelect && customThemeContainer) {
+        const toggleCustomPicker = () => {
+            if (prefThemeSelect.value === 'theme-custom') {
+                customThemeContainer.style.display = 'flex';
+            } else {
+                customThemeContainer.style.display = 'none';
+            }
+        };
+        prefThemeSelect.addEventListener('change', toggleCustomPicker);
+        toggleCustomPicker();
+    }
+
     // Auto-open preferences modal if URL query specifies it
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('preferences') === '1') {

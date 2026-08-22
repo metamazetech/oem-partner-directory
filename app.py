@@ -50,6 +50,17 @@ def to_digits(s):
     # We will just yield all digits.
     return digits
 
+@app.template_filter('contacts_count')
+def contacts_count_filter(contact_persons_json):
+    if not contact_persons_json:
+        return 1
+    try:
+        import json
+        persons = json.loads(contact_persons_json)
+        return len(persons) if persons else 1
+    except:
+        return 1
+
 # Configuration for visiting card uploads
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'}
@@ -225,8 +236,22 @@ def inject_global_data():
     if db_changed:
         conn.commit()
         
+    user_theme = 'theme-slate-dark'
+    custom_theme_colors = {}
+    import json
+    if 'user_id' in session:
+        user_row = conn.execute('SELECT theme, custom_theme_colors FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+        if user_row:
+            user_theme = user_row['theme']
+            try:
+                custom_theme_colors = json.loads(user_row['custom_theme_colors']) if user_row['custom_theme_colors'] else {}
+            except:
+                pass
+    else:
+        user_theme = session.get('theme', 'theme-slate-dark')
+        
     conn.close()
-    return dict(oem_groups=groups, portal_settings=settings)
+    return dict(oem_groups=groups, portal_settings=settings, theme=user_theme, custom_theme_colors=custom_theme_colors)
 
 
 # Routes
@@ -490,10 +515,23 @@ def dashboard():
     else:
         contacts_rows = list(all_contacts)
         
-    # Compute directory statistics
-    total = len(contacts_rows)
-    oems = sum(1 for c in contacts_rows if c['type'] == 'OEM')
-    distributors = sum(1 for c in contacts_rows if c['type'] == 'Distributor')
+    # Compute directory statistics based on individual contact persons counts
+    total = 0
+    oems = 0
+    distributors = 0
+    import json
+    for c in contacts_rows:
+        try:
+            persons = json.loads(c['contact_persons']) if c['contact_persons'] else []
+            count = len(persons) if persons else 1
+        except Exception:
+            count = 1
+            
+        total += count
+        if c['type'] == 'OEM':
+            oems += count
+        elif c['type'] == 'Distributor':
+            distributors += count
     
     # Fetch pending follow-up task reminders
     all_reminders = conn.execute('''
@@ -1379,9 +1417,6 @@ def export_csv():
         
     conn.close()
     
-    # Audit log tracking for exports
-    log_audit('CSV_EXPORT', f"Exported partner directory as CSV (Total rows: {len(contacts_rows)}).")
-    
     import csv
     import io
     output = io.StringIO()
@@ -1390,30 +1425,35 @@ def export_csv():
     # CSV Headers
     writer.writerow([
         'Company Name', 'Type', 'OEM Group', 'Website', 'Address', 
-        'Primary Contact Name', 'Primary Designation', 'Primary Email', 'Primary Phone'
+        'Contact Name', 'Designation', 'Email', 'Phone'
     ])
     
+    export_rows_count = 0
+    import json
     for c in contacts_rows:
-        name = c['name']
-        desig = c['designation']
-        email = c['email']
-        phone = c['phone']
         try:
             persons = json.loads(c['contact_persons']) if c['contact_persons'] else []
-            if persons:
-                name = persons[0].get('name', name)
-                desig = persons[0].get('designation', desig)
-                email = persons[0].get('email', email)
-                phone = persons[0].get('phone', phone)
         except Exception:
-            pass
+            persons = []
             
-        writer.writerow([
-            c['company_name'], c['type'], c['group_name'] or '', c['website'] or '', c['address'] or '',
-            name or '', desig or '', email or '', phone or ''
-        ])
-        
+        if persons:
+            for p in persons:
+                writer.writerow([
+                    c['company_name'], c['type'], c['group_name'] or '', c['website'] or '', c['address'] or '',
+                    p.get('name') or '', p.get('designation') or '', p.get('email') or '', p.get('phone') or ''
+                ])
+                export_rows_count += 1
+        else:
+            writer.writerow([
+                c['company_name'], c['type'], c['group_name'] or '', c['website'] or '', c['address'] or '',
+                c['name'] or '', c['designation'] or '', c['email'] or '', c['phone'] or ''
+            ])
+            export_rows_count += 1
+            
     output.seek(0)
+    
+    # Audit log tracking for exports
+    log_audit('CSV_EXPORT', f"Exported partner directory as CSV (Total contacts exported: {export_rows_count}).")
     from flask import Response
     return Response(
         output.getvalue(),
@@ -1717,7 +1757,21 @@ def save_preferences():
     }
     layout_str = json.dumps(layout_data)
     
-    conn.execute('UPDATE users SET theme = ?, dashboard_layout = ? WHERE id = ?', (theme, layout_str, session['user_id']))
+    custom_colors = {}
+    if is_ajax:
+        custom_colors = data.get('customColors', {})
+    else:
+        custom_colors = {
+            "bg_color": request.form.get('custom_bg_color'),
+            "sidebar_color": request.form.get('custom_sidebar_color'),
+            "card_color": request.form.get('custom_card_color'),
+            "accent_color": request.form.get('custom_accent_color'),
+            "text_color": request.form.get('custom_text_color'),
+            "text_muted": request.form.get('custom_text_muted'),
+        }
+    custom_colors_str = json.dumps(custom_colors)
+    
+    conn.execute('UPDATE users SET theme = ?, dashboard_layout = ?, custom_theme_colors = ? WHERE id = ?', (theme, layout_str, custom_colors_str, session['user_id']))
     conn.commit()
     conn.close()
     
@@ -2067,7 +2121,8 @@ def download_master_backup():
                         if file in ['.gitkeep', 'temp_restore.zip', 'oem_portal_master_backup.zip']:
                             continue
                         filepath = os.path.join(root, file)
-                        arcname = os.path.join('uploads', file)
+                        rel_path = os.path.relpath(filepath, upload_folder)
+                        arcname = os.path.join('uploads', rel_path)
                         try:
                             zipf.write(filepath, arcname=arcname)
                         except Exception as file_err:
@@ -2127,22 +2182,36 @@ def restore_master_backup():
             # Copy current database to backup first
             shutil.copy(database.DB_PATH, database.DB_PATH + '.bak')
             
-            # Read from zip and write directly to absolute DB_PATH
+            # Create a temporary database file from zip data
+            temp_db_path = os.path.join(app.config['UPLOAD_FOLDER'], 'temp_restore_db.db')
             db_data = zipf.read('oem_tracker.db')
-            with open(database.DB_PATH, 'wb') as db_out:
+            with open(temp_db_path, 'wb') as db_out:
                 db_out.write(db_data)
+                
+            # Perform SQLite online backup from temp db to active db to avoid file lock issues
+            import sqlite3
+            src_conn = sqlite3.connect(temp_db_path)
+            dest_conn = sqlite3.connect(database.DB_PATH)
+            src_conn.backup(dest_conn)
+            src_conn.close()
+            dest_conn.close()
             
-            # Extract uploads absolutely to UPLOAD_FOLDER
+            # Remove temporary db file
+            try:
+                os.remove(temp_db_path)
+            except Exception as e:
+                print(f"Restore warning: could not delete temp restore db: {e}")
+            
             restored_files_count = 0
             for name in namelist:
                 if name.startswith('uploads/') and not name.endswith('/'):
-                    filename = os.path.basename(name)
-                    if filename:
-                        target_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                        file_data = zipf.read(name)
-                        with open(target_path, 'wb') as out_file:
-                            out_file.write(file_data)
-                        restored_files_count += 1
+                    rel_path = name[len('uploads/'):]
+                    target_path = os.path.join(app.config['UPLOAD_FOLDER'], rel_path)
+                    os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                    file_data = zipf.read(name)
+                    with open(target_path, 'wb') as out_file:
+                        out_file.write(file_data)
+                    restored_files_count += 1
                     
         if os.path.exists(temp_zip_path):
             os.remove(temp_zip_path)
@@ -2187,6 +2256,141 @@ def restore_master_backup():
             except: pass
         if os.path.exists(database.DB_PATH + '.bak'):
             try: os.remove(database.DB_PATH + '.bak')
+            except: pass
+            
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/auto-update', methods=['POST'])
+@admin_required
+def admin_auto_update():
+    if 'update_file' not in request.files:
+        flash("No file uploaded.", "error")
+        return redirect(url_for('admin_panel'))
+        
+    file = request.files['update_file']
+    if file.filename == '':
+        flash("No file selected.", "error")
+        return redirect(url_for('admin_panel'))
+        
+    if not file.filename.endswith('.zip'):
+        flash("Invalid file format. Please upload a .zip codebase archive.", "error")
+        return redirect(url_for('admin_panel'))
+        
+    import zipfile
+    import shutil
+    import datetime
+    import subprocess
+    import sys
+    
+    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    backup_filename = f"pre_update_backup_{timestamp}.zip"
+    backup_zip_path = os.path.join(app.config['UPLOAD_FOLDER'], backup_filename)
+    
+    # 1. Complete Pre-Update Backup
+    try:
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+        
+        # Build the pre-update backup zip
+        compress_method = zipfile.ZIP_DEFLATED
+        with zipfile.ZipFile(backup_zip_path, 'w', compress_method) as zipf:
+            # Add database
+            db_path = database.DB_PATH
+            if os.path.exists(db_path):
+                zipf.write(db_path, arcname='oem_tracker.db')
+            
+            # Add uploads (except backups)
+            upload_folder = app.config['UPLOAD_FOLDER']
+            if os.path.exists(upload_folder):
+                for root, dirs, files in os.walk(upload_folder):
+                    for f in files:
+                        if f.startswith('pre_update_backup_') or f in ['.gitkeep', 'temp_restore.zip']:
+                            continue
+                        filepath = os.path.join(root, f)
+                        rel_path = os.path.relpath(filepath, upload_folder)
+                        zipf.write(filepath, arcname=os.path.join('uploads', rel_path))
+                        
+            # Add code files
+            root_dir = os.getcwd()
+            for root, dirs, files in os.walk(root_dir):
+                if 'venv' in root or '.git' in root or '__pycache__' in root or 'uploads' in root or 'tmp' in root:
+                    continue
+                for f in files:
+                    if f.endswith('.zip') or f.endswith('.pyc') or f.endswith('.log') or f.endswith('.db') or f.endswith('.bak'):
+                        continue
+                    filepath = os.path.join(root, f)
+                    rel_path = os.path.relpath(filepath, root_dir)
+                    zipf.write(filepath, arcname=os.path.join('code', rel_path))
+                    
+        log_audit('PORTAL_UPDATE_BACKUP', f"Created automatic pre-update backup: {backup_filename}")
+    except Exception as backup_err:
+        flash(f"Failed to create pre-update backup: {backup_err}. Update aborted for safety.", "error")
+        return redirect(url_for('admin_panel'))
+        
+    # 2. Extract Uploaded Codebase ZIP
+    temp_zip_path = os.path.join(app.config['UPLOAD_FOLDER'], 'temp_update.zip')
+    try:
+        file.save(temp_zip_path)
+        
+        with zipfile.ZipFile(temp_zip_path, 'r') as zipf:
+            namelist = zipf.namelist()
+            
+            # Determine if there is a common prefix directory
+            common_prefix = ""
+            if namelist:
+                first_parts = namelist[0].split('/')
+                if len(first_parts) > 1:
+                    first = first_parts[0]
+                    if all(name.startswith(first + '/') or name == first for name in namelist):
+                        common_prefix = first + '/'
+            
+            extracted_files = 0
+            for name in namelist:
+                if name == common_prefix or name.endswith('/'):
+                    continue
+                
+                # Strip common prefix folder
+                rel_path = name[len(common_prefix):] if common_prefix else name
+                
+                # Skip virtual environments, git configs, or database files
+                if 'venv/' in name or '.git/' in name or '__pycache__/' in name or name.endswith('.zip') or name.endswith('.db'):
+                    continue
+                    
+                target_path = os.path.join(os.getcwd(), rel_path)
+                os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                
+                # Write file safely
+                file_data = zipf.read(name)
+                with open(target_path, 'wb') as f_out:
+                    f_out.write(file_data)
+                extracted_files += 1
+                
+        # 3. Automatically Install Dependencies
+        req_path = os.path.join(os.getcwd(), 'requirements.txt')
+        pip_status = "No requirements.txt found."
+        if os.path.exists(req_path):
+            try:
+                subprocess.run([sys.executable, '-m', 'pip', 'install', '-r', req_path], check=True)
+                pip_status = "Dependencies successfully updated."
+            except Exception as pip_err:
+                pip_status = f"Warning: Dependency installation returned error: {pip_err}"
+                
+        # 4. Trigger WSGI restart for Passenger/cPanel
+        try:
+            tmp_dir = os.path.join(os.getcwd(), 'tmp')
+            os.makedirs(tmp_dir, exist_ok=True)
+            with open(os.path.join(tmp_dir, 'restart.txt'), 'w') as f_restart:
+                f_restart.write(f'restart_{timestamp}')
+        except Exception as restart_err:
+            print(f"WSGI Restart trigger error: {restart_err}")
+            
+        log_audit('PORTAL_UPDATE_APPLIED', f"Application auto-update applied: {extracted_files} files written. {pip_status}")
+        flash(f"Portal updated successfully! Pre-update backup saved as: {backup_filename}. {extracted_files} files updated. {pip_status}", "success")
+        
+    except Exception as update_err:
+        flash(f"Failed to apply codebase update: {update_err}. Please restore files manually if the portal fails to load.", "error")
+    finally:
+        if os.path.exists(temp_zip_path):
+            try: os.remove(temp_zip_path)
             except: pass
             
     return redirect(url_for('admin_panel'))
@@ -2237,6 +2441,10 @@ def update_settings():
             filename = f"favicon_{uuid.uuid4().hex[:6]}.{ext}"
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
             conn.execute('INSERT OR REPLACE INTO portal_settings (key, value) VALUES (?, ?)', ('favicon', filename))
+    if 'work_tools_submitted' in request.form:
+        enabled_tools_list = request.form.getlist('work_tools[]')
+        enabled_tools_str = ",".join(enabled_tools_list)
+        conn.execute('INSERT OR REPLACE INTO portal_settings (key, value) VALUES (?, ?)', ('enabled_work_tools', enabled_tools_str))
             
     conn.commit()
     conn.close()
@@ -2294,6 +2502,13 @@ def reset_portal():
         conn.execute('DELETE FROM interactions')
         conn.execute('DELETE FROM oem_groups')
         conn.execute('DELETE FROM audit_logs')
+        conn.execute('DELETE FROM rfps')
+        conn.execute('DELETE FROM rfp_boq_items')
+        conn.execute('DELETE FROM rfp_boq_oem_mappings')
+        conn.execute('DELETE FROM rfp_checklist')
+        conn.execute('DELETE FROM rfp_documents')
+        conn.execute('DELETE FROM rfp_reminders')
+        conn.execute('DELETE FROM rfp_interactions')
         
         # Re-enable foreign keys
         conn.execute('PRAGMA foreign_keys = ON')

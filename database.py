@@ -147,6 +147,9 @@ def init_db():
     if 'dashboard_layout' not in user_columns:
         cursor.execute("ALTER TABLE users ADD COLUMN dashboard_layout TEXT DEFAULT '{}'")
         print("Database migrated: dashboard_layout column added to users.")
+    if 'custom_theme_colors' not in user_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN custom_theme_colors TEXT DEFAULT '{}'")
+        print("Database migrated: custom_theme_colors column added to users.")
     
     # Create Interactions Table
     cursor.execute('''

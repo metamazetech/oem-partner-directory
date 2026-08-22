@@ -169,5 +169,23 @@ Once installed:
 
 ---
 
+## 🔄 Application Auto-Update & Master Backups
+
+### 1. Zero-Downtime Codebase Auto-Updater
+You can update your portal directly from the Admin Panel without manually deleting or extracting files:
+* Navigate to the **Application Auto-Update** section.
+* Upload the new codebase `.zip` package.
+* The portal automatically:
+  1. Generates a full system rollback backup (`uploads/pre_update_backup_[timestamp].zip`) containing all code, active database, and uploads.
+  2. Extracts the new codebase to the root directory (supporting both flat and nested repository folders).
+  3. Resolves and upgrades any new dependencies in `requirements.txt` via `pip`.
+  4. Touches `tmp/restart.txt` to trigger a Passenger WSGI application server reload.
+
+### 2. Master Backup & Safe Database Restore
+* The portal supports complete backups of active business configurations.
+* Database operations use SQLite's native online `backup()` replication API. This prevents active database locked errors (`PermissionError [WinError 32]`) on live Windows or Linux cPanel production servers.
+
+---
+
 *Portal is developed by [Metamaze Private Limited](https://metamaze.co.in)*  
 *Email:* it@metamaze.co.in

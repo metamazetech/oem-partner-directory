@@ -4,12 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RFP {{ rfp['rfp_number'] }} Workspace - {{ portal_settings['portal_name'] }}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.4">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.5">
     <link rel="icon" type="image/x-icon" href="{% if portal_settings['favicon'] %}{{ url_for('uploaded_file', filename=portal_settings['favicon']) }}{% else %}{{ url_for('static', filename='favicon.ico') }}{% endif %}">
     <script>
         window.BASE_URL = "{{ url_for('dashboard') }}";
         window.RFP_ID = {{ rfp['id'] }};
+        window.RFP_BASE_URL = "{{ url_for('rfps_list') }}";
     </script>
+    {% if theme == 'theme-custom' and custom_theme_colors %}
+    <style>
+        :root {
+            --background-primary: {{ custom_theme_colors.get('bg_color', '#0f172a') }} !important;
+            --background-card: {{ custom_theme_colors.get('card_color', '#1e293b') }} !important;
+            --text-primary: {{ custom_theme_colors.get('text_color', '#ffffff') }} !important;
+            --text-secondary: {{ custom_theme_colors.get('text_muted', '#94a3b8') }} !important;
+            --primary: {{ custom_theme_colors.get('accent_color', '#6366f1') }} !important;
+            --sidebar-background: {{ custom_theme_colors.get('sidebar_color', '#1e293b') }} !important;
+        }
+    </style>
+    {% endif %}
 </head>
 <body class="{{ session.get('theme', 'theme-slate-dark') }}">
     <div class="app-container">
@@ -55,11 +68,14 @@
                             </a>
                         </li>
                         {% endif %}
-                                                <li class="nav-item">
-                            <a href="/work-tools">
+                                                {% set enabled_tools = portal_settings.get('enabled_work_tools', 'unit_converter,currency_calculator,pocket_calculator,cctv_calculator,power_calculator,pdf_converter,cloud_calculator').split(',') %}
+                        {% if enabled_tools and enabled_tools[0] != '' %}
+                        <li class="nav-item">
+                            <a href="{{ url_for('work_tools') }}">
                                 <span>🛠️</span> Work Tools
                             </a>
                         </li>
+                        {% endif %}
 <li class="nav-item">
                             <a href="{{ url_for('logout') }}" style="color: #fca5a5;">
                                 <span>🚪</span> Sign Out
@@ -127,7 +143,7 @@
                     <form action="{{ url_for('rfp_update_details', rfp_id=rfp['id']) }}" method="POST">
                         
                         <h4 style="margin-top: 0; margin-bottom: 1rem; color: white;">Opportunity Details & Context</h4>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.25rem;">
+                        <div class="grid-2-col" style="gap: 1.25rem; margin-bottom: 1.25rem;">
                             <div class="form-group">
                                 <label class="form-label" for="title">Title / Project Name</label>
                                 <input type="text" id="title" name="title" class="form-control" value="{{ rfp['title'] or '' }}" placeholder="e.g. Smart City Wi-Fi Expansion Project" style="background: rgba(15,23,42,0.6); color: white;">
@@ -138,7 +154,7 @@
                             </div>
                         </div>
 
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.25rem;">
+                        <div class="grid-2-col" style="gap: 1.25rem; margin-bottom: 1.25rem;">
                             <div class="form-group">
                                 <label class="form-label" for="customer_name">Name of Customer (Account)</label>
                                 <input type="text" id="customer_name" name="customer_name" class="form-control" value="{{ rfp['customer_name'] or '' }}" placeholder="e.g. Ministry of Communications" style="background: rgba(15,23,42,0.6); color: white;">
@@ -149,7 +165,7 @@
                             </div>
                         </div>
 
-                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.25rem; margin-bottom: 1.25rem;">
+                        <div class="grid-3-col" style="margin-bottom: 1.25rem;">
                             <div class="form-group">
                                 <label class="form-label" for="opportunity_type">Opportunity Type</label>
                                 <input type="text" id="opportunity_type" name="opportunity_type" class="form-control" value="{{ rfp['opportunity_type'] or '' }}" placeholder="e.g. Government RFP" style="background: rgba(15,23,42,0.6); color: white;">
@@ -167,7 +183,7 @@
                         <hr style="border: 0; border-top: 1px solid var(--border-glass); margin: 1.5rem 0;">
                         <h4 style="margin-top: 0; margin-bottom: 1rem; color: white;">Critical Dates & Milestones</h4>
                         
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.25rem;">
+                        <div class="grid-2-col" style="gap: 1.25rem; margin-bottom: 1.25rem;">
                             <div class="form-group">
                                 <label class="form-label" for="pre_bid_date">Pre-Bid Meeting Date</label>
                                 <input type="date" id="pre_bid_date" name="pre_bid_date" class="form-control" value="{{ rfp['pre_bid_date'] }}" style="background: rgba(15,23,42,0.6); color: white;">
@@ -181,7 +197,7 @@
                         <hr style="border: 0; border-top: 1px solid var(--border-glass); margin: 1.5rem 0;">
                         <h4 style="margin-top: 0; margin-bottom: 1rem; color: white;">Primary Procurement Contact Card</h4>
                         
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.25rem;">
+                        <div class="grid-2-col" style="gap: 1.25rem; margin-bottom: 1.25rem;">
                             <div class="form-group">
                                 <label class="form-label" for="contact_name">Contact Name</label>
                                 <input type="text" id="contact_name" name="contact_name" class="form-control" value="{{ rfp['contact_name'] }}" placeholder="e.g. John Doe">
@@ -224,6 +240,7 @@
                     </div>
                     
                     <!-- Matrix Table -->
+                    <div class="custom-table-container">
                     <table id="boq-matrix-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem; margin-bottom: 1.5rem;">
                         <thead>
                             <tr style="background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--border-glass);">
@@ -372,6 +389,7 @@
                             {% endif %}
                         </tbody>
                     </table>
+                    </div>
                     
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
                         <button type="button" class="btn btn-secondary" onclick="addBoqRow()" style="padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 6px;">
@@ -387,7 +405,7 @@
                                     📤 Import BoQ CSV
                                 </button>
                             </form>
-                            <a href="/rfps/{{ rfp['id'] }}/export-boq-csv" class="btn btn-secondary" style="padding: 0.6rem 1.5rem; text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem; border-radius: 8px; font-size: 0.85rem;">
+                            <a href="{{ url_for('rfp_export_boq_csv', rfp_id=rfp['id']) }}" class="btn btn-secondary" style="padding: 0.6rem 1.5rem; text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem; border-radius: 8px; font-size: 0.85rem;">
                                 📥 Export CSV
                             </a>
                             <button type="button" class="btn btn-primary" onclick="saveBoqMatrix()" style="padding: 0.6rem 1.5rem;">
@@ -468,7 +486,7 @@
             
             <!-- TAB 3: DOCUMENT CHECKLIST -->
             <div id="tab-checklist" class="tab-content" style="display: none;">
-                <div class="dashboard-layout-grid" style="grid-template-columns: 2.2fr 1fr; gap: 1.5rem; align-items: start;">
+                <div class="grid-layout-sidebar-22-1">
                     
                     <!-- Left: Checklist Table -->
                     <div class="glass-card" style="padding: 1.25rem; overflow-x: auto;">
@@ -484,11 +502,12 @@
                                         📤 Import Checklist CSV
                                     </button>
                                 </form>
-                                <a href="/rfps/{{ rfp['id'] }}/export-checklist-csv" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem; border-radius: 6px; padding: 0.45rem 0.85rem; font-size: 0.78rem; text-decoration: none;">
+                                <a href="{{ url_for('rfp_export_checklist_csv', rfp_id=rfp['id']) }}" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem; border-radius: 6px; padding: 0.45rem 0.85rem; font-size: 0.78rem; text-decoration: none;">
                                     📥 Export Checklist CSV
                                 </a>
                             </div>
                         </div>
+                        <div class="custom-table-container">
                         <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;">
                             <thead>
                                 <tr style="background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--border-glass);">
@@ -519,7 +538,7 @@
                                             <td style="padding: 0.75rem;">
                                                 {% if item['format_file'] %}
                                                     <div style="display: flex; align-items: center; gap: 0.35rem;">
-                                                        <a href="{{ item['format_file'] }}" download class="btn btn-secondary btn-sm" style="font-size: 0.7rem; padding: 0.2rem 0.4rem;" title="Download Template Format">📥 Template</a>
+                                                        <a href="{{ url_for('uploaded_file', filename=item['format_file'].split('/')[-1]) }}" download class="btn btn-secondary btn-sm" style="font-size: 0.7rem; padding: 0.2rem 0.4rem;" title="Download Template Format">📥 Template</a>
                                                         <form action="{{ url_for('rfp_checklist_delete_format', rfp_id=rfp['id'], item_id=item['id']) }}" method="POST" style="display: inline; margin: 0;" onsubmit="return confirmDeleteMatch(event, 'Template format for {{ item['doc_name'] }}');">
                                                             <button type="submit" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 0.8rem; padding: 0;" title="Remove template format">✕</button>
                                                         </form>
@@ -547,7 +566,7 @@
                                             <td style="padding: 0.75rem;">
                                                 {% if item['uploaded_file'] %}
                                                     <div style="display: flex; align-items: center; gap: 0.35rem;">
-                                                        <button type="button" onclick="viewDocument('{{ item['uploaded_file'] }}', '{{ item['uploaded_file'].split('.')[-1] }}', '{{ item['doc_name'] }}')" class="btn btn-secondary btn-sm" style="font-size: 0.7rem; padding: 0.2rem 0.4rem; color: #60a5fa;" title="View document inline">👁️ View</button>
+                                                        <button type="button" onclick="viewDocument('{{ url_for('uploaded_file', filename=item['uploaded_file'].split('/')[-1]) }}', '{{ item['uploaded_file'].split('.')[-1] }}', '{{ item['doc_name'] }}')" class="btn btn-secondary btn-sm" style="font-size: 0.7rem; padding: 0.2rem 0.4rem; color: #60a5fa;" title="View document inline">👁️ View</button>
                                                         <form action="{{ url_for('rfp_checklist_delete_doc', rfp_id=rfp['id'], item_id=item['id']) }}" method="POST" style="display: inline; margin: 0;" onsubmit="return confirmDeleteMatch(event, 'Uploaded document for {{ item['doc_name'] }}');">
                                                             <button type="submit" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 0.8rem; padding: 0;" title="Remove uploaded document">🗑️</button>
                                                         </form>
@@ -583,6 +602,7 @@
                                 {% endif %}
                             </tbody>
                         </table>
+                        </div>
                     </div>
                     
                     <!-- Right: Add Checklist Item Form -->
@@ -690,7 +710,7 @@
             
             <!-- TAB 4: RFP DOCUMENTS & CORRIGENDUMS -->
             <div id="tab-documents" class="tab-content" style="display: none;">
-                <div class="dashboard-layout-grid" style="grid-template-columns: 1fr 1fr; gap: 1.5rem; align-items: start;">
+                <div class="grid-2-col" style="align-items: start;">
                     
                     <!-- Left: Upload Attachment Form -->
                     <div class="glass-card" style="padding: 1.25rem;">
@@ -757,7 +777,7 @@
 
             <!-- TAB 5: RFP REMINDERS & FOLLOW-UPS -->
             <div id="tab-reminders" class="tab-content" style="display: none;">
-                <div class="dashboard-layout-grid" style="grid-template-columns: 1fr 1.5fr; gap: 1.5rem; align-items: start;">
+                <div class="grid-layout-sidebar-1-15">
                     
                     <!-- Left: Add Reminder Form -->
                     <div class="glass-card" style="padding: 1.25rem;">
@@ -860,7 +880,7 @@
         </div>
     </div>
     
-    <script src="{{ url_for('static', filename='js/main.js') }}?v=1.4"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}?v=1.5"></script>
     <script>
         // 1. Tab Switching Functionality
         function selectTab(tabId) {
@@ -911,7 +931,7 @@
         
         // 2. Document Checklist Toggle Functionality
         function toggleChecklistStatus(itemId, btn) {
-            const url = `/rfps/${window.RFP_ID}/checklist/${itemId}/toggle`;
+            const url = `${window.RFP_BASE_URL}/${window.RFP_ID}/checklist/${itemId}/toggle`;
             
             btn.disabled = true;
             btn.innerHTML = 'Updating...';
@@ -1179,7 +1199,7 @@
             }
             
             const payload = { items: items };
-            const url = `/rfps/${window.RFP_ID}/save-boq`;
+            const url = `${window.RFP_BASE_URL}/${window.RFP_ID}/save-boq`;
             
             const saveBtn = document.querySelector('button[onclick="saveBoqMatrix()"]');
             saveBtn.disabled = true;
@@ -1224,7 +1244,7 @@
             const formData = new FormData();
             formData.append('oem_name', oemName);
             
-            fetch(`/rfps/${window.RFP_ID}/checklist/${itemId}/update-oem`, {
+            fetch(`${window.RFP_BASE_URL}/${window.RFP_ID}/checklist/${itemId}/update-oem`, {
                 method: 'POST',
                 body: formData
             })
@@ -1244,7 +1264,7 @@
             const formData = new FormData();
             formData.append('remarks', remarks);
             
-            fetch(`/rfps/${window.RFP_ID}/checklist/${itemId}/update-remarks`, {
+            fetch(`${window.RFP_BASE_URL}/${window.RFP_ID}/checklist/${itemId}/update-remarks`, {
                 method: 'POST',
                 body: formData
             })
@@ -1333,7 +1353,7 @@
             const formData = new FormData();
             formData.append('file', file);
             
-            const url = `/rfps/${window.RFP_ID}/import-checklist-csv`;
+            const url = `${window.RFP_BASE_URL}/${window.RFP_ID}/import-checklist-csv`;
             
             showProgressOverlay("Importing Tender Checklist", "Analyzing CSV structure...");
             
@@ -1397,7 +1417,7 @@
             const formData = new FormData();
             formData.append('boq_csv_file', file);
             
-            const url = `/rfps/${window.RFP_ID}/import-boq-csv`;
+            const url = `${window.RFP_BASE_URL}/${window.RFP_ID}/import-boq-csv`;
             
             showProgressOverlay("Importing BoQ Product Matrix", "Opening CSV file and checking structure...");
             

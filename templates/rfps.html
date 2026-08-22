@@ -4,11 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RFP Section - {{ portal_settings['portal_name'] }}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.4">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.5">
     <link rel="icon" type="image/x-icon" href="{% if portal_settings['favicon'] %}{{ url_for('uploaded_file', filename=portal_settings['favicon']) }}{% else %}{{ url_for('static', filename='favicon.ico') }}{% endif %}">
     <script>
         window.BASE_URL = "{{ url_for('dashboard') }}";
     </script>
+    {% if theme == 'theme-custom' and custom_theme_colors %}
+    <style>
+        :root {
+            --background-primary: {{ custom_theme_colors.get('bg_color', '#0f172a') }} !important;
+            --background-card: {{ custom_theme_colors.get('card_color', '#1e293b') }} !important;
+            --text-primary: {{ custom_theme_colors.get('text_color', '#ffffff') }} !important;
+            --text-secondary: {{ custom_theme_colors.get('text_muted', '#94a3b8') }} !important;
+            --primary: {{ custom_theme_colors.get('accent_color', '#6366f1') }} !important;
+            --sidebar-background: {{ custom_theme_colors.get('sidebar_color', '#1e293b') }} !important;
+        }
+    </style>
+    {% endif %}
 </head>
 <body class="{{ session.get('theme', 'theme-slate-dark') }}">
     <div class="app-container">
@@ -54,11 +66,14 @@
                             </a>
                         </li>
                         {% endif %}
-                                                <li class="nav-item">
-                            <a href="/work-tools">
+                                                {% set enabled_tools = portal_settings.get('enabled_work_tools', 'unit_converter,currency_calculator,pocket_calculator,cctv_calculator,power_calculator,pdf_converter,cloud_calculator').split(',') %}
+                        {% if enabled_tools and enabled_tools[0] != '' %}
+                        <li class="nav-item">
+                            <a href="{{ url_for('work_tools') }}">
                                 <span>🛠️</span> Work Tools
                             </a>
                         </li>
+                        {% endif %}
 <li class="nav-item">
                             <a href="{{ url_for('logout') }}" style="color: #fca5a5;">
                                 <span>🚪</span> Sign Out
@@ -202,7 +217,7 @@
                             <button id="toggle-oems-view-btn" onclick="toggleOemsView()" class="btn btn-secondary btn-sm" style="padding: 0.4rem 0.8rem; font-size: 0.8rem; border-radius: 6px;">
                                 Show All OEMs
                             </button>
-                            <a href="/rfps/export-oem-matrix-csv" class="btn btn-primary btn-sm" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.4rem 0.8rem; font-size: 0.8rem; border-radius: 6px;">
+                            <a href="{{ url_for('export_oem_matrix_csv') }}" class="btn btn-primary btn-sm" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.4rem 0.8rem; font-size: 0.8rem; border-radius: 6px;">
                                 📥 Export CSV
                             </a>
                         </div>
@@ -242,7 +257,7 @@
                                                     <div style="display: flex; flex-direction: column; gap: 0.5rem;">
                                                         {% for rfp_map in oem_item['rfps'] %}
                                                             <div style="display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.85rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 0.4rem 0.6rem; border-radius: 6px;">
-                                                                <a href="/rfps/{{ rfp_map['id'] }}" style="color: var(--primary); text-decoration: none; font-weight: 700; white-space: nowrap; transition: color 0.2s;" onmouseover="this.style.color='white'" onmouseout="this.style.color='var(--primary)'">
+                                                                <a href="{{ url_for('rfp_detail', rfp_id=rfp_map['id']) }}" style="color: var(--primary); text-decoration: none; font-weight: 700; white-space: nowrap; transition: color 0.2s;" onmouseover="this.style.color='white'" onmouseout="this.style.color='var(--primary)'">
                                                                     📄 {{ rfp_map['rfp_number'] }}
                                                                 </a>
                                                                 <span style="color: var(--text-secondary); word-break: break-all;">
@@ -291,7 +306,7 @@
                         </div>
                     </div>
                     
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
+                    <div class="grid-2-col" style="margin-bottom: 1.25rem;">
                         <div class="form-group">
                             <label class="form-label" for="pre_bid_date">Pre-Bid Meeting Date</label>
                             <input type="date" id="pre_bid_date" name="pre_bid_date" class="form-control">
@@ -307,7 +322,7 @@
                     <!-- Contact Person details -->
                     <div style="font-weight: 700; color: white; font-size: 0.88rem; margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Key Client Contact Details</div>
                     
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div class="grid-2-col" style="margin-bottom: 1rem;">
                         <div class="form-group">
                             <label class="form-label" for="contact_name">Contact Person Name</label>
                             <input type="text" id="contact_name" name="contact_name" class="form-control" placeholder="e.g. John Doe">
@@ -372,7 +387,7 @@
         </div>
     </div>
     
-    <script src="{{ url_for('static', filename='js/main.js') }}?v=1.4"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}?v=1.5"></script>
     <script>
         function switchRfpTab(tabId, btn) {
             document.querySelectorAll('.rfp-tab-content').forEach(el => {

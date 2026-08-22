@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - {{ portal_settings['portal_name'] }}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.4">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.5">
     <link rel="icon" type="image/x-icon" href="{% if portal_settings['favicon'] %}{{ url_for('uploaded_file', filename=portal_settings['favicon']) }}{% else %}{{ url_for('static', filename='favicon.ico') }}{% endif %}">
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
@@ -13,6 +13,18 @@
         window.USER_PREFERENCES = {{ session.get('dashboard_layout', '{}') | safe }};
         window.USER_THEME = "{{ session.get('theme', 'theme-slate-dark') }}";
     </script>
+    {% if theme == 'theme-custom' and custom_theme_colors %}
+    <style>
+        :root {
+            --background-primary: {{ custom_theme_colors.get('bg_color', '#0f172a') }} !important;
+            --background-card: {{ custom_theme_colors.get('card_color', '#1e293b') }} !important;
+            --text-primary: {{ custom_theme_colors.get('text_color', '#ffffff') }} !important;
+            --text-secondary: {{ custom_theme_colors.get('text_muted', '#94a3b8') }} !important;
+            --primary: {{ custom_theme_colors.get('accent_color', '#6366f1') }} !important;
+            --sidebar-background: {{ custom_theme_colors.get('sidebar_color', '#1e293b') }} !important;
+        }
+    </style>
+    {% endif %}
 </head>
 <body class="{{ session.get('theme', 'theme-slate-dark') }}">
     <div class="app-container">
@@ -58,11 +70,14 @@
                             </a>
                         </li>
                         {% endif %}
-                                                <li class="nav-item">
-                            <a href="/work-tools">
+                                                {% set enabled_tools = portal_settings.get('enabled_work_tools', 'unit_converter,currency_calculator,pocket_calculator,cctv_calculator,power_calculator,pdf_converter,cloud_calculator').split(',') %}
+                        {% if enabled_tools and enabled_tools[0] != '' %}
+                        <li class="nav-item">
+                            <a href="{{ url_for('work_tools') }}">
                                 <span>🛠️</span> Work Tools
                             </a>
                         </li>
+                        {% endif %}
 <li class="nav-item">
                             <a href="{{ url_for('logout') }}" style="color: #fca5a5;">
                                 <span>🚪</span> Sign Out
@@ -140,21 +155,21 @@
                 <div class="stat-card">
                     <div>
                         <span class="stat-label">Total Partners</span>
-                        <div class="stat-number">{{ stats['total'] }}</div>
+                        <div id="stat-total-partners" class="stat-number">{{ stats['total'] }}</div>
                     </div>
                     <div class="stat-icon" style="color: var(--primary);">👥</div>
                 </div>
                 <div class="stat-card">
                     <div>
                         <span class="stat-label">OEMs</span>
-                        <div class="stat-number">{{ stats['oems'] }}</div>
+                        <div id="stat-oems" class="stat-number">{{ stats['oems'] }}</div>
                     </div>
                     <div class="stat-icon" style="color: var(--color-oem);">🏢</div>
                 </div>
                 <div class="stat-card">
                     <div>
                         <span class="stat-label">Distributors</span>
-                        <div class="stat-number">{{ stats['distributors'] }}</div>
+                        <div id="stat-distributors" class="stat-number">{{ stats['distributors'] }}</div>
                     </div>
                     <div class="stat-icon" style="color: var(--color-distributor);">🚚</div>
                 </div>
@@ -240,6 +255,7 @@
                                                      data-type="{{ contact['type'] }}"
                                                      data-group="{{ contact['group_name'] or 'Other' }}"
                                                      data-portfolio="{{ (contact['group_name'] or '') ~ ' ' ~ (contact['fetched_products'] or '') ~ ' ' ~ (contact['fetched_services'] or '') ~ ' ' ~ (contact['custom_products'] or '') ~ ' ' ~ (contact['custom_services'] or '') }}"
+                                                     data-contacts-count="{{ contact['contact_persons']|contacts_count }}"
                                                      onclick="window.location.href='{{ url_for('contact_detail', contact_id=contact['id']) }}'">
                                                     
                                                     <div>
@@ -588,7 +604,38 @@
                         <option value="theme-glassmorphic">Cyber Glassmorphic 💎</option>
                         <option value="theme-aurora">Aurora Lights 🌌</option>
                         <option value="theme-light">Classic Light ☀️</option>
+                        <option value="theme-custom">Custom Theme 🎨</option>
                     </select>
+                </div>
+                
+                <div id="custom-theme-picker-container" style="display: none; border: 1px solid var(--border-glass); background: rgba(255,255,255,0.01); border-radius: 8px; margin-top: -0.5rem; margin-bottom: 1.5rem; padding: 1rem; gap: 0.75rem; flex-direction: column;">
+                    <span style="font-size: 0.8rem; font-weight: 700; color: var(--primary);">🎨 CUSTOM THEME COLORS</span>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                        <div>
+                            <label class="form-label" style="font-size: 0.75rem;">Background Color</label>
+                            <input type="color" id="custom-bg-color" class="form-control" style="height: 38px; padding: 0.2rem; background: transparent; border: 1px solid var(--border-glass);" value="{{ custom_theme_colors.get('bg_color', '#0f172a') }}">
+                        </div>
+                        <div>
+                            <label class="form-label" style="font-size: 0.75rem;">Side Panel Color</label>
+                            <input type="color" id="custom-sidebar-color" class="form-control" style="height: 38px; padding: 0.2rem; background: transparent; border: 1px solid var(--border-glass);" value="{{ custom_theme_colors.get('sidebar_color', '#1e293b') }}">
+                        </div>
+                        <div>
+                            <label class="form-label" style="font-size: 0.75rem;">Card Background</label>
+                            <input type="color" id="custom-card-color" class="form-control" style="height: 38px; padding: 0.2rem; background: transparent; border: 1px solid var(--border-glass);" value="{{ custom_theme_colors.get('card_color', '#1e293b') }}">
+                        </div>
+                        <div>
+                            <label class="form-label" style="font-size: 0.75rem;">Primary Accent</label>
+                            <input type="color" id="custom-accent-color" class="form-control" style="height: 38px; padding: 0.2rem; background: transparent; border: 1px solid var(--border-glass);" value="{{ custom_theme_colors.get('accent_color', '#6366f1') }}">
+                        </div>
+                        <div>
+                            <label class="form-label" style="font-size: 0.75rem;">Primary Text</label>
+                            <input type="color" id="custom-text-color" class="form-control" style="height: 38px; padding: 0.2rem; background: transparent; border: 1px solid var(--border-glass);" value="{{ custom_theme_colors.get('text_color', '#ffffff') }}">
+                        </div>
+                        <div>
+                            <label class="form-label" style="font-size: 0.75rem;">Muted Text</label>
+                            <input type="color" id="custom-text-muted" class="form-control" style="height: 38px; padding: 0.2rem; background: transparent; border: 1px solid var(--border-glass);" value="{{ custom_theme_colors.get('text_muted', '#94a3b8') }}">
+                        </div>
+                    </div>
                 </div>
                 
                 <div class="form-group" style="margin-bottom: 1.5rem;">
@@ -641,7 +688,7 @@
     
 
 
-    <script src="{{ url_for('static', filename='js/main.js') }}?v=1.4"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}?v=1.5"></script>
     <script>
         function toggleCustomSelect(containerId) {
             const container = document.getElementById(containerId);

@@ -129,14 +129,28 @@
             font-weight: 600;
         }
     </style>
+    {% if theme == 'theme-custom' and custom_theme_colors %}
+    <style>
+        :root {
+            --background-primary: {{ custom_theme_colors.get('bg_color', '#0f172a') }} !important;
+            --background-card: {{ custom_theme_colors.get('card_color', '#1e293b') }} !important;
+            --text-primary: {{ custom_theme_colors.get('text_color', '#ffffff') }} !important;
+            --text-secondary: {{ custom_theme_colors.get('text_muted', '#94a3b8') }} !important;
+            --primary: {{ custom_theme_colors.get('accent_color', '#6366f1') }} !important;
+            --sidebar-background: {{ custom_theme_colors.get('sidebar_color', '#1e293b') }} !important;
+        }
+    </style>
+    {% endif %}
 </head>
 <body class="{{ theme }}">
+{% set enabled_tools = portal_settings.get('enabled_work_tools', 'unit_converter,currency_calculator,pocket_calculator,cctv_calculator,power_calculator,pdf_converter,cloud_calculator').split(',') %}
     <div class="app-container">
         
         <!-- Sidebar Navigation -->
         <aside class="sidebar">
             <div class="sidebar-header">
-                <div class="logo-container" style="display: flex; align-items: center; justify-content: center; max-width: 100%; padding: 6px 0; text-decoration: none; gap: 0.4rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <div class="logo-container" style="display: flex; align-items: center; justify-content: center; max-width: 100%; padding: 6px 0; text-decoration: none; gap: 0.4rem;">
                     <a href="{{ url_for('dashboard') }}" style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.25rem; color: var(--text-primary); letter-spacing: -0.03em; text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
                         {% if portal_settings.get('portal_logo') %}
                             <img src="{{ url_for('uploaded_file', filename=portal_settings.get('portal_logo')) }}" style="max-height: 40px; max-width: 100%; object-fit: contain;" alt="Logo">
@@ -145,7 +159,9 @@
                         {% endif %}
                     </a>
                 </div>
+                <button id="mobile-nav-toggle" class="mobile-toggle-btn">☰</button>
             </div>
+        </div>
             
             <div class="nav-container">
                 <nav>
@@ -180,11 +196,13 @@
                                 </a>
                             </li>
                         {% endif %}
+                        {% if enabled_tools and enabled_tools[0] != '' %}
                         <li class="nav-item active">
-                            <a href="/work-tools">
+                            <a href="{{ url_for('work_tools') }}">
                                 <span>🛠️</span> Work Tools
                             </a>
                         </li>
+                        {% endif %}
                         {% if role %}
                             <li class="nav-item">
                                 <a href="{{ url_for('logout') }}" style="color: #fca5a5;">
@@ -219,9 +237,10 @@
                 </div>
             </div>
             
-            <div class="dashboard-layout-grid" style="grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+            <div class="work-tools-container-grid">
                 
-                <!-- TOOL 1: UNIT CONVERTER -->
+                {% if 'unit_converter' in enabled_tools %}
+<!-- TOOL 1: UNIT CONVERTER -->
                 <div class="glass-card" style="padding: 1.5rem;">
                     <h2 class="card-title" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">📐 Unit Converter</h2>
                     <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.25rem;">Convert metric and imperial units for length, area, weight, and volume.</p>
@@ -259,11 +278,14 @@
                     </div>
                 </div>
                 
-                <!-- TOOL 2: CURRENCY CALCULATOR -->
+                
+{% endif %}
+{% if 'currency_calculator' in enabled_tools %}
+<!-- TOOL 2: CURRENCY CALCULATOR -->
                 <div class="glass-card" style="padding: 1.5rem; display: flex; flex-direction: column;">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
                         <h2 class="card-title" style="display: flex; align-items: center; gap: 0.5rem; margin: 0;">💱 Currency Calculator</h2>
-                        <form action="/work-tools/update-rates" method="POST" style="margin: 0;">
+                        <form action="{{ url_for('update_rates') }}" method="POST" style="margin: 0;">
                             <button type="submit" class="btn btn-secondary btn-sm" style="font-size: 0.72rem; padding: 0.25rem 0.5rem; border-radius: 4px;">🔄 Sync Live Rates</button>
                         </form>
                     </div>
@@ -298,12 +320,15 @@
                     </div>
                 </div>
                 
-                <!-- TOOL 3: PDF TO WORD & EXCEL -->
+                
+{% endif %}
+{% if 'pdf_converter' in enabled_tools %}
+<!-- TOOL 3: PDF TO WORD & EXCEL -->
                 <div class="glass-card" style="padding: 1.5rem;">
                     <h2 class="card-title" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">📄 In-Memory PDF Converter</h2>
                     <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.25rem;">Extract document text into editable Word (.doc) or tabular Excel (.csv) formats.</p>
                     
-                    <form action="/work-tools/convert-pdf" method="POST" enctype="multipart/form-data">
+                    <form action="{{ url_for('convert_pdf') }}" method="POST" enctype="multipart/form-data">
                         <div class="form-group" style="margin-bottom: 1rem;">
                             <label class="form-label">Select PDF Document</label>
                             <input type="file" name="pdf_file" class="form-control" accept=".pdf" required style="padding: 0.4rem;">
@@ -325,7 +350,10 @@
                     </form>
                 </div>
 
-                <!-- TOOL 4: MATHEMATICAL POCKET CALCULATOR -->
+                
+{% endif %}
+{% if 'pocket_calculator' in enabled_tools %}
+<!-- TOOL 4: MATHEMATICAL POCKET CALCULATOR -->
                 <div class="glass-card" style="padding: 1.5rem; display: flex; flex-direction: column;">
                     <h2 class="card-title" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">🧮 Pocket Calculator</h2>
                     <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.25rem;">Quick math calculations, percentages, and algebraic evaluations.</p>
@@ -361,12 +389,15 @@
                     </div>
                 </div>
 
-                <!-- NEW TOOL 5: CCTV CAMERA BANDWIDTH & STORAGE CALCULATOR -->
+                
+{% endif %}
+{% if 'cctv_calculator' in enabled_tools %}
+<!-- NEW TOOL 5: CCTV CAMERA BANDWIDTH & STORAGE CALCULATOR -->
                 <div class="glass-card" style="padding: 1.5rem; grid-column: span 2;">
                     <h2 class="card-title" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">📹 CCTV Storage & Network Bandwidth Calculator</h2>
                     <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.5rem;">Sizing tool for CCTV surveillance layouts. Compute total real-time network throughput and total storage drive capacity configurations.</p>
                     
-                    <div style="display: grid; grid-template-columns: 1fr 320px; gap: 1.5rem;">
+                    <div class="work-tool-grid">
                         <!-- Inputs Panel -->
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                             <div class="form-group">
@@ -452,12 +483,15 @@
                     </div>
                 </div>
 
-                <!-- TOOL 6: DATA CENTER POWER LOAD CALCULATOR -->
+                
+{% endif %}
+{% if 'power_calculator' in enabled_tools %}
+<!-- TOOL 6: DATA CENTER POWER LOAD CALCULATOR -->
                 <div class="glass-card" style="padding: 1.5rem; grid-column: span 2;">
                     <h2 class="card-title" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">⚡ Data Center Capacity Planner & Power Load Calculator</h2>
                     <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.25rem;">Estimate sizing requirements, active load (W), current draw (Amperes), apparent power (VA), cabinet space utilization (U), and UPS battery runtime.</p>
                     
-                    <div style="display: grid; grid-template-columns: 1fr 320px; gap: 1.5rem;">
+                    <div class="work-tool-grid">
                         
                         <!-- Input table of devices -->
                         <div>
@@ -628,12 +662,15 @@
                     </div>
                 </div>
                 
-                <!-- TOOL 7: CLOUD INFRASTRUCTURE COMPARATIVE CALCULATOR -->
+                
+{% endif %}
+{% if 'cloud_calculator' in enabled_tools %}
+<!-- TOOL 7: CLOUD INFRASTRUCTURE COMPARATIVE CALCULATOR -->
                 <div class="glass-card" style="padding: 1.5rem; grid-column: span 2;">
                     <h2 class="card-title" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">☁️ Cloud Infrastructure Comparative Calculator</h2>
                     <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.5rem;">Drag resource specifications from the left bucket categories, drop them into the configuration board, and calculate real-time comparative cloud rates.</p>
                     
-                    <div style="display: grid; grid-template-columns: 310px 1fr; gap: 1.5rem;">
+                    <div class="cloud-tool-grid">
                         
                         <!-- Draggable specifications bucket -->
                         <div>
@@ -833,7 +870,9 @@
                     </div>
                 </div>
                 
-            </div>
+            
+{% endif %}
+</div>
         </main>
     </div>
 

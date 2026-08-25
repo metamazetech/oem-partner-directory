@@ -1,0 +1,7 @@
+# cPanel Passenger WSGI Apache Routing
+DirectoryIndex passenger_wsgi.py
+
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ passenger_wsgi.py [L]

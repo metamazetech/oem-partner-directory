@@ -2282,4 +2282,431 @@ function copyToClipboard(text, btn) {
 }
 window.copyToClipboard = copyToClipboard;
 
+/* IP Subnet Calculator Calculations */
+function calculateSubnet() {
+    const ipInput = document.getElementById('calc-ip');
+    const cidrInput = document.getElementById('calc-cidr');
+    
+    if (!ipInput || !cidrInput) return;
+    
+    const ip = ipInput.value.trim();
+    const cidr = parseInt(cidrInput.value);
+    
+    // Regex validate IP address
+    const ipPattern = /^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+    if (!ipPattern.test(ip)) {
+        alert("Please enter a valid IPv4 address (e.g. 192.168.1.1)");
+        return;
+    }
+    
+    if (isNaN(cidr) || cidr < 0 || cidr > 32) {
+        alert("Please enter a valid CIDR prefix (0-32)");
+        return;
+    }
+    
+    // Parse IP to integer
+    const octets = ip.split('.').map(Number);
+    const ipNum = (octets[0] << 24) >>> 0 | (octets[1] << 16) | (octets[2] << 8) | octets[3];
+    
+    // Calculate Subnet Mask
+    const maskNum = cidr === 0 ? 0 : (~0 << (32 - cidr)) >>> 0;
+    const maskParts = [
+        (maskNum >>> 24) & 255,
+        (maskNum >>> 16) & 255,
+        (maskNum >>> 8) & 255,
+        maskNum & 255
+    ];
+    const maskStr = maskParts.join('.');
+    
+    // Network Address
+    const netNum = (ipNum & maskNum) >>> 0;
+    const netParts = [
+        (netNum >>> 24) & 255,
+        (netNum >>> 16) & 255,
+        (netNum >>> 8) & 255,
+        netNum & 255
+    ];
+    const netStr = netParts.join('.');
+    
+    // Broadcast Address
+    const wildNum = ~maskNum >>> 0;
+    const broadNum = (netNum | wildNum) >>> 0;
+    const broadParts = [
+        (broadNum >>> 24) & 255,
+        (broadNum >>> 16) & 255,
+        (broadNum >>> 8) & 255,
+        broadNum & 255
+    ];
+    const broadStr = broadParts.join('.');
+    
+    // Usable Range
+    let rangeStr = "N/A";
+    let totalHosts = 0;
+    if (cidr <= 30) {
+        const firstParts = [...netParts];
+        firstParts[3] += 1;
+        const lastParts = [...broadParts];
+        lastParts[3] -= 1;
+        rangeStr = firstParts.join('.') + " - " + lastParts.join('.');
+        totalHosts = Math.pow(2, 32 - cidr) - 2;
+    } else if (cidr === 31) {
+        rangeStr = netStr + " - " + broadStr;
+        totalHosts = 2;
+    } else if (cidr === 32) {
+        rangeStr = ip;
+        totalHosts = 1;
+    }
+    
+    // IP Class
+    let ipClass = "Classless";
+    const firstOctet = octets[0];
+    if (firstOctet >= 1 && firstOctet <= 126) ipClass = "Class A";
+    else if (firstOctet >= 128 && firstOctet <= 191) ipClass = "Class B";
+    else if (firstOctet >= 192 && firstOctet <= 223) ipClass = "Class C";
+    else if (firstOctet >= 224 && firstOctet <= 239) ipClass = "Class D (Multicast)";
+    else if (firstOctet >= 240 && firstOctet <= 254) ipClass = "Class E (Experimental)";
+    
+    // Binary conversion helper
+    const binStr = (num) => {
+        let b = (num >>> 0).toString(2);
+        while (b.length < 32) b = "0" + b;
+        return b.match(/.{8}/g).join('.');
+    };
+    
+    // Render Results
+    document.getElementById('calc-res-mask').textContent = maskStr;
+    document.getElementById('calc-res-net').textContent = netStr;
+    document.getElementById('calc-res-broad').textContent = broadStr;
+    document.getElementById('calc-res-range').textContent = rangeStr;
+    document.getElementById('calc-res-hosts').textContent = totalHosts.toLocaleString();
+    document.getElementById('calc-res-class').textContent = ipClass;
+    document.getElementById('calc-res-binary-ip').textContent = binStr(ipNum);
+    document.getElementById('calc-res-binary-mask').textContent = binStr(maskNum);
+    
+    document.getElementById('calc-results').style.display = 'block';
+}
+window.calculateSubnet = calculateSubnet;
 
+/* Master Backup download progress */
+async function downloadBackupWithProgress(event, downloadUrl) {
+    event.preventDefault();
+    
+    const container = document.getElementById('download-progress-container');
+    const bar = document.getElementById('download-progress-bar');
+    const text = document.getElementById('download-progress-text');
+    
+    if (!container || !bar || !text) {
+        window.location.href = downloadUrl;
+        return;
+    }
+    
+    container.style.display = 'block';
+    bar.style.width = '0%';
+    text.textContent = '0%';
+    
+    try {
+        const response = await fetch(downloadUrl);
+        if (!response.ok) throw new Error("Network response error");
+        
+        const reader = response.body.getReader();
+        const contentLength = +response.headers.get('Content-Length') || 25000000; // 25MB estimate fallback
+        
+        let receivedLength = 0;
+        const chunks = [];
+        
+        while(true) {
+            const {done, value} = await reader.read();
+            if (done) break;
+            
+            chunks.push(value);
+            receivedLength += value.length;
+            
+            const percent = Math.min(100, Math.round((receivedLength / contentLength) * 100));
+            bar.style.width = percent + '%';
+            text.textContent = percent + '%';
+        }
+        
+        bar.style.width = '100%';
+        text.textContent = '100%';
+        
+        // Convert chunks to Blob
+        const blob = new Blob(chunks, {type: 'application/zip'});
+        const blobUrl = URL.createObjectURL(blob);
+        
+        // Trigger download anchor programmatically
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        const date = new Date().toISOString().slice(0, 10);
+        a.download = `master_portal_backup_${date}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+        
+        setTimeout(() => {
+            container.style.display = 'none';
+        }, 2000);
+    } catch (err) {
+        console.error("Backup download streaming failed:", err);
+        alert("Failed to stream backup. Falling back to default browser download.");
+        window.location.href = downloadUrl;
+    }
+}
+window.downloadBackupWithProgress = downloadBackupWithProgress;
+
+/* Master Restore upload progress */
+function uploadRestoreWithProgress(event, form) {
+    event.preventDefault();
+    
+    const fileInput = form.querySelector('input[type="file"]');
+    if (!fileInput || !fileInput.files.length) {
+        alert("Please select a valid backup .zip file to restore.");
+        return;
+    }
+    
+    if (!confirm("⚠️ CAUTION: Restoring a backup will overwrite existing portal files, database schema, and upload documents. Proceed?")) {
+        return;
+    }
+    
+    const container = document.getElementById('restore-progress-container');
+    const bar = document.getElementById('restore-progress-bar');
+    const text = document.getElementById('restore-progress-text');
+    const status = document.getElementById('restore-progress-status');
+    
+    if (!container || !bar || !text || !status) {
+        form.submit();
+        return;
+    }
+    
+    container.style.display = 'block';
+    bar.style.width = '0%';
+    text.textContent = '0%';
+    status.textContent = 'Uploading backup archive...';
+    
+    const formData = new FormData(form);
+    const xhr = new XMLHttpRequest();
+    
+    // Track Upload Progress
+    xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            bar.style.width = percent + '%';
+            text.textContent = percent + '%';
+            if (percent === 100) {
+                status.textContent = 'Extracting ZIP, applying database migrations, and updating portal...';
+            }
+        }
+    });
+    
+    // Handle Response
+    xhr.onload = () => {
+        if (xhr.status === 200) {
+            bar.style.width = '100%';
+            text.textContent = '100%';
+            status.textContent = 'Restore successfully applied! Reloading...';
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            let errMsg = "An error occurred during restore.";
+            try {
+                const res = JSON.parse(xhr.responseText);
+                if (res && res.message) errMsg = res.message;
+            } catch(e) {}
+            alert("Restore Failed: " + errMsg);
+            container.style.display = 'none';
+        }
+    };
+    
+    xhr.onerror = () => {
+        alert("Network communication error occurred during restore.");
+        container.style.display = 'none';
+    };
+    
+    xhr.open('POST', form.action, true);
+    xhr.send(formData);
+}
+window.uploadRestoreWithProgress = uploadRestoreWithProgress;
+
+/* Dynamic User Reminders Popup Alerts */
+function checkUserReminders() {
+    fetch('/user/reminders/pending')
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success' && data.reminders && data.reminders.length > 0) {
+                renderRemindersPopup(data.reminders);
+            }
+        })
+        .catch(err => console.error("Error checking reminders:", err));
+}
+
+function renderRemindersPopup(reminders) {
+    if (document.getElementById('reminder-popup-overlay')) return;
+    
+    const overlay = document.createElement('div');
+    overlay.id = 'reminder-popup-overlay';
+    overlay.className = 'reminder-popup-overlay';
+    
+    const box = document.createElement('div');
+    box.className = 'reminder-popup-box';
+    
+    const title = document.createElement('h3');
+    title.style.margin = '0 0 1rem 0';
+    title.style.display = 'flex';
+    title.style.alignItems = 'center';
+    title.style.gap = '0.5rem';
+    title.style.color = '#34d399';
+    title.innerHTML = `🔔 <span>Upcoming Task Reminders (${reminders.length})</span>`;
+    box.appendChild(title);
+    
+    const desc = document.createElement('p');
+    desc.style.fontSize = '0.85rem';
+    desc.style.color = 'var(--text-secondary)';
+    desc.style.margin = '0 0 1rem 0';
+    desc.textContent = 'The following sales interaction follow-ups are due today or are pending action:';
+    box.appendChild(desc);
+    
+    const listContainer = document.createElement('div');
+    listContainer.style.maxHeight = '250px';
+    listContainer.style.overflowY = 'auto';
+    listContainer.style.marginBottom = '1.5rem';
+    listContainer.style.paddingRight = '0.5rem';
+    
+    reminders.forEach(r => {
+        const row = document.createElement('div');
+        row.className = 'reminder-item-row';
+        row.style.marginBottom = '1rem';
+        
+        row.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.25rem;">
+                <strong style="color: white; font-size: 0.95rem;">${r.company_name}</strong>
+                <span style="background: rgba(245, 158, 11, 0.1); color: #f59e0b; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; border: 1px solid rgba(245, 158, 11, 0.2);">
+                    Due: ${r.followup_date}
+                </span>
+            </div>
+            <div style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4; margin-bottom: 0.5rem;">
+                Next Step: ${r.next_steps}
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+                <button onclick="completeReminder(${r.id}, this)" style="background: #10b981; color: white; border: none; padding: 4px 10px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: background 0.2s;">
+                    ✓ Mark Completed
+                </button>
+                <a href="/contact/${r.contact_id}" style="background: rgba(255,255,255,0.05); color: white; border: 1px solid var(--border-glass); padding: 4px 10px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; transition: all 0.2s;">
+                    View Profile
+                </a>
+            </div>
+        `;
+        listContainer.appendChild(row);
+    });
+    
+    box.appendChild(listContainer);
+    
+    const actions = document.createElement('div');
+    actions.style.display = 'flex';
+    actions.style.justifyContent = 'flex-end';
+    
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = 'Snooze / Remind Later';
+    closeBtn.style.background = 'rgba(255,255,255,0.05)';
+    closeBtn.style.color = 'white';
+    closeBtn.style.border = '1px solid var(--border-glass)';
+    closeBtn.style.padding = '8px 16px';
+    closeBtn.style.borderRadius = '8px';
+    closeBtn.style.fontSize = '0.85rem';
+    closeBtn.style.cursor = 'pointer';
+    closeBtn.onclick = () => {
+        overlay.classList.remove('active');
+        setTimeout(() => overlay.remove(), 300);
+    };
+    
+    actions.appendChild(closeBtn);
+    box.appendChild(actions);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    
+    setTimeout(() => {
+        overlay.classList.add('active');
+    }, 50);
+}
+
+function completeReminder(reminderId, btn) {
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = 'Updating...';
+    
+    fetch(`/user/reminders/${reminderId}/complete`, {
+        method: 'POST'
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.status === 'success') {
+            btn.innerHTML = '✓ Completed!';
+            btn.style.background = '#059669';
+            
+            const row = btn.closest('.reminder-item-row');
+            setTimeout(() => {
+                row.style.opacity = '0';
+                row.style.transition = 'opacity 0.3s ease';
+                setTimeout(() => {
+                    row.remove();
+                    
+                    const remaining = document.querySelectorAll('.reminder-item-row');
+                    if (remaining.length === 0) {
+                        const overlay = document.getElementById('reminder-popup-overlay');
+                        if (overlay) {
+                            overlay.classList.remove('active');
+                            setTimeout(() => overlay.remove(), 300);
+                        }
+                    }
+                }, 300);
+            }, 600);
+        } else {
+            alert("Error: " + data.message);
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    })
+    .catch(err => {
+        console.error("Reminder complete action error:", err);
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    });
+}
+
+window.completeReminder = completeReminder;
+
+// Run reminders check on page load
+document.addEventListener('DOMContentLoaded', () => {
+    // Only check if user is logged in (verify existence of sidebar or some main element)
+    if (document.querySelector('.sidebar') || document.querySelector('.main-content')) {
+        setTimeout(checkUserReminders, 1000);
+    }
+});
+
+
+\n
+/* Global Sidebar Collapse Toggle */
+document.addEventListener('DOMContentLoaded', function() {
+    // Only add toggle if sidebar exists
+    const sidebar = document.querySelector('.sidebar');
+    if (!sidebar) return;
+    
+    const toggleBtn = document.createElement('button');
+    toggleBtn.className = 'sidebar-toggle-btn';
+    toggleBtn.innerHTML = '⇄';
+    toggleBtn.title = 'Toggle Sidebar';
+    
+    // Check localStorage for saved state
+    const isCollapsed = localStorage.getItem('sidebar-collapsed') === 'true';
+    if (isCollapsed) {
+        sidebar.classList.add('collapsed');
+    }
+    
+    toggleBtn.addEventListener('click', function() {
+        sidebar.classList.toggle('collapsed');
+        const nowCollapsed = sidebar.classList.contains('collapsed');
+        localStorage.setItem('sidebar-collapsed', nowCollapsed);
+    });
+    
+    document.body.appendChild(toggleBtn);
+});

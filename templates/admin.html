@@ -36,7 +36,7 @@
                             <span>📂</span> {{ portal_settings['portal_name'] }}
                         {% endif %}
                     </a>
-                    <span style="font-size: 0.6rem; color: var(--text-muted); background: rgba(255,255,255,0.05); border: 1px solid var(--border-glass); padding: 0.1rem 0.3rem; border-radius: 4px; font-weight: 700; vertical-align: middle;">v2.0.0</span>
+                    <span style="font-size: 0.6rem; color: var(--text-muted); background: rgba(255,255,255,0.05); border: 1px solid var(--border-glass); padding: 0.1rem 0.3rem; border-radius: 4px; font-weight: 700; vertical-align: middle;">v3.1</span>
                 </div>
                 <button id="mobile-nav-toggle" class="mobile-toggle-btn">☰</button>
             </div>
@@ -64,7 +64,7 @@
                                 <span>🛡️</span> Admin Panel
                             </a>
                         </li>
-                                                {% set enabled_tools = portal_settings.get('enabled_work_tools', 'unit_converter,currency_calculator,pocket_calculator,cctv_calculator,power_calculator,pdf_converter,cloud_calculator').split(',') %}
+                                                {% set enabled_tools = portal_settings.get('enabled_work_tools', 'unit_converter,currency_calculator,pocket_calculator,cctv_calculator,power_calculator,pdf_converter,cloud_calculator,subnet_calculator').split(',') %}
                         {% if enabled_tools and enabled_tools[0] != '' %}
                         <li class="nav-item">
                             <a href="{{ url_for('work_tools') }}">
@@ -73,6 +73,11 @@
                         </li>
                         {% endif %}
 <li class="nav-item">
+                            <a href="{{ url_for('download_apk') }}" style="color: #34d399;">
+                                <span>📱</span> Download APK
+                            </a>
+                        </li>
+                        <li class="nav-item">
                             <a href="{{ url_for('logout') }}" style="color: #fca5a5;">
                                 <span>🚪</span> Sign Out
                             </a>
@@ -385,7 +390,7 @@
                         <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1rem;">Select which utilities should be enabled on the public Work Tools page.</p>
                         
                         <input type="hidden" name="work_tools_submitted" value="true">
-                        {% set enabled_tools = portal_settings.get('enabled_work_tools', 'unit_converter,currency_calculator,pocket_calculator,cctv_calculator,power_calculator,pdf_converter,cloud_calculator').split(',') %}
+                        {% set enabled_tools = portal_settings.get('enabled_work_tools', 'unit_converter,currency_calculator,pocket_calculator,cctv_calculator,power_calculator,pdf_converter,cloud_calculator,subnet_calculator').split(',') %}
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem 1.5rem; margin-top: 0.5rem;">
                             <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer; color: white;">
                                 <input type="checkbox" name="work_tools[]" value="unit_converter" {% if 'unit_converter' in enabled_tools %}checked{% endif %} style="accent-color: var(--primary); width: 16px; height: 16px;">
@@ -414,6 +419,10 @@
                             <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer; color: white;">
                                 <input type="checkbox" name="work_tools[]" value="cloud_calculator" {% if 'cloud_calculator' in enabled_tools %}checked{% endif %} style="accent-color: var(--primary); width: 16px; height: 16px;">
                                 ☁️ Cloud Infrastructure Calculator
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer; color: white;">
+                                <input type="checkbox" name="work_tools[]" value="subnet_calculator" {% if 'subnet_calculator' in enabled_tools %}checked{% endif %} style="accent-color: var(--primary); width: 16px; height: 16px;">
+                                🌐 IP Subnet Calculator
                             </label>
                         </div>
                     </div>
@@ -579,7 +588,7 @@
             <div class="glass-card no-border-top">
                 <h2 class="card-title">🔄 Data Synchronization Controls</h2>
                 <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.5rem;">
-                    Sync portfolio catalogs and search branding logos for all added contacts at once. This operation calls the portfolio crawler for each partner sequentially.
+                    Sync portfolio catalogs and search branding logos for all added contacts at once. This operation calls the portfolio crawler for each partner concurrently in a parallel thread pool.
                 </p>
                 <form action="{{ url_for('admin_refresh_all_contacts') }}" method="POST" style="margin: 0; display: flex; justify-content: flex-end;">
                     <button type="submit" class="btn btn-primary" style="display: flex; align-items: center; gap: 0.35rem;">
@@ -595,16 +604,37 @@
                     Download a complete backup zip (contains SQLite database schema/records and all uploaded card photos/logos), or restore the portal from a previously downloaded backup.
                 </p>
                 <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; justify-content: space-between;">
-                    <a href="{{ url_for('download_master_backup') }}" class="btn btn-secondary" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem;">
+                    <a href="{{ url_for('download_master_backup') }}" onclick="downloadBackupWithProgress(event, '{{ url_for('download_master_backup') }}')" class="btn btn-secondary" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem;">
                         📥 Download Backup (.zip)
                     </a>
                     
-                    <form action="{{ url_for('restore_master_backup') }}" method="POST" enctype="multipart/form-data" style="display: flex; align-items: center; gap: 0.5rem; margin: 0;">
+                    <form action="{{ url_for('restore_master_backup') }}" method="POST" enctype="multipart/form-data" onsubmit="uploadRestoreWithProgress(event, this)" style="display: flex; align-items: center; gap: 0.5rem; margin: 0;">
                         <input type="file" name="backup_file" accept=".zip" required class="form-control" style="font-size: 0.78rem; padding: 0.35rem; width: auto; background: rgba(15,23,42,0.6); border: 1px solid var(--border-glass); color: white;">
-                        <button type="submit" class="btn btn-primary" onclick="return confirm('WARNING: Restoring a backup will overwrite all current portal data and uploads. Proceed?')">
+                        <button type="submit" class="btn btn-primary">
                             📤 Restore Backup
                         </button>
                     </form>
+                </div>
+
+                <!-- Progress Bars -->
+                <div id="download-progress-container" style="display: none; margin-top: 1rem;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 0.25rem;">
+                        <span style="color: var(--text-secondary);">Generating & downloading backup ZIP...</span>
+                        <span id="download-progress-text" style="color: white; font-weight: bold;">0%</span>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div id="download-progress-bar" class="progress-bar-fill progress-bar-download"></div>
+                    </div>
+                </div>
+
+                <div id="restore-progress-container" style="display: none; margin-top: 1rem;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 0.25rem;">
+                        <span id="restore-progress-status" style="color: var(--text-secondary);">Uploading backup archive...</span>
+                        <span id="restore-progress-text" style="color: white; font-weight: bold;">0%</span>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div id="restore-progress-bar" class="progress-bar-fill progress-bar-restore"></div>
+                    </div>
                 </div>
             </div>
 
@@ -623,6 +653,121 @@
                         🔄 Backup & Apply Update
                     </button>
                 </form>
+            </div>
+
+            <!-- 🔗 Useful Website Resources Management Card -->
+            <div class="glass-card no-border-top" style="margin-top: 2rem;">
+                <h2 class="card-title">🔗 Useful Website Directory</h2>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.5rem;">
+                    Add or remove external hyperlinks displayed on the Work Tools dashboard section.
+                </p>
+                
+                <!-- Add Website Form -->
+                <form action="{{ url_for('admin_add_website') }}" method="POST" style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
+                    <div style="flex: 1; min-width: 200px;">
+                        <input type="text" name="title" required placeholder="Website Title (e.g. Cisco Partner Portal)" class="form-control" style="background: rgba(15,23,42,0.6); border: 1px solid var(--border-glass); color: white;">
+                    </div>
+                    <div style="flex: 2; min-width: 250px;">
+                        <input type="text" name="url" required placeholder="URL (e.g. https://partner.cisco.com)" class="form-control" style="background: rgba(15,23,42,0.6); border: 1px solid var(--border-glass); color: white;">
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        ➕ Add Link
+                    </button>
+                </form>
+
+                <!-- List of Sites -->
+                <div class="custom-table-container">
+                    <table class="custom-table">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>URL</th>
+                                <th style="width: 100px; text-align: center;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if useful_websites %}
+                                {% for site in useful_websites %}
+                                    <tr>
+                                        <td style="color: white; font-weight: 500;">{{ site.title }}</td>
+                                        <td><a href="{{ site.url }}" target="_blank" style="color: var(--primary); text-decoration: none; word-break: break-all;">{{ site.url }}</a></td>
+                                        <td style="text-align: center;">
+                                            <form action="{{ url_for('admin_delete_website', website_id=site.id) }}" method="POST" style="margin: 0;" onsubmit="return confirm('Remove this link?');">
+                                                <button type="submit" class="btn-action btn-action-delete" title="Delete Website">🗑️</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="3" style="text-align: center; color: var(--text-secondary); font-style: italic;">No useful websites configured.</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 📜 System Change Logs Management Card -->
+            <div class="glass-card no-border-top" style="margin-top: 2rem;">
+                <h2 class="card-title">📜 Track System Change Logs</h2>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.5rem;">
+                    Publish details about system improvements and new features introduced in recent updates.
+                </p>
+                
+                <!-- Add Change Log Form -->
+                <form action="{{ url_for('admin_add_changelog') }}" method="POST" style="margin-bottom: 2rem; border-bottom: 1px dashed var(--border-glass); padding-bottom: 1.5rem;">
+                    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div>
+                            <label style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">Version*</label>
+                            <input type="text" name="version" required placeholder="e.g. 3.1" class="form-control" style="background: rgba(15,23,42,0.6); border: 1px solid var(--border-glass); color: white;">
+                        </div>
+                        <div>
+                            <label style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">Release Date*</label>
+                            <input type="date" name="release_date" required class="form-control" style="background: rgba(15,23,42,0.6); border: 1px solid var(--border-glass); color: white;">
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 1rem;">
+                        <label style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">New Features Introduced*</label>
+                        <textarea name="features" required rows="3" placeholder="Describe the new features introduced, separated by commas..." class="form-control" style="background: rgba(15,23,42,0.6); border: 1px solid var(--border-glass); color: white; resize: vertical;"></textarea>
+                    </div>
+                    
+                    <div style="margin-bottom: 1rem;">
+                        <label style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">Functional Improvements*</label>
+                        <textarea name="improvements" required rows="3" placeholder="Describe functional/performance improvements, separated by commas..." class="form-control" style="background: rgba(15,23,42,0.6); border: 1px solid var(--border-glass); color: white; resize: vertical;"></textarea>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: flex-end;">
+                        <button type="submit" class="btn btn-primary">
+                            📢 Publish Change Log
+                        </button>
+                    </div>
+                </form>
+
+                <!-- List of Logs -->
+                <div class="change-logs-list" style="max-height: 350px; overflow-y: auto; padding-right: 0.5rem;">
+                    {% if change_logs %}
+                        {% for log in change_logs %}
+                            <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-glass); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-glass); padding-bottom: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+                                    <strong style="color: white; font-size: 1.05rem;">Version {{ log.version }}</strong>
+                                    <span style="font-size: 0.8rem; color: var(--text-secondary);">Released: {{ log.release_date }}</span>
+                                </div>
+                                <div style="margin-bottom: 0.5rem;">
+                                    <div style="font-size: 0.8rem; font-weight: bold; color: var(--primary); text-transform: uppercase;">🚀 New Features:</div>
+                                    <p style="font-size: 0.85rem; color: white; margin: 0.25rem 0 0 0;">{{ log.features }}</p>
+                                </div>
+                                <div>
+                                    <div style="font-size: 0.8rem; font-weight: bold; color: #a855f7; text-transform: uppercase;">🔧 Improvements:</div>
+                                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0.25rem 0 0 0;">{{ log.improvements }}</p>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <p style="text-align: center; color: var(--text-secondary); font-style: italic;">No change logs logged yet.</p>
+                    {% endif %}
+                </div>
             </div>
 
             <!-- ⚠️ Danger Zone / Reset Portal Card -->

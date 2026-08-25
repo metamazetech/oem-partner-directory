@@ -143,11 +143,12 @@
     {% endif %}
 </head>
 <body class="{{ theme }}">
-{% set enabled_tools = portal_settings.get('enabled_work_tools', 'unit_converter,currency_calculator,pocket_calculator,cctv_calculator,power_calculator,pdf_converter,cloud_calculator').split(',') %}
+{% set enabled_tools = portal_settings.get('enabled_work_tools', 'unit_converter,currency_calculator,pocket_calculator,cctv_calculator,power_calculator,pdf_converter,cloud_calculator,subnet_calculator').split(',') %}
     <div class="app-container">
         
         <!-- Sidebar Navigation -->
         <aside class="sidebar">
+            <div style="display: flex; flex-direction: column; flex-grow: 1;">
             <div class="sidebar-header">
                 <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                     <div class="logo-container" style="display: flex; align-items: center; justify-content: center; max-width: 100%; padding: 6px 0; text-decoration: none; gap: 0.4rem;">
@@ -872,7 +873,88 @@
                 
             
 {% endif %}
-</div>
+
+                {% if 'subnet_calculator' in enabled_tools %}
+                <!-- TOOL 8: IP SUBNET CALCULATOR -->
+                <div class="glass-card" style="padding: 1.5rem;">
+                    <h2 class="card-title" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">🌐 IP Subnet Calculator</h2>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.25rem;">Perform CIDR subnet calculations, compute network/broadcast boundaries, usable hosts, and wildcard masks.</p>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 100px; gap: 0.75rem; margin-bottom: 1.25rem;">
+                        <div>
+                            <label class="form-label" for="calc-ip">IP Address</label>
+                            <input type="text" id="calc-ip" class="form-control" value="192.168.1.1" placeholder="e.g. 192.168.1.1" style="background: rgba(15,23,42,0.6); border: 1px solid var(--border-glass); color: white;">
+                        </div>
+                        <div>
+                            <label class="form-label" for="calc-cidr">CIDR Prefix</label>
+                            <input type="number" id="calc-cidr" class="form-control" value="24" min="0" max="32" style="background: rgba(15,23,42,0.6); border: 1px solid var(--border-glass); color: white;">
+                        </div>
+                    </div>
+                    
+                    <button type="button" class="btn btn-primary" onclick="calculateSubnet()" style="width: 100%; margin-bottom: 1.5rem;">
+                        ⚙️ Calculate Subnet
+                    </button>
+                    
+                    <!-- Subnet Calculator Results -->
+                    <div id="calc-results" style="display: none; border-top: 1px solid var(--border-glass); padding-top: 1rem;">
+                        <h3 style="font-size: 0.9rem; color: white; margin: 0 0 0.75rem 0; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 0.25rem;">📊 Subnetting Results</h3>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                            <div class="subnet-result-item">
+                                <div class="subnet-result-label">Subnet Mask</div>
+                                <div id="calc-res-mask" class="subnet-result-value">-</div>
+                            </div>
+                            <div class="subnet-result-item">
+                                <div class="subnet-result-label">Network Address</div>
+                                <div id="calc-res-net" class="subnet-result-value">-</div>
+                            </div>
+                            <div class="subnet-result-item">
+                                <div class="subnet-result-label">Usable IP Range</div>
+                                <div id="calc-res-range" class="subnet-result-value">-</div>
+                            </div>
+                            <div class="subnet-result-item">
+                                <div class="subnet-result-label">Broadcast Address</div>
+                                <div id="calc-res-broad" class="subnet-result-value">-</div>
+                            </div>
+                            <div class="subnet-result-item">
+                                <div class="subnet-result-label">Usable Hosts</div>
+                                <div id="calc-res-hosts" class="subnet-result-value" style="color: var(--primary);">-</div>
+                            </div>
+                            <div class="subnet-result-item">
+                                <div class="subnet-result-label">IP Class</div>
+                                <div id="calc-res-class" class="subnet-result-value" style="color: #34d399;">-</div>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 0.75rem; background: rgba(255,255,255,0.02); border: 1px solid var(--border-glass); border-radius: 8px; padding: 0.75rem;">
+                            <div style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 0.25rem;">Binary IP Address</div>
+                            <div id="calc-res-binary-ip" style="font-family: monospace; font-size: 0.8rem; color: white;">-</div>
+                            
+                            <div style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; margin: 0.5rem 0 0.25rem 0;">Binary Mask</div>
+                            <div id="calc-res-binary-mask" style="font-family: monospace; font-size: 0.8rem; color: white;">-</div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- 🔗 Useful Resources & Websites Links Section -->
+            <div class="glass-card" style="margin-top: 2rem; padding: 1.5rem;">
+                <h2 class="card-title" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; color: white;">🔗 Useful Resource Directory</h2>
+                <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.25rem;">Quick links to manufacturer tools, specification portals, and configurations.</p>
+                
+                <div class="website-links-container">
+                    {% if useful_websites %}
+                        {% for site in useful_websites %}
+                            <a href="{{ site.url }}" target="_blank" class="website-badge-link">
+                                🌐 {{ site.title }}
+                            </a>
+                        {% endfor %}
+                    {% else %}
+                        <p style="font-size: 0.85rem; color: var(--text-secondary); font-style: italic; margin: 0;">No useful websites configured by admin yet.</p>
+                    {% endif %}
+                </div>
+            </div>
         </main>
     </div>
 
@@ -1418,5 +1500,6 @@
             resultsCard.style.display = 'block';
         }
     </script>
+<script src="{{ url_for('static', filename='js/main.js') }}?v=1.6"></script>
 </body>
 </html>

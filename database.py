@@ -320,6 +320,57 @@ def init_db():
     )
     ''')
     
+    # Create Useful Websites Table
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS useful_websites (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        url TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+
+    # Create Change Logs Table
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS change_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        version TEXT NOT NULL,
+        release_date TEXT NOT NULL,
+        features TEXT NOT NULL,
+        improvements TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+    
+    # Seed default useful websites if table is empty
+    cursor.execute("SELECT COUNT(*) FROM useful_websites")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("INSERT INTO useful_websites (title, url) VALUES ('Metamaze Official Website', 'https://metamaze.co.in')")
+        cursor.execute("INSERT INTO useful_websites (title, url) VALUES ('Google Search Engine', 'https://www.google.com')")
+        cursor.execute("INSERT INTO useful_websites (title, url) VALUES ('OEM Portal GitHub Repository', 'https://github.com/metamazetech/oem-partner-directory')")
+
+    # Seed default change logs if table is empty
+    cursor.execute("SELECT COUNT(*) FROM change_logs")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute('''
+        INSERT INTO change_logs (version, release_date, features, improvements) 
+        VALUES ('3.1', '2026-08-25', 
+                'IP Subnet Calculator, Useful Website links catalog, dynamic backup/restore download/upload progress bars, reminders popup alerts', 
+                'Concurrent master synchronization thread running at 15 parallel workers, web scraping fallbacks using DuckDuckGo open search integration, strict_slashes routing compatibility')
+        ''')
+        cursor.execute('''
+        INSERT INTO change_logs (version, release_date, features, improvements) 
+        VALUES ('2.0', '2026-08-21', 
+                'Interface custom theme colors personalizer, whitelabel work tools visibility manager checkboxes', 
+                'SQLite online database replication API migration to solve Windows/cPanel file locking halts, cPanel Passenger subpath URL routing mapping fixes')
+        ''')
+        cursor.execute('''
+        INSERT INTO change_logs (version, release_date, features, improvements) 
+        VALUES ('1.0', '2026-07-01', 
+                'OEM & Distributor Partner Relationship Directory, log sales interaction history, automated opp reminders tasks, RFP checklists & matrices, secure password resets', 
+                'Initial system design release, OWASP cyber-hardened CSP and cookie security layers')
+        ''')
+
     # Add remarks column safety migration block
     try:
         cursor.execute("ALTER TABLE rfp_boq_oem_mappings ADD COLUMN remarks TEXT")

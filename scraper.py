@@ -411,3 +411,120 @@ def fetch_oem_news_rss(oem_name):
         
     return articles
 
+def search_open_internet_offerings(company_name):
+    """
+    Scrapes DuckDuckGo HTML search results for a given company name
+    to extract products and services from search result snippets and titles.
+    """
+    if not company_name:
+        return {"products": [], "services": []}
+        
+    import urllib.parse
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    
+    query = f"{company_name} products and services solutions portfolio"
+    search_url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote_plus(query)}"
+    
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5'
+    }
+    
+    products = []
+    services = []
+    
+    try:
+        response = requests.get(search_url, headers=headers, timeout=8, verify=False)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Extract snippets and titles
+            snippets = [s.get_text() for s in soup.find_all(class_='result__snippet')]
+            titles = [t.get_text() for t in soup.find_all(class_='result__a')]
+            
+            corpus = " ".join(titles + snippets).lower()
+            
+            # Helper to check matching keywords and assign to products/services
+            matched = match_industry_terms_from_corpus(corpus, company_name)
+            products.extend(matched["products"])
+            services.extend(matched["services"])
+    except Exception as e:
+        print(f"Open search scraping failed for {company_name}: {e}")
+        
+    return {
+        "products": list(set(products))[:8],
+        "services": list(set(services))[:8]
+    }
+
+def match_industry_terms_from_corpus(corpus, company_name):
+    """
+    Matches industry-standard terms against a scraped corpus of search snippets.
+    """
+    products = []
+    services = []
+    
+    # Pre-defined set of common IT hardware, software and services keywords and their user-friendly labels
+    term_mappings = {
+        "products": [
+            ("firewall", "Next-Generation Firewall Security Gateway"),
+            ("switch", "Enterprise Layer-3 Routing Switches"),
+            ("router", "Core Network Access & WAN Routers"),
+            ("access point", "Unified Cloud-Managed Access Points"),
+            ("server", "High-Performance Server Nodes & Racks"),
+            ("storage", "Unified SAN/NAS Storage Solutions"),
+            ("hypervisor", "Virtualization Platform Hypervisor"),
+            ("backup", "Enterprise Backup & Replication Software"),
+            ("sase", "Secure SASE Cloud Gateways"),
+            ("ups", "Uninterruptible Power Supply (UPS) Modules"),
+            ("sensor", "IoT/Environmental Security Sensors"),
+            ("license", "Enterprise Software Licensing Modules"),
+            ("database", "Managed SQL Database Engines"),
+            ("endpoint", "Endpoint Security Intercept Protection"),
+            ("identity", "Identity Access Management (IAM) Platforms"),
+            ("monitoring", "Network Operations Monitoring Controllers"),
+            ("collaboration", "Enterprise Unified Collaboration Hardware"),
+            ("saas", "Cloud SaaS Subscription Plans"),
+            ("antivirus", "Centralized Host Antivirus Packages"),
+            ("wlan", "Enterprise Wireless LAN Controllers")
+        ],
+        "services": [
+            ("support", "24/7 SLA Technical Outsource Support"),
+            ("sla", "Annual Hardware Maintenance Support Contracts"),
+            ("consult", "Enterprise Network Architecture Design Consulting"),
+            ("migration", "Cloud Server Migration & Setup Services"),
+            ("audit", "Security Audit & Vulnerability Assessments"),
+            ("incident", "Incident Response & Cyber Threat Hunting"),
+            ("soc", "Managed Security Operations (SOC) Monitoring"),
+            ("managed", "Managed IT Helpdesk Outsource Support"),
+            ("integration", "System Integration & Deployment Services"),
+            ("hardening", "Firewall Rule Optimization & Hardening"),
+            ("recovery", "Disaster Recovery Planning & Sizing Setup"),
+            ("training", "Technical Product Training & Enablement"),
+            ("wireless site survey", "Enterprise Wireless Site Survey & Planning"),
+            ("patching", "Linux & Windows OS Patching Management"),
+            ("implementation", "Zero-Trust Infrastructure Implementation")
+        ]
+    }
+    
+    # Perform simple keyword matches
+    for keyword, label in term_mappings["products"]:
+        if keyword in corpus:
+            products.append(label)
+            
+    for keyword, label in term_mappings["services"]:
+        if keyword in corpus:
+            services.append(label)
+            
+    # If too few items matched, add general fallback based on company name
+    if not products:
+        products.append(f"{company_name or 'Enterprise'} Technology Solutions")
+    if not services:
+        services.append(f"{company_name or 'Enterprise'} Consultation & Integration SLA")
+        
+    return {
+        "products": products,
+        "services": services
+    }
+

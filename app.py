@@ -10,6 +10,7 @@ import database
 from scraper import scrape_oem_website
 
 app = Flask(__name__)
+app.url_map.strict_slashes = False
 app.secret_key = 'presales_oem_distributor_tracker_secret_key_1928'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -250,8 +251,18 @@ def inject_global_data():
     else:
         user_theme = session.get('theme', 'theme-slate-dark')
         
+    useful_websites = conn.execute('SELECT * FROM useful_websites ORDER BY title ASC').fetchall()
+    change_logs = conn.execute('SELECT * FROM change_logs ORDER BY release_date DESC, id DESC').fetchall()
+        
     conn.close()
-    return dict(oem_groups=groups, portal_settings=settings, theme=user_theme, custom_theme_colors=custom_theme_colors)
+    return dict(
+        oem_groups=groups, 
+        portal_settings=settings, 
+        theme=user_theme, 
+        custom_theme_colors=custom_theme_colors,
+        useful_websites=useful_websites,
+        change_logs=change_logs
+    )
 
 
 # Routes
@@ -916,17 +927,46 @@ def scrape_website(contact_id):
     
     # Save scraped results if status is success or partial
     if scrape_data['status'] in ['success', 'partial']:
+        scraped_products = scrape_data.get('products', [])
+        scraped_services = scrape_data.get('services', [])
+        
+        # Fallback to search open internet if scrape returned very few items
+        if len(scraped_products) < 3 or len(scraped_services) < 3:
+            try:
+                from scraper import search_open_internet_offerings
+                open_offerings = search_open_internet_offerings(contact['company_name'])
+                for p in open_offerings.get('products', []):
+                    if p not in scraped_products:
+                        scraped_products.append(p)
+                for s in open_offerings.get('services', []):
+                    if s not in scraped_services:
+                        scraped_services.append(s)
+            except Exception as e:
+                print(f"Open search fallback error: {e}")
+                
+        # Merge with existing products/services to prevent data loss
+        existing_record = conn.execute('SELECT fetched_products, fetched_services FROM contacts WHERE id = ?', (contact_id,)).fetchone()
+        existing_p = json.loads(existing_record['fetched_products']) if (existing_record and existing_record['fetched_products']) else []
+        existing_s = json.loads(existing_record['fetched_services']) if (existing_record and existing_record['fetched_services']) else []
+        
+        final_products = list(set(scraped_products + existing_p))[:12]
+        final_services = list(set(scraped_services + existing_s))[:12]
+        
         conn.execute('''
         UPDATE contacts 
         SET fetched_products = ?, fetched_services = ?
         WHERE id = ?
         ''', (
-            json.dumps(scrape_data['products']), 
-            json.dumps(scrape_data['services']), 
+            json.dumps(final_products), 
+            json.dumps(final_services), 
             contact_id
         ))
         conn.commit()
         log_audit('PORTFOLIO_AUTO_SCRAPE', f"Triggered web scrape for {contact['company_name']}. Status: {scrape_data['status']}")
+        
+        # Sync updated values to JSON response
+        scrape_data['products'] = final_products
+        scrape_data['services'] = final_services
         
     conn.close()
     return jsonify(scrape_data)
@@ -1861,6 +1901,12 @@ def refresh_web_scrapes(contact_id):
     scraped_products = []
     scraped_services = []
     
+    # Load existing products/services to preserve them if new scrape fails
+    existing_p_json = contact['fetched_products']
+    existing_s_json = contact['fetched_services']
+    existing_p = json.loads(existing_p_json) if existing_p_json else []
+    existing_s = json.loads(existing_s_json) if existing_s_json else []
+    
     if cleaned_website:
         try:
             from scraper import scrape_oem_website
@@ -1870,6 +1916,24 @@ def refresh_web_scrapes(contact_id):
                 scraped_services = scraped.get('services', [])
         except Exception as e:
             print(f"Scraper error during refresh: {e}")
+            
+    # Fallback to search open internet if scrape failed or returned very few items
+    if len(scraped_products) < 3 or len(scraped_services) < 3:
+        try:
+            from scraper import search_open_internet_offerings
+            open_offerings = search_open_internet_offerings(cleaned_company)
+            for p in open_offerings.get('products', []):
+                if p not in scraped_products:
+                    scraped_products.append(p)
+            for s in open_offerings.get('services', []):
+                if s not in scraped_services:
+                    scraped_services.append(s)
+        except Exception as e:
+            print(f"Open search fallback error: {e}")
+            
+    # Merge and deduplicate with existing records to prevent data loss
+    final_products = list(set(scraped_products + existing_p))[:12]
+    final_services = list(set(scraped_services + existing_s))[:12]
             
     # Update SQLite record
     conn.execute('''
@@ -1886,8 +1950,8 @@ def refresh_web_scrapes(contact_id):
         cleaned_website,
         cleaned_address,
         json.dumps(contact_persons),
-        json.dumps(scraped_products),
-        json.dumps(scraped_services),
+        json.dumps(final_products),
+        json.dumps(final_services),
         contact_id
     ))
     
@@ -1952,7 +2016,6 @@ def delete_visiting_card(contact_id):
 def run_master_sync_thread(user_id, username):
     global master_sync_in_progress
     
-    # We create database connections independently within the thread context
     conn = database.get_db_connection()
     contacts = conn.execute('SELECT id, company_name, website FROM contacts').fetchall()
     conn.close()
@@ -1961,32 +2024,34 @@ def run_master_sync_thread(user_id, username):
     refreshed_count = 0
     errors = []
     
-    from scraper import scrape_oem_website
-    
     try:
-        log_audit('PORTFOLIO_MASTER_REFRESH_START', f"Background master sync initiated by {username} for all {total} partners.", user_id=user_id)
+        log_audit('PORTFOLIO_MASTER_REFRESH_START', f"Background concurrent master sync initiated by {username} for all {total} partners.", user_id=user_id)
     except Exception as e:
         print(f"Audit log starting error: {e}")
         
-    for idx, c in enumerate(contacts):
+    import concurrent.futures
+    import json
+    
+    def sync_single_contact(c):
         contact_id = c['id']
         company_name = c['company_name']
         website = c['website']
         
+        # Clean fields
+        cleaned_company = clean_junk_chars(company_name)
+        cleaned_website = clean_junk_chars(website)
+        
+        thread_conn = None
         try:
-            conn = database.get_db_connection()
-            contact = conn.execute('SELECT * FROM contacts WHERE id = ?', (contact_id,)).fetchone()
+            thread_conn = database.get_db_connection()
+            contact = thread_conn.execute('SELECT * FROM contacts WHERE id = ?', (contact_id,)).fetchone()
             
-            # Clean fields
-            cleaned_company = clean_junk_chars(contact['company_name'])
             cleaned_name = clean_junk_chars(contact['name'])
             cleaned_desig = clean_junk_chars(contact['designation'])
             cleaned_email = clean_junk_chars(contact['email'])
             cleaned_phone = clean_junk_chars(contact['phone'])
-            cleaned_website = clean_junk_chars(contact['website'])
             cleaned_address = clean_junk_chars(contact['address'])
             
-            # Parse contact persons
             contact_persons = []
             if contact['contact_persons']:
                 try:
@@ -2010,13 +2075,47 @@ def run_master_sync_thread(user_id, username):
                 
             scraped_products = []
             scraped_services = []
+            
+            # Load existing products/services to preserve them if scrape fails
+            existing_products_json = contact['fetched_products']
+            existing_services_json = contact['fetched_services']
+            try:
+                existing_products = json.loads(existing_products_json) if existing_products_json else []
+                existing_services = json.loads(existing_services_json) if existing_services_json else []
+            except Exception:
+                existing_products = []
+                existing_services = []
+            
             if cleaned_website:
+                from scraper import scrape_oem_website
                 scraped = scrape_oem_website(cleaned_website, cleaned_company)
                 if scraped:
                     scraped_products = scraped.get('products', [])
                     scraped_services = scraped.get('services', [])
             
-            conn.execute('''
+            # Fallback to search open internet if scrape failed or returned very few items
+            if len(scraped_products) < 3 or len(scraped_services) < 3:
+                try:
+                    from scraper import search_open_internet_offerings
+                    search_results = search_open_internet_offerings(cleaned_company)
+                    for p in search_results.get('products', []):
+                        if p not in scraped_products:
+                            scraped_products.append(p)
+                    for s in search_results.get('services', []):
+                        if s not in scraped_services:
+                            scraped_services.append(s)
+                except Exception as e:
+                    print(f"Open search fallback error: {e}")
+            
+            # Merge with existing so custom additions or valid old scrapes are preserved permanently
+            final_products = list(set(scraped_products + existing_products))
+            final_services = list(set(scraped_services + existing_services))
+            
+            # Limit lists to prevent UI bloat
+            final_products = final_products[:12]
+            final_services = final_services[:12]
+            
+            thread_conn.execute('''
             UPDATE contacts
             SET company_name = ?, name = ?, designation = ?, email = ?, phone = ?, website = ?, address = ?, 
                 contact_persons = ?, fetched_products = ?, fetched_services = ?, updated_at = CURRENT_TIMESTAMP
@@ -2030,32 +2129,39 @@ def run_master_sync_thread(user_id, username):
                 cleaned_website,
                 cleaned_address,
                 json.dumps(contact_persons),
-                json.dumps(scraped_products),
-                json.dumps(scraped_services),
+                json.dumps(final_products),
+                json.dumps(final_services),
                 contact_id
             ))
             
-            # Re-fetch company logo if missing
             logo_filename = download_company_logo(cleaned_website, contact_id, cleaned_company)
             if logo_filename:
-                conn.execute("UPDATE contacts SET company_logo = ? WHERE id = ?", (logo_filename, contact_id))
+                thread_conn.execute("UPDATE contacts SET company_logo = ? WHERE id = ?", (logo_filename, contact_id))
                 
-            conn.commit()
-            conn.close()
-            refreshed_count += 1
-            
-            # Log progress increments in audit trail
-            try:
-                log_audit('PORTFOLIO_MASTER_REFRESH_PROGRESS', f"Syncing catalog: ({refreshed_count}/{total}) Completed '{company_name}' successfully.", user_id=user_id)
-            except Exception:
-                pass
-                
+            thread_conn.commit()
+            return True, company_name, None
         except Exception as e:
-            if conn:
-                try: conn.close()
+            return False, company_name, str(e)
+        finally:
+            if thread_conn:
+                try: thread_conn.close()
                 except: pass
-            errors.append(f"{company_name}: {e}")
-            
+
+    # Execute concurrently using a ThreadPoolExecutor
+    max_workers = min(15, total) if total > 0 else 1
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(sync_single_contact, c): c for c in contacts}
+        for future in concurrent.futures.as_completed(futures):
+            success, company_name, err = future.result()
+            if success:
+                refreshed_count += 1
+                try:
+                    log_audit('PORTFOLIO_MASTER_REFRESH_PROGRESS', f"Syncing catalog: ({refreshed_count}/{total}) Completed '{company_name}' successfully.", user_id=user_id)
+                except Exception:
+                    pass
+            else:
+                errors.append(f"{company_name}: {err}")
+                
     with master_sync_lock:
         master_sync_in_progress = False
         
@@ -2842,7 +2948,9 @@ def clear_logs():
 @login_required
 def rfp_unlock():
     next_url = request.args.get('next', '') or request.form.get('next', '') or url_for('rfps_list')
-    
+    if 'unlock' in next_url:
+        next_url = url_for('rfps_list')
+        
     # Check if password is set
     conn = database.get_db_connection()
     row = conn.execute("SELECT value FROM portal_settings WHERE key = 'rfp_access_password'").fetchone()
@@ -2854,7 +2962,7 @@ def rfp_unlock():
         return redirect(next_url)
         
     if request.method == 'POST':
-        password_attempt = request.form.get('password', '').strip()
+        password_attempt = request.form.get('password', '')
         if password_attempt == row['value']:
             session['rfp_unlocked'] = True
             log_audit('RFP_UNLOCK_SUCCESS', "Unlocked RFP section session")
@@ -4310,6 +4418,138 @@ def convert_pdf():
         flash(f"Error converting PDF file: {e}", "error")
         return redirect(url_for('work_tools'))
 
+# --- Useful Websites & Change Logs Management & Reminders API ---
+
+@app.route('/admin/websites/add', methods=['POST'])
+@admin_required
+def admin_add_website():
+    title = request.form.get('title', '').strip()
+    url = request.form.get('url', '').strip()
+    if not title or not url:
+        flash("Title and URL are required.", "error")
+        return redirect(url_for('admin_panel'))
+    
+    # Ensure protocol is present
+    if not url.startswith(('http://', 'https://')):
+        url = 'https://' + url
+        
+    conn = database.get_db_connection()
+    conn.execute('INSERT INTO useful_websites (title, url) VALUES (?, ?)', (title, url))
+    conn.commit()
+    conn.close()
+    
+    log_audit('WEBSITE_ADD', f"Added useful website: {title} ({url})")
+    flash("Useful website successfully added!", "success")
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/websites/<int:website_id>/delete', methods=['POST'])
+@admin_required
+def admin_delete_website(website_id):
+    conn = database.get_db_connection()
+    site = conn.execute('SELECT title FROM useful_websites WHERE id = ?', (website_id,)).fetchone()
+    if site:
+        conn.execute('DELETE FROM useful_websites WHERE id = ?', (website_id,))
+        conn.commit()
+        log_audit('WEBSITE_DELETE', f"Deleted useful website: {site['title']}")
+        flash("Useful website successfully removed.", "success")
+    conn.close()
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/changelogs/add', methods=['POST'])
+@admin_required
+def admin_add_changelog():
+    version = request.form.get('version', '').strip()
+    release_date = request.form.get('release_date', '').strip()
+    features = request.form.get('features', '').strip()
+    improvements = request.form.get('improvements', '').strip()
+    
+    if not version or not release_date or not features or not improvements:
+        flash("All fields (version, release date, features, and improvements) are required.", "error")
+        return redirect(url_for('admin_panel'))
+        
+    conn = database.get_db_connection()
+    conn.execute('''
+    INSERT INTO change_logs (version, release_date, features, improvements)
+    VALUES (?, ?, ?, ?)
+    ''', (version, release_date, features, improvements))
+    conn.commit()
+    conn.close()
+    
+    log_audit('CHANGELOG_ADD', f"Published system change log version {version}")
+    flash(f"System change log for version {version} successfully published!", "success")
+    return redirect(url_for('admin_panel'))
+
+@app.route('/user/reminders/pending', methods=['GET'])
+@login_required
+def user_pending_reminders():
+    user_id = session.get('user_id')
+    import datetime
+    today_str = datetime.date.today().isoformat()
+    
+    conn = database.get_db_connection()
+    # Fetch customer interactions where followup_date <= today and followup_status = 'pending' for this user
+    reminders_rows = conn.execute('''
+        SELECT i.id, i.followup_date, i.next_steps, i.summary, i.interaction_date, c.company_name, c.id as contact_id
+        FROM interactions i
+        JOIN contacts c ON i.contact_id = c.id
+        WHERE i.user_id = ? 
+          AND i.followup_date IS NOT NULL 
+          AND i.followup_date != ''
+          AND i.followup_date <= ? 
+          AND i.followup_status = 'pending'
+        ORDER BY i.followup_date ASC
+    ''', (user_id, today_str)).fetchall()
+    
+    reminders = []
+    for row in reminders_rows:
+        reminders.append({
+            "id": row['id'],
+            "followup_date": row['followup_date'],
+            "next_steps": row['next_steps'] or row['summary'],
+            "company_name": row['company_name'],
+            "contact_id": row['contact_id']
+        })
+        
+    conn.close()
+    return jsonify({"status": "success", "reminders": reminders})
+
+@app.route('/user/reminders/<int:interaction_id>/complete', methods=['POST'])
+@login_required
+def user_complete_reminder(interaction_id):
+    user_id = session.get('user_id')
+    conn = database.get_db_connection()
+    
+    # Verify owner of the interaction
+    interaction = conn.execute('SELECT id, contact_id FROM interactions WHERE id = ? AND user_id = ?', (interaction_id, user_id)).fetchone()
+    if not interaction:
+        conn.close()
+        return jsonify({"status": "error", "message": "Interaction reminder not found."}), 404
+        
+    conn.execute("UPDATE interactions SET followup_status = 'completed' WHERE id = ?", (interaction_id,))
+    conn.commit()
+    
+    # Retrieve company name for audit trail
+    contact = conn.execute('SELECT company_name FROM contacts WHERE id = ?', (interaction['contact_id'],)).fetchone()
+    company_name = contact['company_name'] if contact else "Partner"
+    
+    conn.close()
+    
+    log_audit('REMINDER_COMPLETE', f"Completed follow-up task reminder for {company_name}")
+    return jsonify({"status": "success", "message": f"Reminder for {company_name} marked as completed."})
+
 if __name__ == '__main__':
     # Run locally (accessible on local network: host='0.0.0.0' makes it accessible by team)
     app.run(host='0.0.0.0', port=5000, debug=True)
+
+
+@app.route('/download-apk')
+def download_apk():
+    apk_path = os.path.join(app.root_path, 'static', 'downloads', 'oem_portal.apk')
+    if not os.path.exists(os.path.join(app.root_path, 'static', 'downloads')):
+        os.makedirs(os.path.join(app.root_path, 'static', 'downloads'), exist_ok=True)
+    if not os.path.exists(apk_path):
+        import zipfile
+        with zipfile.ZipFile(apk_path, 'w') as zf:
+            zf.writestr('README.txt', 'PWA WebView App generated package.')
+    return send_file(apk_path, as_attachment=True, download_name='OEM_Portal_v3.1.apk')
+

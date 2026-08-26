@@ -2692,7 +2692,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     const toggleBtn = document.createElement('button');
     toggleBtn.className = 'sidebar-toggle-btn';
-    toggleBtn.innerHTML = '⇄';
+    toggleBtn.innerHTML = '&#8644;';
     toggleBtn.title = 'Toggle Sidebar';
     
     // Check localStorage for saved state

@@ -191,7 +191,7 @@ def check_rfp_access_lock():
         if row and row['value'] and not session.get('rfp_unlocked'):
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
                 return jsonify({"status": "error", "message": "RFP session is locked."}), 403
-            return redirect(url_for('rfp_unlock', next=request.full_path))
+            return redirect(url_for('rfp_unlock'))
 
 # Log system actions to audit trail
 def log_audit(action, details, user_id=None):
@@ -2947,19 +2947,14 @@ def clear_logs():
 @app.route('/rfps/unlock', methods=['GET', 'POST'])
 @login_required
 def rfp_unlock():
-    next_url = request.args.get('next', '') or request.form.get('next', '') or url_for('rfps_list')
-    if 'unlock' in next_url:
-        next_url = url_for('rfps_list')
-        
     # Check if password is set
     conn = database.get_db_connection()
     row = conn.execute("SELECT value FROM portal_settings WHERE key = 'rfp_access_password'").fetchone()
     conn.close()
     
     if not row or not row['value']:
-        # No password set, bypass and mark unlocked
         session['rfp_unlocked'] = True
-        return redirect(next_url)
+        return redirect(url_for('rfps_list'))
         
     if request.method == 'POST':
         password_attempt = request.form.get('password', '')
@@ -2967,12 +2962,12 @@ def rfp_unlock():
             session['rfp_unlocked'] = True
             log_audit('RFP_UNLOCK_SUCCESS', "Unlocked RFP section session")
             flash("RFP section successfully unlocked.", "success")
-            return redirect(next_url)
+            return redirect(url_for('rfps_list'))
         else:
             log_audit('RFP_UNLOCK_FAIL', "Failed RFP unlock attempt")
             flash("Invalid RFP access password. Please try again.", "error")
             
-    return render_template('rfp_unlock.html', next=next_url)
+    return render_template('rfp_unlock.html')
 
 @app.route('/rfps')
 @login_required

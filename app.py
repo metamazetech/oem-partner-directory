@@ -2461,7 +2461,7 @@ def admin_auto_update():
                 if 'venv/' in name or '.git/' in name or '__pycache__/' in name or name.endswith('.zip') or name.endswith('.db'):
                     continue
                     
-                target_path = os.path.join(os.getcwd(), rel_path)
+                target_path = os.path.join(app.root_path, rel_path)
                 os.makedirs(os.path.dirname(target_path), exist_ok=True)
                 
                 # Write file safely
@@ -2471,7 +2471,7 @@ def admin_auto_update():
                 extracted_files += 1
                 
         # 3. Automatically Install Dependencies
-        req_path = os.path.join(os.getcwd(), 'requirements.txt')
+        req_path = os.path.join(app.root_path, 'requirements.txt')
         pip_status = "No requirements.txt found."
         if os.path.exists(req_path):
             try:

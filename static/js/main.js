@@ -2684,7 +2684,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
-\n
 /* Global Sidebar Collapse Toggle */
 document.addEventListener('DOMContentLoaded', function() {
     // Only add toggle if sidebar exists
@@ -2709,4 +2708,11 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     document.body.appendChild(toggleBtn);
+});
+\n
+// Prevent BFCache back button bypass
+window.addEventListener('pageshow', function(event) {
+    if (event.persisted && window.location.pathname.includes('/rfps')) {
+        window.location.reload();
+    }
 });

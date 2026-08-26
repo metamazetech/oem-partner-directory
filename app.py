@@ -4551,5 +4551,6 @@ def download_apk():
         import zipfile
         with zipfile.ZipFile(apk_path, 'w') as zf:
             zf.writestr('README.txt', 'PWA WebView App generated package.')
+    from flask import send_file
     return send_file(apk_path, as_attachment=True, download_name='OEM_Portal_v3.1.apk')
 

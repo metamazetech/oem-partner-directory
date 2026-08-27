@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ contact['company_name'] }} - {{ portal_settings['portal_name'] }}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=3.3">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=3.5">
     <link rel="icon" type="image/x-icon" href="{% if portal_settings['favicon'] %}{{ url_for('uploaded_file', filename=portal_settings['favicon']) }}{% else %}{{ url_for('static', filename='favicon.ico') }}{% endif %}">
     <style>
         .portfolio-grid {
@@ -96,6 +96,7 @@
     {% endif %}
 </head>
 <body class="{{ session.get('theme', 'theme-slate-dark') }}">
+    
     <div class="app-container">
         
         <!-- Sidebar Navigation -->
@@ -111,6 +112,7 @@
                     </a>
                     <span style="font-size: 0.6rem; color: var(--text-muted); background: rgba(255,255,255,0.05); border: 1px solid var(--border-glass); padding: 0.1rem 0.3rem; border-radius: 4px; font-weight: 700; vertical-align: middle;">v3.1</span>
                 </div>
+                <button id="sidebar-collapse-btn" onclick="this.closest('.sidebar').style.display='none';var b=document.getElementById('show-sidebar-btn');if(b)b.style.display='flex';localStorage.setItem('sidebar-collapsed','true');" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:1.1rem;padding:4px 8px;border-radius:6px;transition:all 0.2s;" title="Hide Sidebar">&laquo;</button>
                 <button id="mobile-nav-toggle" class="mobile-toggle-btn">☰</button>
             </div>
             
@@ -147,9 +149,9 @@
                             </a>
                         </li>
                         {% endif %}
-<li class="nav-item">
-                            <a href="{{ url_for('download_apk') }}" style="color: #34d399;">
-                                <span>📱</span> Download APK
+<li class="nav-item" id="install-app-item">
+                            <a href="javascript:void(0)" onclick="installApp()" style="color: #34d399;">
+                                <span>📱</span> Install App
                             </a>
                         </li>
                         <li class="nav-item">
@@ -807,7 +809,7 @@
         </div>
     </div>
     
-    <script src="{{ url_for('static', filename='js/main.js') }}?v=3.3"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}?v=3.5"></script>
     <script>
         function fetchLogoFromInternet(contactId) {
             const btn = document.getElementById('btn-fetch-logo');
@@ -900,6 +902,21 @@
                 document.querySelectorAll('.custom-select-options').forEach(el => el.style.display = 'none');
             }
         });
+    </script>
+
+    <!-- Sidebar Show Button (appears when sidebar is hidden) -->
+    <div id="show-sidebar-btn" style="position:fixed;top:12px;left:0;z-index:9999;display:none;">
+        <button onclick="var s=document.querySelector('.sidebar');s.style.display='';this.parentElement.style.display='none';localStorage.setItem('sidebar-collapsed','false');" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;border:none;border-radius:0 10px 10px 0;width:32px;height:48px;cursor:pointer;box-shadow:2px 0 12px rgba(99,102,241,0.4);font-size:1.4rem;display:flex;align-items:center;justify-content:center;">&raquo;</button>
+    </div>
+    <script>
+    (function(){
+        if(localStorage.getItem('sidebar-collapsed')==='true'){
+            var s=document.querySelector('.sidebar');
+            var b=document.getElementById('show-sidebar-btn');
+            if(s) s.style.display='none';
+            if(b) b.style.display='block';
+        }
+    })();
     </script>
 </body>
 </html>

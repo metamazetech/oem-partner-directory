@@ -1,7 +1,7 @@
 import os
 import json
 import uuid
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_from_directory, send_file
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
@@ -4532,20 +4532,18 @@ def user_complete_reminder(interaction_id):
     log_audit('REMINDER_COMPLETE', f"Completed follow-up task reminder for {company_name}")
     return jsonify({"status": "success", "message": f"Reminder for {company_name} marked as completed."})
 
-if __name__ == '__main__':
-    # Run locally (accessible on local network: host='0.0.0.0' makes it accessible by team)
-    app.run(host='0.0.0.0', port=5000, debug=True)
-
-
 @app.route('/download-apk')
 def download_apk():
     apk_path = os.path.join(app.root_path, 'static', 'downloads', 'oem_portal.apk')
-    if not os.path.exists(os.path.join(app.root_path, 'static', 'downloads')):
-        os.makedirs(os.path.join(app.root_path, 'static', 'downloads'), exist_ok=True)
+    os.makedirs(os.path.join(app.root_path, 'static', 'downloads'), exist_ok=True)
     if not os.path.exists(apk_path):
         import zipfile
         with zipfile.ZipFile(apk_path, 'w') as zf:
             zf.writestr('README.txt', 'PWA WebView App generated package.')
-    from flask import send_file
     return send_file(apk_path, as_attachment=True, download_name='OEM_Portal_v3.1.apk')
+
+
+if __name__ == '__main__':
+    # Run locally (accessible on local network: host='0.0.0.0' makes it accessible by team)
+    app.run(host='0.0.0.0', port=5000, debug=True)
 

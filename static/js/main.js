@@ -2531,13 +2531,16 @@ window.uploadRestoreWithProgress = uploadRestoreWithProgress;
 /* Dynamic User Reminders Popup Alerts */
 function checkUserReminders() {
     fetch('/user/reminders/pending')
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) return;
+            return response.json();
+        })
         .then(data => {
-            if (data.status === 'success' && data.reminders && data.reminders.length > 0) {
+            if (data && data.status === 'success' && data.reminders && data.reminders.length > 0) {
                 renderRemindersPopup(data.reminders);
             }
         })
-        .catch(err => console.error("Error checking reminders:", err));
+        .catch(() => {});
 }
 
 function renderRemindersPopup(reminders) {
@@ -2686,33 +2689,72 @@ document.addEventListener('DOMContentLoaded', () => {
 
 /* Global Sidebar Collapse Toggle */
 document.addEventListener('DOMContentLoaded', function() {
-    // Only add toggle if sidebar exists
-    const sidebar = document.querySelector('.sidebar');
+    var sidebar = document.querySelector('.sidebar');
     if (!sidebar) return;
     
-    const toggleBtn = document.createElement('button');
-    toggleBtn.className = 'sidebar-toggle-btn';
-    toggleBtn.innerHTML = '&#8644;';
-    toggleBtn.title = 'Toggle Sidebar';
+    // Create the floating "show sidebar" button (visible only when sidebar is hidden)
+    var showBtn = document.createElement('button');
+    showBtn.id = 'show-sidebar-btn';
+    showBtn.innerHTML = '\u00BB';
+    showBtn.title = 'Show Sidebar';
+    showBtn.style.cssText = 'position:fixed;top:50%;left:0;transform:translateY(-50%);z-index:9999;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;border:none;border-radius:0 8px 8px 0;width:28px;height:56px;display:none;align-items:center;justify-content:center;cursor:pointer;box-shadow:2px 0 12px rgba(99,102,241,0.4);font-size:1.3rem;';
     
-    // Check localStorage for saved state
-    const isCollapsed = localStorage.getItem('sidebar-collapsed') === 'true';
-    if (isCollapsed) {
-        sidebar.classList.add('collapsed');
-    }
-    
-    toggleBtn.addEventListener('click', function() {
-        sidebar.classList.toggle('collapsed');
-        const nowCollapsed = sidebar.classList.contains('collapsed');
-        localStorage.setItem('sidebar-collapsed', nowCollapsed);
+    showBtn.addEventListener('click', function() {
+        sidebar.style.display = '';
+        showBtn.style.display = 'none';
+        localStorage.setItem('sidebar-collapsed', 'false');
     });
     
-    document.body.appendChild(toggleBtn);
+    document.body.appendChild(showBtn);
+    
+    // Check localStorage for saved state
+    if (localStorage.getItem('sidebar-collapsed') === 'true') {
+        sidebar.style.display = 'none';
+        showBtn.style.display = 'flex';
+    }
+    
+    // Expose hide function globally for the sidebar link
+    window.hideSidebar = function() {
+        sidebar.style.display = 'none';
+        showBtn.style.display = 'flex';
+        localStorage.setItem('sidebar-collapsed', 'true');
+    };
 });
-\n
+
 // Prevent BFCache back button bypass
 window.addEventListener('pageshow', function(event) {
     if (event.persisted && window.location.pathname.includes('/rfps')) {
         window.location.reload();
     }
 });
+
+/* PWA Install App */
+var deferredInstallPrompt = null;
+
+window.addEventListener('beforeinstallprompt', function(e) {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+});
+
+function installApp() {
+    if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        deferredInstallPrompt.userChoice.then(function(result) {
+            if (result.outcome === 'accepted') {
+                alert('App installed successfully! Check your home screen.');
+            }
+            deferredInstallPrompt = null;
+        });
+    } else {
+        alert('To install this app:\\n\\n' +
+              'Android Chrome: Tap the menu (3 dots) > "Add to Home Screen"\\n\\n' +
+              'iPhone Safari: Tap Share > "Add to Home Screen"\\n\\n' +
+              'Desktop Chrome: Click the install icon in the address bar.');
+    }
+}
+window.installApp = installApp;
+
+// Register Service Worker for PWA
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/service-worker.js').catch(function() {});
+}

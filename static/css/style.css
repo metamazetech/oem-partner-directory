@@ -183,6 +183,8 @@ a {
 .nav-item.active a {
     background: rgba(99, 102, 241, 0.12);
     border-color: rgba(99, 102, 241, 0.25);
+    border-left: 3px solid var(--primary);
+    padding-left: calc(1.15rem - 3px);
 }
 
 /* Category navigation items specific styling */
@@ -300,7 +302,7 @@ a {
 }
 
 .stat-card {
-    background: var(--bg-card);
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.9));
     backdrop-filter: blur(12px);
     border: 1px solid var(--border-glass);
     padding: 1.5rem;
@@ -333,14 +335,14 @@ a {
 }
 
 .stat-icon {
-    width: 48px;
-    height: 48px;
+    width: 64px;
+    height: 64px;
     border-radius: 12px;
-    background: rgba(255, 255, 255, 0.03);
+    background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01));
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.5rem;
+    font-size: 2rem;
 }
 
 /* Glass Cards general */
@@ -348,12 +350,18 @@ a {
     background: var(--bg-card);
     backdrop-filter: blur(12px);
     border: 1px solid var(--border-glass);
+    border-top: 2px solid var(--primary);
     padding: 2rem;
     border-radius: 20px;
-    box-shadow: var(--card-shadow);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.45);
     margin-bottom: 2rem;
     position: relative;
     overflow: hidden;
+    transition: var(--transition);
+}
+
+.glass-card:hover {
+    transform: translateY(-3px);
 }
 
 .glass-card::before {
@@ -403,7 +411,7 @@ a {
 
 .btn-primary:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+    box-shadow: 0 0 20px var(--primary-glow);
     background: linear-gradient(135deg, var(--primary-hover), var(--secondary));
 }
 
@@ -438,11 +446,12 @@ a {
 /* Partner Badge */
 .badge {
     display: inline-block;
-    padding: 0.25rem 0.6rem;
+    padding: 0.35rem 0.75rem;
     border-radius: 9999px;
     font-size: 0.75rem;
     font-weight: 700;
     text-transform: uppercase;
+    background-image: linear-gradient(to bottom right, rgba(255,255,255,0.1), rgba(0,0,0,0.1));
 }
 
 .badge-oem {
@@ -633,7 +642,7 @@ a {
 .form-control:focus {
     outline: none;
     border-color: var(--primary);
-    box-shadow: 0 0 12px var(--primary-glow), inset 0 2px 4px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 0 0 3px var(--primary-glow), inset 0 2px 4px rgba(0, 0, 0, 0.15);
     background: rgba(15, 23, 42, 0.9);
 }
 
@@ -694,6 +703,13 @@ select.form-control {
     letter-spacing: 0.05em;
 }
 
+.custom-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background-color: var(--bg-card);
+}
+
 .custom-table td {
     padding: 1rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.03);
@@ -701,8 +717,12 @@ select.form-control {
     color: var(--text-primary);
 }
 
+.custom-table tbody tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.02);
+}
+
 .custom-table tr:hover td {
-    background-color: rgba(255, 255, 255, 0.01);
+    background-color: rgba(255, 255, 255, 0.05);
 }
 
 /* OEM Detail Page layout */
@@ -2208,6 +2228,28 @@ body, aside, main, .glass-card, input, select, textarea, button, .btn {
 }
 @media (max-width: 768px) {
     .sidebar-toggle-btn {
+        display: none;
+    }
+}
+
+/* Sidebar collapse button */
+.sidebar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    gap: 0.5rem;
+}
+
+#sidebar-collapse-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+    #sidebar-collapse-btn {
         display: none;
     }
 }

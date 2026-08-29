@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ contact['company_name'] }} - {{ portal_settings['portal_name'] }}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=3.5">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ portal_settings.get('portal_version', '4.0') }}">
     <link rel="icon" type="image/x-icon" href="{% if portal_settings['favicon'] %}{{ url_for('uploaded_file', filename=portal_settings['favicon']) }}{% else %}{{ url_for('static', filename='favicon.ico') }}{% endif %}">
     <style>
         .portfolio-grid {
@@ -100,7 +100,11 @@
     <div class="app-container">
         
         <!-- Sidebar Navigation -->
-        <aside class="sidebar">
+        <a title="{% if portal_settings['portal_logo'] %}
+                            
+                        {% else %}
+                             {{ portal_settings['portal_name'] }}
+                        {% endif %}"side class="sidebar">
             <div class="sidebar-header">
                 <div class="logo-container" style="display: flex; align-items: center; justify-content: center; max-width: 100%; padding: 6px 0; text-decoration: none; gap: 0.4rem;">
                     <a href="{{ url_for('dashboard') }}" style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.25rem; color: var(--text-primary); letter-spacing: -0.03em; text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
@@ -110,7 +114,7 @@
                             <span>📂</span> {{ portal_settings['portal_name'] }}
                         {% endif %}
                     </a>
-                    <span style="font-size: 0.6rem; color: var(--text-muted); background: rgba(255,255,255,0.05); border: 1px solid var(--border-glass); padding: 0.1rem 0.3rem; border-radius: 4px; font-weight: 700; vertical-align: middle;">v3.1</span>
+                    <span style="font-size: 0.6rem; color: var(--text-muted); background: rgba(255,255,255,0.05); border: 1px solid var(--border-glass); padding: 0.1rem 0.3rem; border-radius: 4px; font-weight: 700; vertical-align: middle;">{{ portal_settings.get('portal_version', 'v4.0') }}</span>
                 </div>
                 <button id="sidebar-collapse-btn" onclick="this.closest('.sidebar').style.display='none';var b=document.getElementById('show-sidebar-btn');if(b)b.style.display='flex';localStorage.setItem('sidebar-collapsed','true');" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:1.1rem;padding:4px 8px;border-radius:6px;transition:all 0.2s;" title="Hide Sidebar">&laquo;</button>
                 <button id="mobile-nav-toggle" class="mobile-toggle-btn">☰</button>
@@ -120,23 +124,23 @@
                 <nav>
                     <ul class="nav-menu">
                         <li class="nav-item">
-                            <a href="{{ url_for('dashboard') }}">
+                            <a title="Dashboard" href="{{ url_for('dashboard') }}">
                                 <span>📊</span> Dashboard
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a href="{{ url_for('oem_news_page') }}">
+                            <a title="OEM News" href="{{ url_for('oem_news_page') }}">
                                 <span>📰</span> OEM News
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a href="{{ url_for('rfps_list') }}">
+                            <a title="RFP Section" href="{{ url_for('rfps_list') }}">
                                 <span>📋</span> RFP Section
                             </a>
                         </li>
                         {% if session['role'] == 'admin' %}
                         <li class="nav-item">
-                            <a href="{{ url_for('admin_panel') }}">
+                            <a title="️ Admin Panel" href="{{ url_for('admin_panel') }}">
                                 <span>🛡️</span> Admin Panel
                             </a>
                         </li>
@@ -144,18 +148,18 @@
                                                 {% set enabled_tools = portal_settings.get('enabled_work_tools', 'unit_converter,currency_calculator,pocket_calculator,cctv_calculator,power_calculator,pdf_converter,cloud_calculator').split(',') %}
                         {% if enabled_tools and enabled_tools[0] != '' %}
                         <li class="nav-item">
-                            <a href="{{ url_for('work_tools') }}">
+                            <a title="️ Work Tools" href="{{ url_for('work_tools') }}">
                                 <span>🛠️</span> Work Tools
                             </a>
                         </li>
                         {% endif %}
 <li class="nav-item" id="install-app-item">
-                            <a href="javascript:void(0)" onclick="installApp()" style="color: #34d399;">
+                            <a title="Install App" href="javascript:void(0)" onclick="installApp()" style="color: #34d399;">
                                 <span>📱</span> Install App
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a href="{{ url_for('logout') }}" style="color: #fca5a5;">
+                            <a title="Sign Out" href="{{ url_for('logout') }}" style="color: #fca5a5;">
                                 <span>🚪</span> Sign Out
                             </a>
                         </li>
@@ -205,7 +209,7 @@
                                 {{ contact['type'] }}
                             </span>
                             {% if not contact['company_logo'] and session['role'] != 'viewer' %}
-                                <button type="button" class="btn btn-secondary btn-sm" onclick="fetchLogoFromInternet({{ contact['id'] }})" id="btn-fetch-logo" style="padding: 0.15rem 0.4rem; font-size: 0.68rem; border-radius: 4px; display: inline-flex; align-items: center; gap: 0.15rem;">
+                                <button title="Fetch Logo" type="button" class="btn btn-secondary btn-sm" onclick="fetchLogoFromInternet({{ contact['id'] }})" id="btn-fetch-logo" style="padding: 0.15rem 0.4rem; font-size: 0.68rem; border-radius: 4px; display: inline-flex; align-items: center; gap: 0.15rem;">
                                     🔍 Fetch Logo
                                 </button>
                             {% endif %}
@@ -216,14 +220,14 @@
                 
                 <div style="display: flex; gap: 0.5rem; align-items: center;">
                     {% if session['role'] != 'viewer' %}
-                        <button type="button" class="btn btn-secondary" onclick="triggerWebRefresh({{ contact['id'] }})" id="btn-sync-clean" style="display: inline-flex; align-items: center; gap: 0.35rem;">
+                        <button title="Sync & Clean" type="button" class="btn btn-secondary" onclick="triggerWebRefresh({{ contact['id'] }})" id="btn-sync-clean" style="display: inline-flex; align-items: center; gap: 0.35rem;">
                             🔄 Sync & Clean
                         </button>
-                        <button class="btn btn-secondary" onclick="openModal('edit-contact-modal')">✏️ Edit Partner</button>
+                        <button title="✏️ Edit Partner" class="btn btn-secondary" onclick="openModal('edit-contact-modal')">✏️ Edit Partner</button>
                     {% endif %}
                     {% if session['role'] == 'admin' %}
                         <form action="{{ url_for('delete_contact', contact_id=contact['id']) }}" method="POST" onsubmit="return confirmMathPuzzle(event);" style="margin: 0;">
-                            <button type="submit" class="btn btn-danger">🗑️ Delete</button>
+                            <button title="️ Delete" type="submit" class="btn btn-danger">🗑️ Delete</button>
                         </form>
                     {% endif %}
                 </div>
@@ -265,10 +269,10 @@
                                     
                                     {% if session['role'] != 'viewer' %}
                                     <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
-                                        <a href="{{ url_for('download_vcf', contact_id=contact['id'], person_index=loop.index0) }}" class="btn btn-secondary btn-sm" style="padding:0.35rem 0.65rem; font-size:0.75rem; border-radius:6px;">
+                                        <a title="Save VCF" href="{{ url_for('download_vcf', contact_id=contact['id'], person_index=loop.index0) }}" class="btn btn-secondary btn-sm" style="padding:0.35rem 0.65rem; font-size:0.75rem; border-radius:6px;">
                                             📥 Save VCF
                                         </a>
-                                        <button type="button" class="btn btn-secondary btn-sm" style="padding:0.35rem 0.65rem; font-size:0.75rem; border-radius:6px;" 
+                                        <button title="Share" type="button" class="btn btn-secondary btn-sm" style="padding:0.35rem 0.65rem; font-size:0.75rem; border-radius:6px;" 
                                                 onclick="shareOnWhatsApp('{{ contact['company_name'] }}', '{{ person['name'] }}', '{{ person['designation'] or '' }}', '{{ person['phone'] or '' }}', '{{ person['email'] or '' }}', '{{ contact['website'] or '' }}')">
                                             💬 Share
                                         </button>
@@ -281,7 +285,7 @@
                         <!-- Company details at bottom -->
                         <div style="margin-top:1.5rem; padding-top:1rem; border-top:1px solid rgba(255,255,255,0.05); font-size:0.85rem; color:var(--text-secondary);">
                             {% if contact['website'] %}
-                                <div style="margin-bottom:0.5rem;"><strong>Website:</strong> <a href="{{ contact['website'] }}" target="_blank" style="color:var(--primary);">{{ contact['website'] }} 🔗</a></div>
+                                <div style="margin-bottom:0.5rem;"><strong>Website:</strong> <a title="{{ contact['website'] }}" href="{{ contact['website'] }}" target="_blank" style="color:var(--primary);">{{ contact['website'] }} 🔗</a></div>
                             {% endif %}
                             {% if contact['address'] %}
                                 <div><strong>Office Address:</strong> <span style="display:block; margin-top:0.25rem; font-size:0.8rem; color:var(--text-secondary);">{{ contact['address'] }}</span></div>
@@ -309,7 +313,7 @@
                                     <div class="card-upload-overlay">
                                         <form action="{{ url_for('upload_card', contact_id=contact['id'], side='front') }}" method="POST" enctype="multipart/form-data">
                                             <input type="file" name="card_image" accept="image/*" style="display:none;" id="front-file-input" onchange="this.form.submit()">
-                                            <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('front-file-input').click()">Replace Front Card</button>
+                                            <button title="Replace Front Card" type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('front-file-input').click()">Replace Front Card</button>
                                         </form>
                                     </div>
                                     {% endif %}
@@ -320,7 +324,7 @@
                                         {% if session['role'] != 'viewer' %}
                                         <form action="{{ url_for('upload_card', contact_id=contact['id'], side='front') }}" method="POST" enctype="multipart/form-data" style="margin-top:0.5rem;">
                                             <input type="file" name="card_image" accept="image/*" style="display:none;" id="front-file-input-new" onchange="this.form.submit()">
-                                            <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('front-file-input-new').click()">Upload Front</button>
+                                            <button title="Upload Front" type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('front-file-input-new').click()">Upload Front</button>
                                         </form>
                                         {% endif %}
                                     </div>
@@ -340,7 +344,7 @@
                                     <div class="card-upload-overlay">
                                         <form action="{{ url_for('upload_card', contact_id=contact['id'], side='back') }}" method="POST" enctype="multipart/form-data">
                                             <input type="file" name="card_image" accept="image/*" style="display:none;" id="back-file-input" onchange="this.form.submit()">
-                                            <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('back-file-input').click()">Replace Back Card</button>
+                                            <button title="Replace Back Card" type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('back-file-input').click()">Replace Back Card</button>
                                         </form>
                                     </div>
                                     {% endif %}
@@ -351,7 +355,7 @@
                                         {% if session['role'] != 'viewer' %}
                                         <form action="{{ url_for('upload_card', contact_id=contact['id'], side='back') }}" method="POST" enctype="multipart/form-data" style="margin-top:0.5rem;">
                                             <input type="file" name="card_image" accept="image/*" style="display:none;" id="back-file-input-new" onchange="this.form.submit()">
-                                            <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('back-file-input-new').click()">Upload Back</button>
+                                            <button title="Upload Back" type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('back-file-input-new').click()">Upload Back</button>
                                         </form>
                                         {% endif %}
                                     </div>
@@ -366,7 +370,7 @@
                         <div class="portfolio-header">
                             <h2 class="card-title" style="margin-bottom:0;">🕸️ Solutions Portfolio</h2>
                             {% if contact['website'] and session['role'] != 'viewer' %}
-                                <button id="btn-scrape-site" class="btn btn-primary btn-sm" onclick="triggerWebsiteScrape({{ contact['id'] }})">
+                                <button title="Fetch Offerings" id="btn-scrape-site" class="btn btn-primary btn-sm" onclick="triggerWebsiteScrape({{ contact['id'] }})">
                                     🔄 Fetch Offerings
                                 </button>
                             {% endif %}
@@ -380,7 +384,7 @@
                             <div id="scrape-meta-container" class="scrape-meta" style="margin-top:0; border-top:none; padding-top:0; margin-bottom:1.25rem;">
                                 {% if fetched_products or fetched_services %}
                                     <p style="font-size:0.8rem; color:var(--text-muted);">
-                                        Last auto-crawl loaded from: <a href="{{ contact['website'] }}" target="_blank" style="color:var(--primary);">{{ contact['website'] }} 🔗</a>
+                                        Last auto-crawl loaded from: <a title="{{ contact['website'] }}" href="{{ contact['website'] }}" target="_blank" style="color:var(--primary);">{{ contact['website'] }} 🔗</a>
                                     </p>
                                 {% else %}
                                     <p style="font-size:0.8rem; color:var(--text-muted);">
@@ -405,7 +409,7 @@
                                 {% if session['role'] != 'viewer' %}
                                 <div class="item-add-box" style="margin-bottom:1rem; display:flex; gap:0.5rem;">
                                     <input type="text" id="new-custom-product-input" class="form-control" placeholder="Add manual product..." style="padding:0.5rem 0.75rem; font-size:0.85rem;">
-                                    <button class="btn btn-primary btn-sm" onclick="addCustomItem({{ contact['id'] }}, 'product')" style="padding:0.4rem 0.8rem;">Add</button>
+                                    <button title="Add" class="btn btn-primary btn-sm" onclick="addCustomItem({{ contact['id'] }}, 'product')" style="padding:0.4rem 0.8rem;">Add</button>
                                 </div>
                                 {% endif %}
                                 
@@ -448,7 +452,7 @@
                                 {% if session['role'] != 'viewer' %}
                                 <div class="item-add-box" style="margin-bottom:1rem; display:flex; gap:0.5rem;">
                                     <input type="text" id="new-custom-service-input" class="form-control" placeholder="Add manual service..." style="padding:0.5rem 0.75rem; font-size:0.85rem;">
-                                    <button class="btn btn-primary btn-sm" onclick="addCustomItem({{ contact['id'] }}, 'service')" style="padding:0.4rem 0.8rem;">Add</button>
+                                    <button title="Add" class="btn btn-primary btn-sm" onclick="addCustomItem({{ contact['id'] }}, 'service')" style="padding:0.4rem 0.8rem;">Add</button>
                                 </div>
                                 {% endif %}
                                 
@@ -491,7 +495,7 @@
                         <div class="portfolio-header">
                             <h2 class="card-title" style="margin-bottom:0;">🗓️ Interaction Log</h2>
                             {% if session['role'] != 'viewer' %}
-                                <button class="btn btn-primary btn-sm" onclick="openModal('add-interaction-modal')">📝 Log Interaction</button>
+                                <button title="Log Interaction" class="btn btn-primary btn-sm" onclick="openModal('add-interaction-modal')">📝 Log Interaction</button>
                             {% endif %}
                         </div>
                         
@@ -531,14 +535,14 @@
                                                 <span>Logged by: {{ log['username'] }}</span>
                                                 <div style="display:flex; gap:0.75rem;">
                                                     {% if session['role'] == 'admin' %}
-                                                        <button type="button" 
+                                                        <button title="Edit" type="button" 
                                                                 style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:0.75rem; padding:0;"
                                                                 onclick="openEditInteractionModal({{ contact['id'] }}, {{ log['id'] }}, '{{ log['interaction_date'] }}', '{{ log['type'].replace('\'', '\\\'') }}', '{{ log['summary'].replace('\'', '\\\'').replace('\n', '\\n').replace('\r', '\\r') }}', '{{ (log['next_steps'] or '').replace('\'', '\\\'') }}', '{{ log['followup_date'] or '' }}')">
                                                             Edit
                                                         </button>
                                                     {% endif %}
                                                     <form action="{{ url_for('delete_interaction', contact_id=contact['id'], interaction_id=log['id']) }}" method="POST" onsubmit="return confirmMathPuzzle(event);" style="margin:0;">
-                                                        <button type="submit" style="background:none; border:none; color:var(--color-alert); cursor:pointer; font-size:0.75rem; padding:0;">Delete</button>
+                                                        <button title="Delete" type="submit" style="background:none; border:none; color:var(--color-alert); cursor:pointer; font-size:0.75rem; padding:0;">Delete</button>
                                                     </form>
                                                 </div>
                                             </div>
@@ -628,14 +632,14 @@
                 <div style="border-top: 1px solid var(--border-glass); margin-top: 1.5rem; padding-top: 1.25rem;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                         <h4 style="font-size: 0.85rem; font-weight: 700; text-transform: uppercase; color: var(--primary); letter-spacing: 0.05em;">Team Contacts</h4>
-                        <button type="button" class="btn btn-secondary btn-sm" onclick="addContactRow('edit-contact-persons-container')">➕ Add Contact</button>
+                        <button title="➕ Add Contact" type="button" class="btn btn-secondary btn-sm" onclick="addContactRow('edit-contact-persons-container')">➕ Add Contact</button>
                     </div>
                     
                     <div id="edit-contact-persons-container">
                         {% for person in contact_persons %}
                             <div class="contact-person-row" style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-glass); padding: 1rem; border-radius: 8px; margin-bottom: 1rem; position: relative;">
                                 {% if loop.index > 1 %}
-                                    <button type="button" class="btn-remove-person" onclick="this.closest('.contact-person-row').remove()" style="position: absolute; top: 0.5rem; right: 0.5rem; background: none; border: none; color: var(--color-alert); font-size: 1.25rem; cursor: pointer; line-height: 1;">✕</button>
+                                    <button title="✕" type="button" class="btn-remove-person" onclick="this.closest('.contact-person-row').remove()" style="position: absolute; top: 0.5rem; right: 0.5rem; background: none; border: none; color: var(--color-alert); font-size: 1.25rem; cursor: pointer; line-height: 1;">✕</button>
                                 {% endif %}
                                 <div class="form-row">
                                     <div class="form-group">
@@ -683,7 +687,7 @@
                 
                 <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 2rem;">
                     <button type="button" class="btn btn-secondary btn-close-modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                    <button title="Save Changes" type="submit" class="btn btn-primary">Save Changes</button>
                 </div>
             </form>
         </div>
@@ -745,7 +749,7 @@
                 
                 <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 2rem;">
                     <button type="button" class="btn btn-secondary btn-close-modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Interaction</button>
+                    <button title="Save Interaction" type="submit" class="btn btn-primary">Save Interaction</button>
                 </div>
             </form>
         </div>
@@ -803,13 +807,13 @@
                 
                 <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 2rem;">
                     <button type="button" class="btn btn-secondary btn-close-modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                    <button title="Save Changes" type="submit" class="btn btn-primary">Save Changes</button>
                 </div>
             </form>
         </div>
     </div>
     
-    <script src="{{ url_for('static', filename='js/main.js') }}?v=3.5"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}?v={{ portal_settings.get('portal_version', '4.0') }}"></script>
     <script>
         function fetchLogoFromInternet(contactId) {
             const btn = document.getElementById('btn-fetch-logo');
@@ -906,7 +910,7 @@
 
     <!-- Sidebar Show Button (appears when sidebar is hidden) -->
     <div id="show-sidebar-btn" style="position:fixed;top:12px;left:0;z-index:9999;display:none;">
-        <button onclick="var s=document.querySelector('.sidebar');s.style.display='';this.parentElement.style.display='none';localStorage.setItem('sidebar-collapsed','false');" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;border:none;border-radius:0 10px 10px 0;width:32px;height:48px;cursor:pointer;box-shadow:2px 0 12px rgba(99,102,241,0.4);font-size:1.4rem;display:flex;align-items:center;justify-content:center;">&raquo;</button>
+        <button title="&raquo;" onclick="var s=document.querySelector('.sidebar');s.style.display='';this.parentElement.style.display='none';localStorage.setItem('sidebar-collapsed','false');" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;border:none;border-radius:0 10px 10px 0;width:32px;height:48px;cursor:pointer;box-shadow:2px 0 12px rgba(99,102,241,0.4);font-size:1.4rem;display:flex;align-items:center;justify-content:center;">&raquo;</button>
     </div>
     <script>
     (function(){

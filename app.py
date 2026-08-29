@@ -11,20 +11,26 @@ from scraper import scrape_oem_website
 
 app = Flask(__name__)
 app.url_map.strict_slashes = False
-app.secret_key = 'presales_oem_distributor_tracker_secret_key_1928'
+import secrets
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', secrets.token_hex(32))
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+if not app.debug:
+    app.config['SESSION_COOKIE_SECURE'] = True
 
 @app.after_request
 def add_header(response):
-    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
-    response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '-1'
+    if request.path.startswith('/static/'):
+        response.headers['Cache-Control'] = 'public, max-age=3600'
+    else:
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '-1'
     # Cyber Security Hardening Headers
     response.headers['X-Frame-Options'] = 'SAMEORIGIN'
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
-    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self';"
+    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self';"
     return response
 
 # Global sync state for non-blocking asynchronous master refresh
@@ -103,13 +109,24 @@ def download_company_logo(website, contact_id, company_name=None):
         clean_name = company_name.strip().lower()
         clean_name = "".join(c for c in clean_name if c.isalnum() or c in ['-'])
         
-        # strip common endings
-        for suffix in ['ltd', 'inc', 'corp', 'limited', 'systems', 'india', 'tech', 'technologies', 'group', 'solutions']:
-            if clean_name.endswith(suffix):
-                clean_name = clean_name[:-len(suffix)].strip('-')
-        
-        if clean_name:
-            domain = clean_name + ".com"
+        domains_to_try = [clean_name + ".com", clean_name + ".co.in", clean_name + ".io"]
+        import requests
+        for test_domain in domains_to_try:
+            try:
+                if requests.head("http://" + test_domain, timeout=2).status_code < 400:
+                    domain = test_domain
+                    break
+            except:
+                pass
+                
+        if not domain:
+            # strip common endings
+            for suffix in ['ltd', 'inc', 'corp', 'limited', 'systems', 'india', 'tech', 'technologies', 'group', 'solutions']:
+                if clean_name.endswith(suffix):
+                    clean_name = clean_name[:-len(suffix)].strip('-')
+            
+            if clean_name:
+                domain = clean_name + ".com"
 
     if not domain:
         return None
@@ -131,7 +148,7 @@ def download_company_logo(website, contact_id, company_name=None):
     for logo_url in sources:
         try:
             response = requests.get(logo_url, headers=headers, timeout=5, verify=False)
-            if response.status_code == 200 and len(response.content) > 150:
+            if response.status_code == 200 and len(response.content) > 500:
                 with open(filepath, 'wb') as out_file:
                     out_file.write(response.content)
                 return filename
@@ -144,7 +161,7 @@ def download_company_logo(website, contact_id, company_name=None):
             req = urllib.request.Request(logo_url, headers=headers)
             with urllib.request.urlopen(req, timeout=4, context=context) as urllib_resp:
                 content = urllib_resp.read()
-                if urllib_resp.status == 200 and len(content) > 150:
+                if urllib_resp.status == 200 and len(content) > 500:
                     with open(filepath, 'wb') as out_file:
                         out_file.write(content)
                     return filename
@@ -179,6 +196,12 @@ def admin_required(f):
             return redirect(url_for('dashboard'))
         return f(*args, **kwargs)
     return decorated_function
+
+@app.before_request
+def csrf_protect():
+    if 'csrf_token' not in session:
+        import secrets
+        session['csrf_token'] = secrets.token_hex(16)
 
 @app.before_request
 def check_rfp_access_lock():
@@ -220,6 +243,7 @@ def inject_global_data():
     settings.setdefault('portal_name', 'OEM Directory')
     settings.setdefault('portal_logo', '')
     settings.setdefault('favicon', '')
+    settings['csrf_token'] = session.get('csrf_token', '')
     
     # Safety fallback: clear database setting if brand image file is missing on disk
     upload_folder = app.config.get('UPLOAD_FOLDER')
@@ -266,12 +290,24 @@ def inject_global_data():
 
 
 # Routes
+import time
+login_attempts = {}
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if is_logged_in():
         return redirect(url_for('dashboard'))
         
     if request.method == 'POST':
+        ip = request.remote_addr
+        now = time.time()
+        if ip in login_attempts:
+            login_attempts[ip] = [t for t in login_attempts[ip] if now - t < 60]
+            if len(login_attempts[ip]) >= 5:
+                flash('Too many login attempts. Please try again later.', 'error')
+                return render_template('login.html')
+        login_attempts.setdefault(ip, []).append(now)
+
         username = request.form['username'].strip()
         password = request.form['password']
         
@@ -2462,6 +2498,9 @@ def admin_auto_update():
                     continue
                     
                 target_path = os.path.join(app.root_path, rel_path)
+                real_target = os.path.realpath(target_path)
+                if not real_target.startswith(os.path.realpath(app.root_path)):
+                    continue  # skip files trying to escape app directory
                 os.makedirs(os.path.dirname(target_path), exist_ok=True)
                 
                 # Write file safely
@@ -2480,6 +2519,27 @@ def admin_auto_update():
             except Exception as pip_err:
                 pip_status = f"Warning: Dependency installation returned error: {pip_err}"
                 
+        # Read current version, increment and update
+        try:
+            conn = database.get_db_connection()
+            ver_row = conn.execute("SELECT value FROM portal_settings WHERE key = 'portal_version'").fetchone()
+            current_ver = ver_row['value'] if ver_row else 'v4.0'
+            import re
+            m = re.match(r'v(\d+)\.(\d+)', current_ver)
+            if m:
+                major, minor = int(m.group(1)), int(m.group(2))
+                new_ver = f"v{major}.{minor + 1}"
+            else:
+                new_ver = 'v4.1'
+            conn.execute("UPDATE portal_settings SET value = ? WHERE key = 'portal_version'", (new_ver,))
+            import datetime
+            conn.execute("INSERT INTO change_logs (version, release_date, features, improvements) VALUES (?, ?, ?, ?)",
+                         (new_ver, datetime.date.today().strftime('%Y-%m-%d'), 'Auto-update applied', 'Minor patch update from codebase push'))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"Failed to bump version: {e}")
+            
         # 4. Trigger WSGI restart for Passenger/cPanel
         try:
             tmp_dir = os.path.join(os.getcwd(), 'tmp')
@@ -4216,10 +4276,18 @@ def run_oem_news_fetch_thread(user_id=None, username=None):
         added_count = 0
         for art in all_articles:
             try:
+                pub_date = art['pub_date']
+                if pub_date:
+                    try:
+                        import email.utils
+                        dt = email.utils.parsedate_to_datetime(pub_date)
+                        pub_date = dt.isoformat()
+                    except Exception:
+                        pass
                 conn.execute("""
                     INSERT OR IGNORE INTO oem_news (oem_name, title, link, pub_date, source, snippet)
                     VALUES (?, ?, ?, ?, ?, ?)
-                """, (art['oem_name'], art['title'], art['link'], art['pub_date'], art['source'], art['snippet']))
+                """, (art['oem_name'], art['title'], art['link'], pub_date, art['source'], art['snippet']))
                 added_count += 1
             except Exception as e:
                 pass
@@ -4243,7 +4311,7 @@ def run_oem_news_fetch_thread(user_id=None, username=None):
 def oem_news_page():
     conn = database.get_db_connection()
     # Fetch all news
-    news_rows = conn.execute("SELECT * FROM oem_news ORDER BY id DESC").fetchall()
+    news_rows = conn.execute("SELECT * FROM oem_news ORDER BY pub_date DESC").fetchall()
     
     # Get list of unique OEMs that have news
     oems_rows = conn.execute("SELECT DISTINCT oem_name FROM oem_news ORDER BY oem_name").fetchall()

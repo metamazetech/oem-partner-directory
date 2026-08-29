@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Panel - {{ portal_settings['portal_name'] }}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=3.5">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ portal_settings.get('portal_version', '4.0') }}">
     <link rel="icon" type="image/x-icon" href="{% if portal_settings['favicon'] %}{{ url_for('uploaded_file', filename=portal_settings['favicon']) }}{% else %}{{ url_for('static', filename='favicon.ico') }}{% endif %}">
     <script>
         window.BASE_URL = "{{ url_for('dashboard') }}";
@@ -27,7 +27,11 @@
     <div class="app-container">
         
         <!-- Sidebar Navigation -->
-        <aside class="sidebar">
+        <a title="{% if portal_settings['portal_logo'] %}
+                            
+                        {% else %}
+                             {{ portal_settings['portal_name'] }}
+                        {% endif %}"side class="sidebar">
             <div class="sidebar-header">
                 <div class="logo-container" style="display: flex; align-items: center; justify-content: center; max-width: 100%; padding: 6px 0; text-decoration: none; gap: 0.4rem;">
                     <a href="{{ url_for('dashboard') }}" style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.25rem; color: var(--text-primary); letter-spacing: -0.03em; text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
@@ -37,7 +41,7 @@
                             <span>📂</span> {{ portal_settings['portal_name'] }}
                         {% endif %}
                     </a>
-                    <span style="font-size: 0.6rem; color: var(--text-muted); background: rgba(255,255,255,0.05); border: 1px solid var(--border-glass); padding: 0.1rem 0.3rem; border-radius: 4px; font-weight: 700; vertical-align: middle;">v3.1</span>
+                    <span style="font-size: 0.6rem; color: var(--text-muted); background: rgba(255,255,255,0.05); border: 1px solid var(--border-glass); padding: 0.1rem 0.3rem; border-radius: 4px; font-weight: 700; vertical-align: middle;">{{ portal_settings.get('portal_version', 'v4.0') }}</span>
                 </div>
                 <button id="sidebar-collapse-btn" onclick="this.closest('.sidebar').style.display='none';var b=document.getElementById('show-sidebar-btn');if(b)b.style.display='flex';localStorage.setItem('sidebar-collapsed','true');" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:1.1rem;padding:4px 8px;border-radius:6px;transition:all 0.2s;" title="Hide Sidebar">&laquo;</button>
                 <button id="mobile-nav-toggle" class="mobile-toggle-btn">☰</button>
@@ -47,40 +51,40 @@
                 <nav>
                     <ul class="nav-menu">
                         <li class="nav-item">
-                            <a href="{{ url_for('dashboard') }}">
+                            <a title="Dashboard" href="{{ url_for('dashboard') }}">
                                 <span>📊</span> Dashboard
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a href="{{ url_for('oem_news_page') }}">
+                            <a title="OEM News" href="{{ url_for('oem_news_page') }}">
                                 <span>📰</span> OEM News
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a href="{{ url_for('rfps_list') }}">
+                            <a title="RFP Section" href="{{ url_for('rfps_list') }}">
                                 <span>📋</span> RFP Section
                             </a>
                         </li>
                         <li class="nav-item active">
-                            <a href="{{ url_for('admin_panel') }}">
+                            <a title="️ Admin Panel" href="{{ url_for('admin_panel') }}">
                                 <span>🛡️</span> Admin Panel
                             </a>
                         </li>
                                                 {% set enabled_tools = portal_settings.get('enabled_work_tools', 'unit_converter,currency_calculator,pocket_calculator,cctv_calculator,power_calculator,pdf_converter,cloud_calculator,subnet_calculator').split(',') %}
                         {% if enabled_tools and enabled_tools[0] != '' %}
                         <li class="nav-item">
-                            <a href="{{ url_for('work_tools') }}">
+                            <a title="️ Work Tools" href="{{ url_for('work_tools') }}">
                                 <span>🛠️</span> Work Tools
                             </a>
                         </li>
                         {% endif %}
 <li class="nav-item" id="install-app-item">
-                            <a href="javascript:void(0)" onclick="installApp()" style="color: #34d399;">
+                            <a title="Install App" href="javascript:void(0)" onclick="installApp()" style="color: #34d399;">
                                 <span>📱</span> Install App
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a href="{{ url_for('logout') }}" style="color: #fca5a5;">
+                            <a title="Sign Out" href="{{ url_for('logout') }}" style="color: #fca5a5;">
                                 <span>🚪</span> Sign Out
                             </a>
                         </li>
@@ -153,7 +157,7 @@
                                                         <option value="admin" {{ 'selected' if u['role'] == 'admin' }}>admin</option>
                                                     </select>
                                                     <input type="text" name="allowed_groups" class="form-control" value="{{ u['allowed_groups'] or 'All' }}" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; width: 140px; height: auto;" placeholder="e.g. Camera, Networking">
-                                                    <button type="submit" class="btn btn-secondary btn-sm" style="padding:0.25rem 0.5rem; font-size:0.75rem; border-radius:4px; height: auto;">Save</button>
+                                                    <button title="Save" type="submit" class="btn btn-secondary btn-sm" style="padding:0.25rem 0.5rem; font-size:0.75rem; border-radius:4px; height: auto;">Save</button>
                                                 </form>
                                             </td>
                                             <td>
@@ -164,16 +168,16 @@
                                             <td style="text-align: right; display: flex; justify-content: flex-end; gap: 0.35rem; align-items: center;">
                                                 {% if u['status'] == 'pending' or u['status'] == 'rejected' %}
                                                     <form action="{{ url_for('approve_user', user_id=u['id']) }}" method="POST" style="margin:0;">
-                                                        <button type="submit" class="btn btn-primary btn-sm" style="padding: 0.3rem 0.5rem; font-size: 0.75rem; border-radius: 4px;">Approve</button>
+                                                        <button title="Approve" type="submit" class="btn btn-primary btn-sm" style="padding: 0.3rem 0.5rem; font-size: 0.75rem; border-radius: 4px;">Approve</button>
                                                     </form>
                                                 {% endif %}
                                                 {% if u['status'] == 'pending' or u['status'] == 'approved' %}
                                                     <form action="{{ url_for('reject_user', user_id=u['id']) }}" method="POST" style="margin:0;">
-                                                        <button type="submit" class="btn btn-secondary btn-sm" style="padding: 0.3rem 0.5rem; font-size: 0.75rem; color: #fca5a5; border-radius: 4px;">Reject</button>
+                                                        <button title="Reject" type="submit" class="btn btn-secondary btn-sm" style="padding: 0.3rem 0.5rem; font-size: 0.75rem; color: #fca5a5; border-radius: 4px;">Reject</button>
                                                     </form>
                                                 {% endif %}
                                                 <form action="{{ url_for('delete_user', user_id=u['id']) }}" method="POST" onsubmit="return confirmMathPuzzle(event);" style="margin:0;">
-                                                    <button type="submit" class="btn btn-danger btn-sm" style="padding: 0.3rem 0.5rem; font-size: 0.75rem; border-radius: 4px;">Delete</button>
+                                                    <button title="Delete" type="submit" class="btn btn-danger btn-sm" style="padding: 0.3rem 0.5rem; font-size: 0.75rem; border-radius: 4px;">Delete</button>
                                                 </form>
                                             </td>
                                         </tr>
@@ -201,7 +205,7 @@
                             <label class="form-label" for="rfp_access_password" style="font-size: 0.8rem;">Access Password</label>
                             <input type="password" id="rfp_access_password" name="rfp_access_password" class="form-control" value="{{ portal_settings.get('rfp_access_password', '') }}" placeholder="Enter password (e.g. RFP@Secure2026)" style="padding: 0.5rem 0.75rem; font-size: 0.85rem;">
                         </div>
-                        <button type="submit" class="btn btn-primary" style="padding: 0.5rem 1.25rem; font-size: 0.85rem; height: 38px;">Save Password</button>
+                        <button title="Save Password" type="submit" class="btn btn-primary" style="padding: 0.5rem 1.25rem; font-size: 0.85rem; height: 38px;">Save Password</button>
                     </form>
                 </div>
             </div>
@@ -235,10 +239,10 @@
                                              </td>
                                              <td style="font-weight: 600; color: var(--text-primary);">{{ group['name'] }}</td>
                                              <td style="text-align: right; display: flex; align-items: center; justify-content: flex-end; gap: 0.25rem;">
-                                                 <button type="button" class="btn btn-secondary btn-sm" onclick="openModal('edit-category-modal-{{ group['id'] }}')" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; border-radius: 4px;">Edit Icon</button>
+                                                 <button title="Edit Icon" type="button" class="btn btn-secondary btn-sm" onclick="openModal('edit-category-modal-{{ group['id'] }}')" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; border-radius: 4px;">Edit Icon</button>
                                                  {% if group['name'].lower() != 'other' %}
                                                      <form action="{{ url_for('admin_delete_category', group_id=group['id']) }}" method="POST" style="margin:0;" onsubmit="return confirmMathPuzzle(event);">
-                                                         <button type="submit" class="btn btn-danger btn-sm" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; border-radius: 4px;">Delete</button>
+                                                         <button title="Delete" type="submit" class="btn btn-danger btn-sm" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; border-radius: 4px;">Delete</button>
                                                      </form>
                                                  {% else %}
                                                      <span style="font-size: 0.75rem; color: var(--text-muted); padding-right: 0.5rem;">Core System</span>
@@ -249,7 +253,7 @@
                                                      <div class="modal-content" style="background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.95)); border: 1px solid var(--border-glass); border-radius: 16px; padding: 1.5rem; width: 90%; max-width: 450px; text-align: left; box-shadow: 0 20px 50px rgba(0,0,0,0.5); margin: 10% auto;">
                                                          <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-glass); padding-bottom: 0.75rem; margin-bottom: 1.25rem;">
                                                              <h3 class="modal-title" style="font-size: 1.15rem; font-weight: 700; color: white; display: flex; align-items: center; gap: 0.35rem; margin: 0;">✏️ Update Icon for {{ group['name'] }}</h3>
-                                                             <button type="button" class="btn-close" onclick="closeModal('edit-category-modal-{{ group['id'] }}')" style="background: none; border: none; color: var(--text-secondary); font-size: 1.15rem; cursor: pointer; line-height: 1;">✕</button>
+                                                             <button title="✕" type="button" class="btn-close" onclick="closeModal('edit-category-modal-{{ group['id'] }}')" style="background: none; border: none; color: var(--text-secondary); font-size: 1.15rem; cursor: pointer; line-height: 1;">✕</button>
                                                          </div>
                                                          <form action="{{ url_for('admin_update_category_icon', group_id=group['id']) }}" method="POST" enctype="multipart/form-data">
                                                              <div class="modal-body">
@@ -271,8 +275,8 @@
                                                                  </div>
                                                              </div>
                                                              <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--border-glass); padding-top: 0.75rem; margin-top: 1.25rem;">
-                                                                 <button type="button" class="btn btn-secondary btn-sm" onclick="closeModal('edit-category-modal-{{ group['id'] }}')">Cancel</button>
-                                                                 <button type="submit" class="btn btn-primary btn-sm">Update Icon</button>
+                                                                 <button title="Cancel" type="button" class="btn btn-secondary btn-sm" onclick="closeModal('edit-category-modal-{{ group['id'] }}')">Cancel</button>
+                                                                 <button title="Update Icon" type="submit" class="btn btn-primary btn-sm">Update Icon</button>
                                                              </div>
                                                          </form>
                                                      </div>
@@ -309,7 +313,7 @@
                                 <input type="file" id="cat_svg" name="icon_svg" class="form-control" accept=".svg">
                             </div>
                             <div style="display: flex; justify-content: flex-end; margin-top: 1rem;">
-                                <button type="submit" class="btn btn-primary btn-sm">Add Category</button>
+                                <button title="Add Category" type="submit" class="btn btn-primary btn-sm">Add Category</button>
                             </div>
                         </form>
                     </div>
@@ -349,7 +353,7 @@
                     </div>
                     
                     <div style="display: flex; justify-content: flex-end; margin-top: 1.5rem;">
-                        <button type="submit" class="btn btn-primary">Create User Account</button>
+                        <button title="Create User Account" type="submit" class="btn btn-primary">Create User Account</button>
                     </div>
                 </form>
             </div>
@@ -430,7 +434,7 @@
                     </div>
                     
                     <div style="display: flex; justify-content: flex-end; margin-top: 1.5rem;">
-                        <button type="submit" class="btn btn-primary">Save Branding Settings</button>
+                        <button title="Save Branding Settings" type="submit" class="btn btn-primary">Save Branding Settings</button>
                     </div>
                 </form>
             </div>
@@ -440,10 +444,10 @@
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 1rem;">
                     <h2 class="card-title" style="margin-bottom: 0;">📜 System Audit Trail</h2>
                     <div style="display: flex; gap: 0.5rem;">
-                        <a href="{{ url_for('export_logs_text') }}" class="btn btn-secondary btn-sm" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem;">
+                        <a title="Export Plain Text" href="{{ url_for('export_logs_text') }}" class="btn btn-secondary btn-sm" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem;">
                             📄 Export Plain Text
                         </a>
-                        <a href="{{ url_for('export_logs_csv') }}" class="btn btn-secondary btn-sm" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem;">
+                        <a title="Export Excel (CSV)" href="{{ url_for('export_logs_csv') }}" class="btn btn-secondary btn-sm" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem;">
                             📊 Export Excel (CSV)
                         </a>
                     </div>
@@ -461,7 +465,7 @@
                         <label style="font-size: 0.72rem; color: var(--text-secondary);">To:</label>
                         <input type="date" name="clear_to" class="form-control" style="font-size: 0.72rem; padding: 0.25rem 0.5rem; width: auto; background: rgba(15,23,42,0.6); border: 1px solid var(--border-glass); color: white;">
                     </div>
-                    <button type="submit" class="btn btn-secondary btn-sm" style="padding: 0.35rem 0.75rem; font-size: 0.72rem; background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.3); color: #fca5a5;" onclick="return confirm('Confirm: Are you sure you want to erase logs within this range? (Leave dates empty to clear all logs).')">
+                    <button title="Erase Logs" type="submit" class="btn btn-secondary btn-sm" style="padding: 0.35rem 0.75rem; font-size: 0.72rem; background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.3); color: #fca5a5;" onclick="return confirm('Confirm: Are you sure you want to erase logs within this range? (Leave dates empty to clear all logs).')">
                         Erase Logs
                     </button>
                 </form>
@@ -500,7 +504,7 @@
                 </div>
                 {% if audit_logs|length > 10 %}
                     <div style="text-align: center; margin-top: 1rem;">
-                        <button type="button" class="btn btn-secondary btn-sm" id="btn-toggle-logs" onclick="toggleMoreLogs()" style="padding: 0.45rem 1.25rem; font-size: 0.78rem; border-radius: 6px;">
+                        <button title="Show More Logs" type="button" class="btn btn-secondary btn-sm" id="btn-toggle-logs" onclick="toggleMoreLogs()" style="padding: 0.45rem 1.25rem; font-size: 0.78rem; border-radius: 6px;">
                             📜 Show More Logs
                         </button>
                     </div>
@@ -568,7 +572,7 @@
                     </div>
                     
                     <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem;">
-                        <button type="submit" class="btn btn-primary">Save Connection Settings</button>
+                        <button title="Save Connection Settings" type="submit" class="btn btn-primary">Save Connection Settings</button>
                     </div>
                 </form>
                 
@@ -593,7 +597,7 @@
                     Sync portfolio catalogs and search branding logos for all added contacts at once. This operation calls the portfolio crawler for each partner concurrently in a parallel thread pool.
                 </p>
                 <form action="{{ url_for('admin_refresh_all_contacts') }}" method="POST" style="margin: 0; display: flex; justify-content: flex-end;">
-                    <button type="submit" class="btn btn-primary" style="display: flex; align-items: center; gap: 0.35rem;">
+                    <button title="Fetch Offerings for All Partners" type="submit" class="btn btn-primary" style="display: flex; align-items: center; gap: 0.35rem;">
                         🔄 Fetch Offerings for All Partners
                     </button>
                 </form>
@@ -606,13 +610,13 @@
                     Download a complete backup zip (contains SQLite database schema/records and all uploaded card photos/logos), or restore the portal from a previously downloaded backup.
                 </p>
                 <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; justify-content: space-between;">
-                    <a href="{{ url_for('download_master_backup') }}" onclick="downloadBackupWithProgress(event, '{{ url_for('download_master_backup') }}')" class="btn btn-secondary" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem;">
+                    <a title="Download Backup (.zip)" href="{{ url_for('download_master_backup') }}" onclick="downloadBackupWithProgress(event, '{{ url_for('download_master_backup') }}')" class="btn btn-secondary" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem;">
                         📥 Download Backup (.zip)
                     </a>
                     
                     <form action="{{ url_for('restore_master_backup') }}" method="POST" enctype="multipart/form-data" onsubmit="uploadRestoreWithProgress(event, this)" style="display: flex; align-items: center; gap: 0.5rem; margin: 0;">
                         <input type="file" name="backup_file" accept=".zip" required class="form-control" style="font-size: 0.78rem; padding: 0.35rem; width: auto; background: rgba(15,23,42,0.6); border: 1px solid var(--border-glass); color: white;">
-                        <button type="submit" class="btn btn-primary">
+                        <button title="Restore Backup" type="submit" class="btn btn-primary">
                             📤 Restore Backup
                         </button>
                     </form>
@@ -647,13 +651,25 @@
                     Upload a new portal codebase `.zip` package. The portal will automatically export a complete backup of the active database and uploads before replacing code files, installing dependencies, and reloading the WSGI server.
                 </p>
                 
-                <form action="{{ url_for('admin_auto_update') }}" method="POST" enctype="multipart/form-data" onsubmit="return confirm('WARNING: Applying a code update will overwrite app files and restart the server. Ensure the ZIP contains a valid, tested codebase. Proceed?');" style="margin: 0; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
-                    <div style="flex: 1; min-width: 250px;">
-                        <input type="file" name="update_file" accept=".zip" required class="form-control" style="font-size: 0.78rem; padding: 0.35rem; background: rgba(15,23,42,0.6); border: 1px solid var(--border-glass); color: white;">
+                <form action="{{ url_for('admin_auto_update') }}" method="POST" enctype="multipart/form-data" onsubmit="event.preventDefault(); uploadUpdateWithProgress();" style="margin: 0;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
+                        <div style="flex: 1; min-width: 250px;">
+                            <input type="file" name="update_file" id="update_file_input" accept=".zip" required class="form-control" style="font-size: 0.78rem; padding: 0.35rem; background: rgba(15,23,42,0.6); border: 1px solid var(--border-glass); color: white;">
+                        </div>
+                        <button title="Backup & Apply Update" type="submit" class="btn btn-primary">
+                            🔄 Backup & Apply Update
+                        </button>
                     </div>
-                    <button type="submit" class="btn btn-primary">
-                        🔄 Backup & Apply Update
-                    </button>
+                    <div id="update-progress-container" style="display: none; margin-top: 1rem;">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 0.25rem;">
+                            <span style="color: var(--text-secondary);">Uploading update...</span>
+                            <span id="update-progress-text" style="color: white; font-weight: bold;">0%</span>
+                        </div>
+                        <div class="progress-bar-container" style="width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+                            <div id="update-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, var(--primary), var(--secondary)); transition: width 0.3s; background-image: linear-gradient(45deg, rgba(255,255,255,0.15) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.15) 50%, rgba(255,255,255,0.15) 75%, transparent 75%, transparent); background-size: 1rem 1rem;"></div>
+                        </div>
+                    </div>
+                    <div id="update-terminal" style="display: none; margin-top: 1rem; background: #111827; color: #10b981; font-family: 'Courier New', Courier, monospace; font-size: 0.85rem; padding: 1rem; border-radius: 8px; max-height: 300px; overflow-y: auto; border: 1px solid #374151; white-space: pre-wrap;"></div>
                 </form>
             </div>
 
@@ -672,7 +688,7 @@
                     <div style="flex: 2; min-width: 250px;">
                         <input type="text" name="url" required placeholder="URL (e.g. https://partner.cisco.com)" class="form-control" style="background: rgba(15,23,42,0.6); border: 1px solid var(--border-glass); color: white;">
                     </div>
-                    <button type="submit" class="btn btn-primary">
+                    <button title="➕ Add Link" type="submit" class="btn btn-primary">
                         ➕ Add Link
                     </button>
                 </form>
@@ -741,7 +757,7 @@
                     </div>
                     
                     <div style="display: flex; justify-content: flex-end;">
-                        <button type="submit" class="btn btn-primary">
+                        <button title="Publish Change Log" type="submit" class="btn btn-primary">
                             📢 Publish Change Log
                         </button>
                     </div>
@@ -780,7 +796,7 @@
                 </p>
                 
                 <form action="{{ url_for('reset_portal') }}" method="POST" onsubmit="return confirmMathPuzzle(event);" style="margin: 0; display: flex; justify-content: flex-end;">
-                    <button type="submit" class="btn btn-danger" style="background: rgba(239, 68, 68, 0.25); border-color: rgba(239, 68, 68, 0.5); color: white;">
+                    <button title="Factory Reset Portal" type="submit" class="btn btn-danger" style="background: rgba(239, 68, 68, 0.25); border-color: rgba(239, 68, 68, 0.5); color: white;">
                         💥 Factory Reset Portal
                     </button>
                 </form>
@@ -789,7 +805,7 @@
         </main>
     </div>
     
-    <script src="{{ url_for('static', filename='js/main.js') }}?v=3.5"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}?v={{ portal_settings.get('portal_version', '4.0') }}"></script>
     <script>
         let logsExpanded = false;
         function toggleMoreLogs() {
@@ -807,7 +823,7 @@
 
     <!-- Sidebar Show Button (appears when sidebar is hidden) -->
     <div id="show-sidebar-btn" style="position:fixed;top:12px;left:0;z-index:9999;display:none;">
-        <button onclick="var s=document.querySelector('.sidebar');s.style.display='';this.parentElement.style.display='none';localStorage.setItem('sidebar-collapsed','false');" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;border:none;border-radius:0 10px 10px 0;width:32px;height:48px;cursor:pointer;box-shadow:2px 0 12px rgba(99,102,241,0.4);font-size:1.4rem;display:flex;align-items:center;justify-content:center;">&raquo;</button>
+        <button title="&raquo;" onclick="var s=document.querySelector('.sidebar');s.style.display='';this.parentElement.style.display='none';localStorage.setItem('sidebar-collapsed','false');" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;border:none;border-radius:0 10px 10px 0;width:32px;height:48px;cursor:pointer;box-shadow:2px 0 12px rgba(99,102,241,0.4);font-size:1.4rem;display:flex;align-items:center;justify-content:center;">&raquo;</button>
     </div>
     <script>
     (function(){

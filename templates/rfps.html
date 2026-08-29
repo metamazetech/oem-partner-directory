@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RFP Section - {{ portal_settings['portal_name'] }}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=3.5">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ portal_settings.get('portal_version', '4.0') }}">
     <link rel="icon" type="image/x-icon" href="{% if portal_settings['favicon'] %}{{ url_for('uploaded_file', filename=portal_settings['favicon']) }}{% else %}{{ url_for('static', filename='favicon.ico') }}{% endif %}">
     <script>
         window.BASE_URL = "{{ url_for('dashboard') }}";
@@ -27,7 +27,11 @@
     <div class="app-container">
         
         <!-- Sidebar Navigation -->
-        <aside class="sidebar">
+        <a title="{% if portal_settings['portal_logo'] %}
+                            
+                        {% else %}
+                             {{ portal_settings['portal_name'] }}
+                        {% endif %}"side class="sidebar">
             <div class="sidebar-header">
                 <div class="logo-container" style="display: flex; align-items: center; justify-content: center; max-width: 100%; padding: 6px 0; text-decoration: none; gap: 0.4rem;">
                     <a href="{{ url_for('dashboard') }}" style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.25rem; color: var(--text-primary); letter-spacing: -0.03em; text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
@@ -37,7 +41,7 @@
                             <span>📂</span> {{ portal_settings['portal_name'] }}
                         {% endif %}
                     </a>
-                    <span style="font-size: 0.6rem; color: var(--text-muted); background: rgba(255,255,255,0.05); border: 1px solid var(--border-glass); padding: 0.1rem 0.3rem; border-radius: 4px; font-weight: 700; vertical-align: middle;">v3.1</span>
+                    <span style="font-size: 0.6rem; color: var(--text-muted); background: rgba(255,255,255,0.05); border: 1px solid var(--border-glass); padding: 0.1rem 0.3rem; border-radius: 4px; font-weight: 700; vertical-align: middle;">{{ portal_settings.get('portal_version', 'v4.0') }}</span>
                 </div>
                 <button id="sidebar-collapse-btn" onclick="this.closest('.sidebar').style.display='none';var b=document.getElementById('show-sidebar-btn');if(b)b.style.display='flex';localStorage.setItem('sidebar-collapsed','true');" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:1.1rem;padding:4px 8px;border-radius:6px;transition:all 0.2s;" title="Hide Sidebar">&laquo;</button>
                 <button id="mobile-nav-toggle" class="mobile-toggle-btn">☰</button>
@@ -47,23 +51,23 @@
                 <nav>
                     <ul class="nav-menu">
                         <li class="nav-item">
-                            <a href="{{ url_for('dashboard') }}">
+                            <a title="Dashboard" href="{{ url_for('dashboard') }}">
                                 <span>📊</span> Dashboard
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a href="{{ url_for('oem_news_page') }}">
+                            <a title="OEM News" href="{{ url_for('oem_news_page') }}">
                                 <span>📰</span> OEM News
                             </a>
                         </li>
                         <li class="nav-item active">
-                            <a href="{{ url_for('rfps_list') }}">
+                            <a title="RFP Section" href="{{ url_for('rfps_list') }}">
                                 <span>📋</span> RFP Section
                             </a>
                         </li>
                         {% if session['role'] == 'admin' %}
                         <li class="nav-item">
-                            <a href="{{ url_for('admin_panel') }}">
+                            <a title="️ Admin Panel" href="{{ url_for('admin_panel') }}">
                                 <span>🛡️</span> Admin Panel
                             </a>
                         </li>
@@ -71,18 +75,18 @@
                                                 {% set enabled_tools = portal_settings.get('enabled_work_tools', 'unit_converter,currency_calculator,pocket_calculator,cctv_calculator,power_calculator,pdf_converter,cloud_calculator').split(',') %}
                         {% if enabled_tools and enabled_tools[0] != '' %}
                         <li class="nav-item">
-                            <a href="{{ url_for('work_tools') }}">
+                            <a title="️ Work Tools" href="{{ url_for('work_tools') }}">
                                 <span>🛠️</span> Work Tools
                             </a>
                         </li>
                         {% endif %}
 <li class="nav-item" id="install-app-item">
-                            <a href="javascript:void(0)" onclick="installApp()" style="color: #34d399;">
+                            <a title="Install App" href="javascript:void(0)" onclick="installApp()" style="color: #34d399;">
                                 <span>📱</span> Install App
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a href="{{ url_for('logout') }}" style="color: #fca5a5;">
+                            <a title="Sign Out" href="{{ url_for('logout') }}" style="color: #fca5a5;">
                                 <span>🚪</span> Sign Out
                             </a>
                         </li>
@@ -112,7 +116,7 @@
                     <p style="color: var(--text-secondary); margin-top: 0.25rem;">Manage RFPs, track document checklists, map BoQ offerings, and upload bidding files.</p>
                 </div>
                 <div>
-                    <button class="btn btn-primary" onclick="openModal('create-rfp-modal')" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px;">
+                    <button title="➕ Create RFP" class="btn btn-primary" onclick="openModal('create-rfp-modal')" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px;">
                         <span>➕</span> Create RFP
                     </button>
                 </div>
@@ -136,7 +140,7 @@
                     <div style="position: relative; flex-grow: 1; display: flex; align-items: center;">
                         <input type="text" name="search" class="form-control" placeholder="🔍 Universal Search: search RFPs by number, contact, BoQ matrix items, checklists, or files..." value="{{ search_query or '' }}" style="width: 100%; padding-left: 2.5rem; background: rgba(15,23,42,0.4); border: 1px solid var(--border-glass);">
                     </div>
-                    <button type="submit" class="btn btn-primary" style="padding: 0.6rem 1.25rem;">Search</button>
+                    <button title="Search" type="submit" class="btn btn-primary" style="padding: 0.6rem 1.25rem;">Search</button>
                     {% if search_query %}
                         <a href="{{ url_for('rfps_list') }}" class="btn btn-secondary" style="text-decoration: none; padding: 0.6rem 1.25rem; display: inline-flex; align-items: center; justify-content: center;">Clear</a>
                     {% endif %}
@@ -145,10 +149,10 @@
             
             <!-- Tabs Navigation -->
             <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-glass); padding-bottom: 0.5rem;">
-                <button type="button" class="tab-btn active" onclick="switchRfpTab('opportunities-view', this)" style="background: none; border: none; color: white; padding: 0.5rem 1rem; font-weight: 600; cursor: pointer; border-bottom: 2px solid var(--primary); transition: all 0.3s; font-size: 0.95rem;">
+                <button title="Opportunities List" type="button" class="tab-btn active" onclick="switchRfpTab('opportunities-view', this)" style="background: none; border: none; color: white; padding: 0.5rem 1rem; font-weight: 600; cursor: pointer; border-bottom: 2px solid var(--primary); transition: all 0.3s; font-size: 0.95rem;">
                     📂 Opportunities List
                 </button>
-                <button type="button" class="tab-btn" onclick="switchRfpTab('oem-mapping-view', this)" style="background: none; border: none; color: var(--text-secondary); padding: 0.5rem 1rem; font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.3s; font-size: 0.95rem;">
+                <button title="OEM Assignment Matrix" type="button" class="tab-btn" onclick="switchRfpTab('oem-mapping-view', this)" style="background: none; border: none; color: var(--text-secondary); padding: 0.5rem 1rem; font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.3s; font-size: 0.95rem;">
                     🤝 OEM Assignment Matrix
                 </button>
             </div>
@@ -171,7 +175,7 @@
                                 {% for rfp in rfps %}
                                     <tr class="rfp-row" data-id="{{ rfp['id'] }}" data-name="{{ rfp['rfp_number'] }}" style="border-bottom: 1px solid rgba(255,255,255,0.03); transition: background 0.2s; cursor: grab;" onmouseover="this.style.background='rgba(99,102,241,0.03)'" onmouseout="this.style.background='transparent'">
                                         <td style="padding: 1rem; font-weight: 700;">
-                                            <a href="{{ url_for('rfp_detail', rfp_id=rfp['id']) }}" style="color: white; text-decoration: none; transition: color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='white'">
+                                            <a title="{{ rfp['rfp_number'] }}" href="{{ url_for('rfp_detail', rfp_id=rfp['id']) }}" style="color: white; text-decoration: none; transition: color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='white'">
                                                 📄 {{ rfp['rfp_number'] }}
                                             </a>
                                         </td>
@@ -193,7 +197,7 @@
                                             <div style="display: inline-flex; gap: 0.4rem; align-items: center; justify-content: flex-end;">
                                                 <a href="{{ url_for('rfp_detail', rfp_id=rfp['id']) }}" class="btn btn-secondary btn-sm" style="text-decoration: none; padding: 0.25rem 0.6rem; font-size: 0.78rem; border-radius: 4px;">Workspace</a>
                                                 <form action="{{ url_for('rfp_delete', rfp_id=rfp['id']) }}" method="POST" style="margin: 0;" onsubmit="return confirmDeleteMatch(event, '{{ rfp['rfp_number'] }}');">
-                                                    <button type="submit" class="btn btn-danger btn-sm" style="padding: 0.25rem 0.6rem; font-size: 0.78rem; border-radius: 4px;">Delete</button>
+                                                    <button title="Delete" type="submit" class="btn btn-danger btn-sm" style="padding: 0.25rem 0.6rem; font-size: 0.78rem; border-radius: 4px;">Delete</button>
                                                 </form>
                                             </div>
                                         </td>
@@ -207,7 +211,7 @@
                         <span style="font-size: 3rem; display: block; margin-bottom: 1rem;">📋</span>
                         <h3 style="margin: 0 0 0.5rem 0; color: white;">No RFP Opportunities Found</h3>
                         <p style="margin: 0 0 1.5rem 0; color: var(--text-secondary); font-size: 0.9rem;">Start by creating your first Request for Proposal opportunity record in the system.</p>
-                        <button class="btn btn-primary" onclick="openModal('create-rfp-modal')" style="padding: 0.5rem 1.25rem; font-size: 0.85rem; border-radius: 8px;">Create RFP</button>
+                        <button title="Create RFP" class="btn btn-primary" onclick="openModal('create-rfp-modal')" style="padding: 0.5rem 1.25rem; font-size: 0.85rem; border-radius: 8px;">Create RFP</button>
                     </div>
                 {% endif %}
             </div>
@@ -221,10 +225,10 @@
                             <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">Track at a glance which RFPs each OEM partner is associated with via product matrix slots or documentation checklists.</p>
                         </div>
                         <div style="display: flex; gap: 0.75rem; align-items: center;">
-                            <button id="toggle-oems-view-btn" onclick="toggleOemsView()" class="btn btn-secondary btn-sm" style="padding: 0.4rem 0.8rem; font-size: 0.8rem; border-radius: 6px;">
+                            <button title="Show All OEMs" id="toggle-oems-view-btn" onclick="toggleOemsView()" class="btn btn-secondary btn-sm" style="padding: 0.4rem 0.8rem; font-size: 0.8rem; border-radius: 6px;">
                                 Show All OEMs
                             </button>
-                            <a href="{{ url_for('export_oem_matrix_csv') }}" class="btn btn-primary btn-sm" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.4rem 0.8rem; font-size: 0.8rem; border-radius: 6px;">
+                            <a title="Export CSV" href="{{ url_for('export_oem_matrix_csv') }}" class="btn btn-primary btn-sm" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.4rem 0.8rem; font-size: 0.8rem; border-radius: 6px;">
                                 📥 Export CSV
                             </a>
                         </div>
@@ -264,7 +268,7 @@
                                                     <div style="display: flex; flex-direction: column; gap: 0.5rem;">
                                                         {% for rfp_map in oem_item['rfps'] %}
                                                             <div style="display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.85rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 0.4rem 0.6rem; border-radius: 6px;">
-                                                                <a href="{{ url_for('rfp_detail', rfp_id=rfp_map['id']) }}" style="color: var(--primary); text-decoration: none; font-weight: 700; white-space: nowrap; transition: color 0.2s;" onmouseover="this.style.color='white'" onmouseout="this.style.color='var(--primary)'">
+                                                                <a title="{{ rfp_map['rfp_number'] }}" href="{{ url_for('rfp_detail', rfp_id=rfp_map['id']) }}" style="color: var(--primary); text-decoration: none; font-weight: 700; white-space: nowrap; transition: color 0.2s;" onmouseover="this.style.color='white'" onmouseout="this.style.color='var(--primary)'">
                                                                     📄 {{ rfp_map['rfp_number'] }}
                                                                 </a>
                                                                 <span style="color: var(--text-secondary); word-break: break-all;">
@@ -300,7 +304,7 @@
         <div class="modal-content" style="background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.95)); border: 1px solid var(--border-glass); border-radius: 16px; padding: 1.5rem; width: 90%; max-width: 550px; text-align: left; box-shadow: 0 20px 50px rgba(0,0,0,0.5); margin: 5% auto;">
             <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-glass); padding-bottom: 0.75rem; margin-bottom: 1.25rem;">
                 <h3 class="modal-title" style="font-size: 1.15rem; font-weight: 700; color: white; display: flex; align-items: center; gap: 0.35rem; margin: 0;">📋 Create New RFP Opportunity</h3>
-                <button type="button" class="btn-close" onclick="closeModal('create-rfp-modal')" style="background: none; border: none; color: var(--text-secondary); font-size: 1.15rem; cursor: pointer; line-height: 1;">✕</button>
+                <button title="✕" type="button" class="btn-close" onclick="closeModal('create-rfp-modal')" style="background: none; border: none; color: var(--text-secondary); font-size: 1.15rem; cursor: pointer; line-height: 1;">✕</button>
             </div>
             
             <form action="{{ url_for('rfp_create') }}" method="POST">
@@ -356,8 +360,8 @@
                 </div>
                 
                 <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--border-glass); padding-top: 0.75rem; margin-top: 1.25rem;">
-                    <button type="button" class="btn btn-secondary btn-sm" onclick="closeModal('create-rfp-modal')">Cancel</button>
-                    <button type="submit" class="btn btn-primary btn-sm">Create RFP</button>
+                    <button title="Cancel" type="button" class="btn btn-secondary btn-sm" onclick="closeModal('create-rfp-modal')">Cancel</button>
+                    <button title="Create RFP" type="submit" class="btn btn-primary btn-sm">Create RFP</button>
                 </div>
             </form>
         </div>
@@ -368,7 +372,7 @@
         <div class="modal-content" style="background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.95)); border: 1px solid var(--border-glass); border-radius: 16px; padding: 1.5rem; width: 90%; max-width: 450px; text-align: left; box-shadow: 0 20px 50px rgba(0,0,0,0.5); margin: 10% auto;">
             <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-glass); padding-bottom: 0.75rem; margin-bottom: 1.25rem;">
                 <h3 class="modal-title" style="font-size: 1.15rem; font-weight: 700; color: white; display: flex; align-items: center; gap: 0.35rem; margin: 0;">⚙️ Personalize Theme</h3>
-                <button type="button" class="btn-close" onclick="closeModal('preferences-modal')" style="background: none; border: none; color: var(--text-secondary); font-size: 1.15rem; cursor: pointer; line-height: 1;">✕</button>
+                <button title="✕" type="button" class="btn-close" onclick="closeModal('preferences-modal')" style="background: none; border: none; color: var(--text-secondary); font-size: 1.15rem; cursor: pointer; line-height: 1;">✕</button>
             </div>
             <div class="modal-body">
                 <form action="{{ url_for('save_preferences') }}" method="POST">
@@ -386,15 +390,15 @@
                         </select>
                     </div>
                     <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.5rem;">
-                        <button type="button" class="btn btn-secondary btn-sm" onclick="closeModal('preferences-modal')">Cancel</button>
-                        <button type="submit" class="btn btn-primary btn-sm">Apply Theme</button>
+                        <button title="Cancel" type="button" class="btn btn-secondary btn-sm" onclick="closeModal('preferences-modal')">Cancel</button>
+                        <button title="Apply Theme" type="submit" class="btn btn-primary btn-sm">Apply Theme</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
     
-    <script src="{{ url_for('static', filename='js/main.js') }}?v=3.5"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}?v={{ portal_settings.get('portal_version', '4.0') }}"></script>
     <script>
         function switchRfpTab(tabId, btn) {
             document.querySelectorAll('.rfp-tab-content').forEach(el => {
@@ -470,7 +474,7 @@
 
     <!-- Sidebar Show Button (appears when sidebar is hidden) -->
     <div id="show-sidebar-btn" style="position:fixed;top:12px;left:0;z-index:9999;display:none;">
-        <button onclick="var s=document.querySelector('.sidebar');s.style.display='';this.parentElement.style.display='none';localStorage.setItem('sidebar-collapsed','false');" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;border:none;border-radius:0 10px 10px 0;width:32px;height:48px;cursor:pointer;box-shadow:2px 0 12px rgba(99,102,241,0.4);font-size:1.4rem;display:flex;align-items:center;justify-content:center;">&raquo;</button>
+        <button title="&raquo;" onclick="var s=document.querySelector('.sidebar');s.style.display='';this.parentElement.style.display='none';localStorage.setItem('sidebar-collapsed','false');" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;border:none;border-radius:0 10px 10px 0;width:32px;height:48px;cursor:pointer;box-shadow:2px 0 12px rgba(99,102,241,0.4);font-size:1.4rem;display:flex;align-items:center;justify-content:center;">&raquo;</button>
     </div>
     <script>
     (function(){

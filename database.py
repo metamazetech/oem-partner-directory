@@ -122,6 +122,7 @@ def init_db():
     cursor.execute("INSERT OR IGNORE INTO portal_settings (key, value) VALUES (?, ?)", ('portal_logo', ''))
     cursor.execute("INSERT OR IGNORE INTO portal_settings (key, value) VALUES (?, ?)", ('favicon', ''))
     cursor.execute("INSERT OR IGNORE INTO portal_settings (key, value) VALUES (?, ?)", ('forgot_password_enabled', 'true'))
+    cursor.execute("INSERT OR IGNORE INTO portal_settings (key, value) VALUES (?, ?)", ('portal_version', 'v4.0'))
     
     # Pre-seed default groups if empty
     cursor.execute("SELECT COUNT(*) FROM oem_groups")
@@ -418,6 +419,11 @@ def init_db():
         VALUES (?, ?)
         ''', ('SYSTEM_INITIALIZATION', 'Default administrator account auto-seeded.'))
         
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_contacts_company ON contacts(company_name)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_oem_news_pubdate ON oem_news(pub_date)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_interactions_status ON interactions(followup_status)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action)')
+    
     conn.commit()
     conn.close()
     print("Database initialized successfully.")

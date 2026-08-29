@@ -2758,3 +2758,67 @@ window.installApp = installApp;
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/static/service-worker.js').catch(function() {});
 }
+
+function uploadUpdateWithProgress() {
+    const fileInput = document.getElementById('update_file_input');
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    if (!confirm('WARNING: Applying a code update will overwrite app files and restart the server. Ensure the ZIP contains a valid, tested codebase. Proceed?')) return;
+
+    const progressContainer = document.getElementById('update-progress-container');
+    const progressBar = document.getElementById('update-progress-bar');
+    const progressText = document.getElementById('update-progress-text');
+    const terminal = document.getElementById('update-terminal');
+
+    progressContainer.style.display = 'block';
+    terminal.style.display = 'block';
+    terminal.innerHTML = '';
+    progressBar.style.width = '0%';
+    progressText.innerText = '0%';
+
+    const formData = new FormData();
+    formData.append('update_file', file);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', getAppUrl('/admin/auto-update'), true);
+
+    xhr.upload.addEventListener('progress', function(e) {
+        if (e.lengthComputable) {
+            const percentComplete = Math.round((e.loaded / e.total) * 100);
+            progressBar.style.width = percentComplete + '%';
+            progressText.innerText = percentComplete + '%';
+        }
+    });
+
+    xhr.onload = function() {
+        let lines = [];
+        try {
+            const response = JSON.parse(xhr.responseText);
+            if (response.status === 'success') {
+                lines = response.message.split('\n');
+            } else {
+                lines = ['Error: ' + response.message];
+            }
+        } catch (err) {
+            lines = ['Error parsing response: ' + xhr.responseText];
+        }
+
+        let i = 0;
+        function typeLine() {
+            if (i < lines.length) {
+                terminal.innerHTML += lines[i] + '<br>';
+                terminal.scrollTop = terminal.scrollHeight;
+                i++;
+                setTimeout(typeLine, 50);
+            }
+        }
+        typeLine();
+    };
+
+    xhr.onerror = function() {
+        terminal.innerHTML += 'Error: Network request failed.<br>';
+    };
+
+    xhr.send(formData);
+}

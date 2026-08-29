@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RFP {{ rfp['rfp_number'] }} Workspace - {{ portal_settings['portal_name'] }}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=3.5">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ portal_settings.get('portal_version', '4.0') }}">
     <link rel="icon" type="image/x-icon" href="{% if portal_settings['favicon'] %}{{ url_for('uploaded_file', filename=portal_settings['favicon']) }}{% else %}{{ url_for('static', filename='favicon.ico') }}{% endif %}">
     <script>
         window.BASE_URL = "{{ url_for('dashboard') }}";
@@ -29,7 +29,11 @@
     <div class="app-container">
         
         <!-- Sidebar Navigation -->
-        <aside class="sidebar">
+        <a title="{% if portal_settings['portal_logo'] %}
+                            
+                        {% else %}
+                             {{ portal_settings['portal_name'] }}
+                        {% endif %}"side class="sidebar">
             <div class="sidebar-header">
                 <div class="logo-container" style="display: flex; align-items: center; justify-content: center; max-width: 100%; padding: 6px 0; text-decoration: none; gap: 0.4rem;">
                     <a href="{{ url_for('dashboard') }}" style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.25rem; color: var(--text-primary); letter-spacing: -0.03em; text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
@@ -39,7 +43,7 @@
                             <span>📂</span> {{ portal_settings['portal_name'] }}
                         {% endif %}
                     </a>
-                    <span style="font-size: 0.6rem; color: var(--text-muted); background: rgba(255,255,255,0.05); border: 1px solid var(--border-glass); padding: 0.1rem 0.3rem; border-radius: 4px; font-weight: 700; vertical-align: middle;">v3.1</span>
+                    <span style="font-size: 0.6rem; color: var(--text-muted); background: rgba(255,255,255,0.05); border: 1px solid var(--border-glass); padding: 0.1rem 0.3rem; border-radius: 4px; font-weight: 700; vertical-align: middle;">{{ portal_settings.get('portal_version', 'v4.0') }}</span>
                 </div>
                 <button id="sidebar-collapse-btn" onclick="this.closest('.sidebar').style.display='none';var b=document.getElementById('show-sidebar-btn');if(b)b.style.display='flex';localStorage.setItem('sidebar-collapsed','true');" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:1.1rem;padding:4px 8px;border-radius:6px;transition:all 0.2s;" title="Hide Sidebar">&laquo;</button>
                 <button id="mobile-nav-toggle" class="mobile-toggle-btn">☰</button>
@@ -49,23 +53,23 @@
                 <nav>
                     <ul class="nav-menu">
                         <li class="nav-item">
-                            <a href="{{ url_for('dashboard') }}">
+                            <a title="Dashboard" href="{{ url_for('dashboard') }}">
                                 <span>📊</span> Dashboard
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a href="{{ url_for('oem_news_page') }}">
+                            <a title="OEM News" href="{{ url_for('oem_news_page') }}">
                                 <span>📰</span> OEM News
                             </a>
                         </li>
                         <li class="nav-item active">
-                            <a href="{{ url_for('rfps_list') }}">
+                            <a title="RFP Section" href="{{ url_for('rfps_list') }}">
                                 <span>📋</span> RFP Section
                             </a>
                         </li>
                         {% if session['role'] == 'admin' %}
                         <li class="nav-item">
-                            <a href="{{ url_for('admin_panel') }}">
+                            <a title="️ Admin Panel" href="{{ url_for('admin_panel') }}">
                                 <span>🛡️</span> Admin Panel
                             </a>
                         </li>
@@ -73,18 +77,18 @@
                                                 {% set enabled_tools = portal_settings.get('enabled_work_tools', 'unit_converter,currency_calculator,pocket_calculator,cctv_calculator,power_calculator,pdf_converter,cloud_calculator').split(',') %}
                         {% if enabled_tools and enabled_tools[0] != '' %}
                         <li class="nav-item">
-                            <a href="{{ url_for('work_tools') }}">
+                            <a title="️ Work Tools" href="{{ url_for('work_tools') }}">
                                 <span>🛠️</span> Work Tools
                             </a>
                         </li>
                         {% endif %}
 <li class="nav-item" id="install-app-item">
-                            <a href="javascript:void(0)" onclick="installApp()" style="color: #34d399;">
+                            <a title="Install App" href="javascript:void(0)" onclick="installApp()" style="color: #34d399;">
                                 <span>📱</span> Install App
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a href="{{ url_for('logout') }}" style="color: #fca5a5;">
+                            <a title="Sign Out" href="{{ url_for('logout') }}" style="color: #fca5a5;">
                                 <span>🚪</span> Sign Out
                             </a>
                         </li>
@@ -136,11 +140,11 @@
             
             <!-- Tabs Navigation -->
             <div style="display: flex; border-bottom: 1px solid var(--border-glass); margin-bottom: 1.5rem; gap: 0.5rem; overflow-x: auto;">
-                <button class="tab-button active" onclick="switchTab(event, 'tab-overview')" style="padding: 0.75rem 1.25rem; background: none; border: none; border-bottom: 2px solid var(--primary); color: white; font-weight: 700; cursor: pointer; font-size: 0.9rem; white-space: nowrap;">⚙️ Overview & Contacts</button>
-                <button class="tab-button" onclick="switchTab(event, 'tab-boq')" style="padding: 0.75rem 1.25rem; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); font-weight: 600; cursor: pointer; font-size: 0.9rem; white-space: nowrap;">📊 BoQ OEM Matrix</button>
-                <button class="tab-button" onclick="switchTab(event, 'tab-checklist')" style="padding: 0.75rem 1.25rem; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); font-weight: 600; cursor: pointer; font-size: 0.9rem; white-space: nowrap;">✓ Document Checklist</button>
-                <button class="tab-button" onclick="switchTab(event, 'tab-documents')" style="padding: 0.75rem 1.25rem; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); font-weight: 600; cursor: pointer; font-size: 0.9rem; white-space: nowrap;">📁 File Uploads (< 40MB)</button>
-                <button class="tab-button" onclick="switchTab(event, 'tab-reminders')" style="padding: 0.75rem 1.25rem; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); font-weight: 600; cursor: pointer; font-size: 0.9rem; white-space: nowrap;">⏰ Reminders & Follow-ups</button>
+                <button title="⚙️ Overview & Contacts" class="tab-button active" onclick="switchTab(event, 'tab-overview')" style="padding: 0.75rem 1.25rem; background: none; border: none; border-bottom: 2px solid var(--primary); color: white; font-weight: 700; cursor: pointer; font-size: 0.9rem; white-space: nowrap;">⚙️ Overview & Contacts</button>
+                <button title="BoQ OEM Matrix" class="tab-button" onclick="switchTab(event, 'tab-boq')" style="padding: 0.75rem 1.25rem; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); font-weight: 600; cursor: pointer; font-size: 0.9rem; white-space: nowrap;">📊 BoQ OEM Matrix</button>
+                <button title="✓ Document Checklist" class="tab-button" onclick="switchTab(event, 'tab-checklist')" style="padding: 0.75rem 1.25rem; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); font-weight: 600; cursor: pointer; font-size: 0.9rem; white-space: nowrap;">✓ Document Checklist</button>
+                <button title="File Uploads (< 40MB)" class="tab-button" onclick="switchTab(event, 'tab-documents')" style="padding: 0.75rem 1.25rem; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); font-weight: 600; cursor: pointer; font-size: 0.9rem; white-space: nowrap;">📁 File Uploads (< 40MB)</button>
+                <button title="⏰ Reminders & Follow-ups" class="tab-button" onclick="switchTab(event, 'tab-reminders')" style="padding: 0.75rem 1.25rem; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); font-weight: 600; cursor: pointer; font-size: 0.9rem; white-space: nowrap;">⏰ Reminders & Follow-ups</button>
             </div>
             
             <!-- TAB 1: OVERVIEW & CONTACT DETAILS -->
@@ -230,7 +234,7 @@
                         </div>
                         
                         <div style="display: flex; justify-content: flex-end;">
-                            <button type="submit" class="btn btn-primary" style="padding: 0.6rem 1.5rem;">Save Overview Details</button>
+                            <button title="Save Overview Details" type="submit" class="btn btn-primary" style="padding: 0.6rem 1.5rem;">Save Overview Details</button>
                         </div>
                     </form>
                 </div>
@@ -280,7 +284,9 @@
                                         <td style="padding: 0.5rem 0.25rem; min-width: 180px;">
                                             <!-- Multi-select dropdown -->
                                             <div class="oem-selector-dropdown" style="position: relative;">
-                                                <button type="button" class="form-control dropdown-toggle-btn" onclick="toggleOemDropdown(this)" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem; text-align: left; display: flex; justify-content: space-between; align-items: center; color: white; width: 100%;">
+                                                <button title="{% if item['selected_oems'] %}{{ item['selected_oems'] }}{% else %}Select OEMs...{% endif %}
+                                                    
+                                                    ▼" type="button" class="form-control dropdown-toggle-btn" onclick="toggleOemDropdown(this)" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem; text-align: left; display: flex; justify-content: space-between; align-items: center; color: white; width: 100%;">
                                                     <span class="selected-oems-text">
                                                         {% if item['selected_oems'] %}{{ item['selected_oems'] }}{% else %}Select OEMs...{% endif %}
                                                     </span>
@@ -309,7 +315,7 @@
                                                     <!-- Add custom OEM input -->
                                                     <div style="display: flex; gap: 0.25rem; margin-top: 0.5rem; padding: 0.25rem 0.5rem; border-top: 1px solid rgba(255,255,255,0.05);">
                                                         <input type="text" class="custom-oem-input" placeholder="Add custom..." style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-glass); border-radius: 4px; padding: 0.25rem; font-size: 0.75rem; color: white; width: 70%;">
-                                                        <button type="button" class="btn btn-primary btn-sm" onclick="addCustomOemCheckbox(this)" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; border-radius: 4px;">+</button>
+                                                        <button title="+" type="button" class="btn btn-primary btn-sm" onclick="addCustomOemCheckbox(this)" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; border-radius: 4px;">+</button>
                                                     </div>
                                                 </div>
                                             </div>
@@ -340,7 +346,7 @@
                                             </select>
                                         </td>
                                         <td style="padding: 0.5rem 0.25rem; text-align: right;">
-                                            <button type="button" onclick="removeBoqRow(this)" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 1.1rem; padding: 0.25rem;">🗑️</button>
+                                            <button title="️" type="button" onclick="removeBoqRow(this)" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 1.1rem; padding: 0.25rem;">🗑️</button>
                                         </td>
                                     </tr>
                                 {% endfor %}
@@ -355,7 +361,8 @@
                                     </td>
                                     <td style="padding: 0.5rem 0.25rem; min-width: 180px;">
                                         <div class="oem-selector-dropdown" style="position: relative;">
-                                            <button type="button" class="form-control dropdown-toggle-btn" onclick="toggleOemDropdown(this)" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem; text-align: left; display: flex; justify-content: space-between; align-items: center; color: white; width: 100%;">
+                                            <button title="Select OEMs...
+                                                ▼" type="button" class="form-control dropdown-toggle-btn" onclick="toggleOemDropdown(this)" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem; text-align: left; display: flex; justify-content: space-between; align-items: center; color: white; width: 100%;">
                                                 <span class="selected-oems-text">Select OEMs...</span>
                                                 <span>▼</span>
                                             </button>
@@ -370,7 +377,7 @@
                                                 </div>
                                                 <div style="display: flex; gap: 0.25rem; margin-top: 0.5rem; padding: 0.25rem 0.5rem; border-top: 1px solid rgba(255,255,255,0.05);">
                                                     <input type="text" class="custom-oem-input" placeholder="Add custom..." style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-glass); border-radius: 4px; padding: 0.25rem; font-size: 0.75rem; color: white; width: 70%;">
-                                                    <button type="button" class="btn btn-primary btn-sm" onclick="addCustomOemCheckbox(this)" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; border-radius: 4px;">+</button>
+                                                    <button title="+" type="button" class="btn btn-primary btn-sm" onclick="addCustomOemCheckbox(this)" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; border-radius: 4px;">+</button>
                                                 </div>
                                             </div>
                                         </div>
@@ -390,7 +397,7 @@
                                         </select>
                                     </td>
                                     <td style="padding: 0.5rem 0.25rem; text-align: right;">
-                                        <button type="button" onclick="removeBoqRow(this)" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 1.1rem; padding: 0.25rem;">🗑️</button>
+                                        <button title="️" type="button" onclick="removeBoqRow(this)" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 1.1rem; padding: 0.25rem;">🗑️</button>
                                     </td>
                                 </tr>
                             {% endif %}
@@ -399,7 +406,7 @@
                     </div>
                     
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-                        <button type="button" class="btn btn-secondary" onclick="addBoqRow()" style="padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 6px;">
+                        <button title="➕ Add Item Row" type="button" class="btn btn-secondary" onclick="addBoqRow()" style="padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 6px;">
                             ➕ Add Item Row
                         </button>
                         <div style="display: flex; gap: 0.75rem; align-items: center;">
@@ -408,14 +415,14 @@
                             </a>
                             <form id="boq-import-form" style="margin: 0; display: inline-flex;">
                                 <input type="file" id="boq-csv-file-input" accept=".csv" required style="display: none;" onchange="submitBoqCsv(this)">
-                                <button type="button" class="btn btn-secondary" onclick="document.getElementById('boq-csv-file-input').click()" style="padding: 0.6rem 1.5rem; border-radius: 8px; display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem;">
+                                <button title="Import BoQ CSV" type="button" class="btn btn-secondary" onclick="document.getElementById('boq-csv-file-input').click()" style="padding: 0.6rem 1.5rem; border-radius: 8px; display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem;">
                                     📤 Import BoQ CSV
                                 </button>
                             </form>
-                            <a href="{{ url_for('rfp_export_boq_csv', rfp_id=rfp['id']) }}" class="btn btn-secondary" style="padding: 0.6rem 1.5rem; text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem; border-radius: 8px; font-size: 0.85rem;">
+                            <a title="Export CSV" href="{{ url_for('rfp_export_boq_csv', rfp_id=rfp['id']) }}" class="btn btn-secondary" style="padding: 0.6rem 1.5rem; text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem; border-radius: 8px; font-size: 0.85rem;">
                                 📥 Export CSV
                             </a>
-                            <button type="button" class="btn btn-primary" onclick="saveBoqMatrix()" style="padding: 0.6rem 1.5rem;">
+                            <button title="Save Matrix Grid" type="button" class="btn btn-primary" onclick="saveBoqMatrix()" style="padding: 0.6rem 1.5rem;">
                                 💾 Save Matrix Grid
                             </button>
                         </div>
@@ -429,7 +436,7 @@
                                 <p style="margin: 0.25rem 0 0 0; font-size: 0.8rem; color: var(--text-secondary);">Track meetings, calls, and email discussions regarding OEM mapping configurations.</p>
                             </div>
                             {% if session['role'] != 'viewer' %}
-                                <button type="button" class="btn btn-primary btn-sm" onclick="openAddRfpInteractionModal('boq')" style="padding: 0.4rem 0.8rem; font-size: 0.8rem; border-radius: 6px;">📝 Log Interaction</button>
+                                <button title="Log Interaction" type="button" class="btn btn-primary btn-sm" onclick="openAddRfpInteractionModal('boq')" style="padding: 0.4rem 0.8rem; font-size: 0.8rem; border-radius: 6px;">📝 Log Interaction</button>
                             {% endif %}
                         </div>
 
@@ -470,7 +477,7 @@
                                             <span>Logged by: {{ log['username'] }}</span>
                                             <div style="display: flex; gap: 0.5rem; align-items: center;">
                                                 <form action="{{ url_for('rfp_interaction_toggle', rfp_id=rfp['id'], interaction_id=log['id']) }}" method="POST" style="margin: 0;">
-                                                    <button type="submit" class="btn btn-secondary btn-sm" style="padding: 0.15rem 0.35rem; font-size: 0.68rem; background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.1); border-radius: 4px;">
+                                                    <button title="{% if log['followup_status'] == 'completed' %}Mark Pending{% else %}Mark Done{% endif %}" type="submit" class="btn btn-secondary btn-sm" style="padding: 0.15rem 0.35rem; font-size: 0.68rem; background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.1); border-radius: 4px;">
                                                         {% if log['followup_status'] == 'completed' %}Mark Pending{% else %}Mark Done{% endif %}
                                                     </button>
                                                 </form>
@@ -505,11 +512,11 @@
                                 </a>
                                 <form id="checklist-import-form" style="display: inline; margin: 0;">
                                     <input type="file" id="checklist-import-file" accept=".csv" onchange="submitChecklistCsv(this)" style="display: none;">
-                                    <button type="button" onclick="document.getElementById('checklist-import-file').click()" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem; border-radius: 6px; padding: 0.45rem 0.85rem; font-size: 0.78rem;">
+                                    <button title="Import Checklist CSV" type="button" onclick="document.getElementById('checklist-import-file').click()" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem; border-radius: 6px; padding: 0.45rem 0.85rem; font-size: 0.78rem;">
                                         📤 Import Checklist CSV
                                     </button>
                                 </form>
-                                <a href="{{ url_for('rfp_export_checklist_csv', rfp_id=rfp['id']) }}" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem; border-radius: 6px; padding: 0.45rem 0.85rem; font-size: 0.78rem; text-decoration: none;">
+                                <a title="Export Checklist CSV" href="{{ url_for('rfp_export_checklist_csv', rfp_id=rfp['id']) }}" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem; border-radius: 6px; padding: 0.45rem 0.85rem; font-size: 0.78rem; text-decoration: none;">
                                     📥 Export Checklist CSV
                                 </a>
                             </div>
@@ -553,7 +560,7 @@
                                                 {% else %}
                                                     <form action="{{ url_for('rfp_checklist_upload_format', rfp_id=rfp['id'], item_id=item['id']) }}" method="POST" enctype="multipart/form-data" style="margin: 0;">
                                                         <input type="file" name="format_file" onchange="this.form.submit()" style="display: none;" id="format-file-{{ item['id'] }}">
-                                                        <button type="button" onclick="document.getElementById('format-file-{{ item['id'] }}').click()" class="btn btn-secondary btn-sm" style="font-size: 0.7rem; padding: 0.25rem 0.5rem; background: transparent; border-color: rgba(255,255,255,0.15); color: var(--text-secondary);">📁 Upload format</button>
+                                                        <button title="Upload format" type="button" onclick="document.getElementById('format-file-{{ item['id'] }}').click()" class="btn btn-secondary btn-sm" style="font-size: 0.7rem; padding: 0.25rem 0.5rem; background: transparent; border-color: rgba(255,255,255,0.15); color: var(--text-secondary);">📁 Upload format</button>
                                                     </form>
                                                 {% endif %}
                                             </td>
@@ -581,12 +588,12 @@
                                                 {% else %}
                                                     <form action="{{ url_for('rfp_checklist_upload_doc', rfp_id=rfp['id'], item_id=item['id']) }}" method="POST" enctype="multipart/form-data" style="margin: 0;">
                                                         <input type="file" name="uploaded_file" onchange="this.form.submit()" style="display: none;" id="upload-file-{{ item['id'] }}">
-                                                        <button type="button" onclick="document.getElementById('upload-file-{{ item['id'] }}').click()" class="btn btn-primary btn-sm" style="font-size: 0.7rem; padding: 0.25rem 0.5rem;">📤 Upload Doc</button>
+                                                        <button title="Upload Doc" type="button" onclick="document.getElementById('upload-file-{{ item['id'] }}').click()" class="btn btn-primary btn-sm" style="font-size: 0.7rem; padding: 0.25rem 0.5rem;">📤 Upload Doc</button>
                                                     </form>
                                                 {% endif %}
                                             </td>
                                             <td style="padding: 0.75rem; text-align: center;">
-                                                <button type="button" onclick="toggleChecklistStatus({{ item['id'] }}, this)" 
+                                                <button title="{{ item['status'] }}" type="button" onclick="toggleChecklistStatus({{ item['id'] }}, this)" 
                                                         class="btn {% if item['status'] == 'Received' %}btn-success{% else %}btn-secondary{% endif %}" 
                                                         style="font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 4px; font-weight: 700; cursor: pointer; white-space: nowrap;">
                                                     {{ item['status'] }}
@@ -597,7 +604,7 @@
                                             </td>
                                             <td style="padding: 0.75rem; text-align: right;">
                                                 <form action="{{ url_for('rfp_checklist_delete', rfp_id=rfp['id'], item_id=item['id']) }}" method="POST" style="margin: 0;" onsubmit="return confirmDeleteMatch(event, 'Checklist row for {{ item['doc_name'] }}');">
-                                                    <button type="submit" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 1rem;">🗑️</button>
+                                                    <button title="️" type="submit" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 1rem;">🗑️</button>
                                                 </form>
                                             </td>
                                         </tr>
@@ -641,7 +648,7 @@
                                 <label class="form-label" for="remarks_input">Remarks (Optional)</label>
                                 <input type="text" id="remarks_input" name="remarks" class="form-control" placeholder="e.g. Awaiting OEM signature" style="background: rgba(15,23,42,0.6); color: white; font-size: 0.85rem;">
                             </div>
-                            <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.5rem; font-size: 0.85rem;">Add to Checklist</button>
+                            <button title="Add to Checklist" type="submit" class="btn btn-primary" style="width: 100%; padding: 0.5rem; font-size: 0.85rem;">Add to Checklist</button>
                         </form>
                     </div>
                     
@@ -653,7 +660,7 @@
                                 <p style="margin: 0.25rem 0 0 0; font-size: 0.8rem; color: var(--text-secondary);">Track calls, meetings, and email follow-ups regarding document checklist submissions.</p>
                             </div>
                             {% if session['role'] != 'viewer' %}
-                                <button type="button" class="btn btn-primary btn-sm" onclick="openAddRfpInteractionModal('checklist')" style="padding: 0.4rem 0.8rem; font-size: 0.8rem; border-radius: 6px;">📝 Log Interaction</button>
+                                <button title="Log Interaction" type="button" class="btn btn-primary btn-sm" onclick="openAddRfpInteractionModal('checklist')" style="padding: 0.4rem 0.8rem; font-size: 0.8rem; border-radius: 6px;">📝 Log Interaction</button>
                             {% endif %}
                         </div>
 
@@ -694,7 +701,7 @@
                                             <span>Logged by: {{ log['username'] }}</span>
                                             <div style="display: flex; gap: 0.5rem; align-items: center;">
                                                 <form action="{{ url_for('rfp_interaction_toggle', rfp_id=rfp['id'], interaction_id=log['id']) }}" method="POST" style="margin: 0;">
-                                                    <button type="submit" class="btn btn-secondary btn-sm" style="padding: 0.15rem 0.35rem; font-size: 0.68rem; background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.1); border-radius: 4px;">
+                                                    <button title="{% if log['followup_status'] == 'completed' %}Mark Pending{% else %}Mark Done{% endif %}" type="submit" class="btn btn-secondary btn-sm" style="padding: 0.15rem 0.35rem; font-size: 0.68rem; background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.1); border-radius: 4px;">
                                                         {% if log['followup_status'] == 'completed' %}Mark Pending{% else %}Mark Done{% endif %}
                                                     </button>
                                                 </form>
@@ -740,7 +747,7 @@
                                 <span id="file-size-warning" style="display: none; font-size: 0.78rem; color: #f87171; margin-top: 0.35rem; font-weight: 600;">⚠️ Selected file is larger than 40 MB. Upload will be rejected.</span>
                             </div>
                             
-                            <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.6rem; font-size: 0.88rem;">Upload File Attachment</button>
+                            <button title="Upload File Attachment" type="submit" class="btn btn-primary" style="width: 100%; padding: 0.6rem; font-size: 0.88rem;">Upload File Attachment</button>
                         </form>
                     </div>
                     
@@ -767,7 +774,7 @@
                                             </div>
                                         </div>
                                         <form action="{{ url_for('rfp_document_delete', rfp_id=rfp['id'], doc_id=doc['id']) }}" method="POST" style="margin: 0; flex-shrink: 0;" onsubmit="return confirmDeleteMatch(event, 'Attachment: {{ doc['original_name'] }}');">
-                                            <button type="submit" style="background: none; border: none; color: #f87171; cursor: pointer; padding: 0.25rem; font-size: 0.95rem;">🗑️</button>
+                                            <button title="️" type="submit" style="background: none; border: none; color: #f87171; cursor: pointer; padding: 0.25rem; font-size: 0.95rem;">🗑️</button>
                                         </form>
                                     </div>
                                 {% endfor %}
@@ -802,7 +809,7 @@
                                 <textarea id="task_description" name="task_description" class="form-control" placeholder="e.g. Request MAF from Cisco manager, check commercial compliance, submit tender fee receipt..." rows="4" required style="background: rgba(15,23,42,0.6); color: white; resize: none;"></textarea>
                             </div>
                             
-                            <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.6rem; font-size: 0.88rem;">💾 Save RFP Reminder</button>
+                            <button title="Save RFP Reminder" type="submit" class="btn btn-primary" style="width: 100%; padding: 0.6rem; font-size: 0.88rem;">💾 Save RFP Reminder</button>
                         </form>
                     </div>
                     
@@ -830,7 +837,7 @@
                                         <div style="display: flex; gap: 0.35rem; align-items: center; flex-shrink: 0;">
                                             <!-- Toggle status button -->
                                             <form action="{{ url_for('rfp_reminder_toggle', rfp_id=rfp['id'], reminder_id=rem['id']) }}" method="POST" style="margin: 0;">
-                                                <button type="submit" class="btn btn-secondary btn-sm" style="padding: 0.25rem 0.5rem; font-size: 0.72rem; display: flex; align-items: center; gap: 0.2rem; background: {% if rem['status'] == 'completed' %}rgba(255,255,255,0.05){% else %}rgba(16, 185, 129, 0.1){% endif %}; color: {% if rem['status'] == 'completed' %}var(--text-secondary){% else %}var(--color-oem){% endif %}; border-color: {% if rem['status'] == 'completed' %}rgba(255,255,255,0.1){% else %}rgba(16, 185, 129, 0.2){% endif %};">
+                                                <button title="{% if rem['status'] == 'completed' %}↩️ Undo{% else %}✓ Done{% endif %}" type="submit" class="btn btn-secondary btn-sm" style="padding: 0.25rem 0.5rem; font-size: 0.72rem; display: flex; align-items: center; gap: 0.2rem; background: {% if rem['status'] == 'completed' %}rgba(255,255,255,0.05){% else %}rgba(16, 185, 129, 0.1){% endif %}; color: {% if rem['status'] == 'completed' %}var(--text-secondary){% else %}var(--color-oem){% endif %}; border-color: {% if rem['status'] == 'completed' %}rgba(255,255,255,0.1){% else %}rgba(16, 185, 129, 0.2){% endif %};">
                                                     {% if rem['status'] == 'completed' %}↩️ Undo{% else %}✓ Done{% endif %}
                                                 </button>
                                             </form>
@@ -861,7 +868,7 @@
         <div class="modal-content" style="background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.95)); border: 1px solid var(--border-glass); border-radius: 16px; padding: 1.5rem; width: 90%; max-width: 450px; text-align: left; box-shadow: 0 20px 50px rgba(0,0,0,0.5); margin: 10% auto;">
             <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-glass); padding-bottom: 0.75rem; margin-bottom: 1.25rem;">
                 <h3 class="modal-title" style="font-size: 1.15rem; font-weight: 700; color: white; display: flex; align-items: center; gap: 0.35rem; margin: 0;">⚙️ Personalize Theme</h3>
-                <button type="button" class="btn-close" onclick="closeModal('preferences-modal')" style="background: none; border: none; color: var(--text-secondary); font-size: 1.15rem; cursor: pointer; line-height: 1;">✕</button>
+                <button title="✕" type="button" class="btn-close" onclick="closeModal('preferences-modal')" style="background: none; border: none; color: var(--text-secondary); font-size: 1.15rem; cursor: pointer; line-height: 1;">✕</button>
             </div>
             <div class="modal-body">
                 <form action="{{ url_for('save_preferences') }}" method="POST">
@@ -879,15 +886,15 @@
                         </select>
                     </div>
                     <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.5rem;">
-                        <button type="button" class="btn btn-secondary btn-sm" onclick="closeModal('preferences-modal')">Cancel</button>
-                        <button type="submit" class="btn btn-primary btn-sm">Apply Theme</button>
+                        <button title="Cancel" type="button" class="btn btn-secondary btn-sm" onclick="closeModal('preferences-modal')">Cancel</button>
+                        <button title="Apply Theme" type="submit" class="btn btn-primary btn-sm">Apply Theme</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
     
-    <script src="{{ url_for('static', filename='js/main.js') }}?v=3.5"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}?v={{ portal_settings.get('portal_version', '4.0') }}"></script>
     <script>
         // 1. Tab Switching Functionality
         function selectTab(tabId) {
@@ -1018,7 +1025,8 @@
                 </td>
                 <td style="padding: 0.5rem 0.25rem; min-width: 180px;">
                     <div class="oem-selector-dropdown" style="position: relative;">
-                        <button type="button" class="form-control dropdown-toggle-btn" onclick="toggleOemDropdown(this)" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem; text-align: left; display: flex; justify-content: space-between; align-items: center; color: white; width: 100%;">
+                        <button title="Select OEMs...
+                            ▼" type="button" class="form-control dropdown-toggle-btn" onclick="toggleOemDropdown(this)" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem; text-align: left; display: flex; justify-content: space-between; align-items: center; color: white; width: 100%;">
                             <span class="selected-oems-text">Select OEMs...</span>
                             <span>▼</span>
                         </button>
@@ -1028,7 +1036,7 @@
                             </div>
                             <div style="display: flex; gap: 0.25rem; margin-top: 0.5rem; padding: 0.25rem 0.5rem; border-top: 1px solid rgba(255,255,255,0.05);">
                                 <input type="text" class="custom-oem-input" placeholder="Add custom..." style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-glass); border-radius: 4px; padding: 0.25rem; font-size: 0.75rem; color: white; width: 70%;">
-                                <button type="button" class="btn btn-primary btn-sm" onclick="addCustomOemCheckbox(this)" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; border-radius: 4px;">+</button>
+                                <button title="+" type="button" class="btn btn-primary btn-sm" onclick="addCustomOemCheckbox(this)" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; border-radius: 4px;">+</button>
                             </div>
                         </div>
                     </div>
@@ -1048,7 +1056,7 @@
                     </select>
                 </td>
                 <td style="padding: 0.5rem 0.25rem; text-align: right;">
-                    <button type="button" onclick="removeBoqRow(this)" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 1.1rem; padding: 0.25rem;">🗑️</button>
+                    <button title="️" type="button" onclick="removeBoqRow(this)" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 1.1rem; padding: 0.25rem;">🗑️</button>
                 </td>
             `;
             tbody.appendChild(newRow);
@@ -1313,7 +1321,7 @@
                     <div style="text-align: center; padding: 3rem;">
                         <span style="font-size: 3rem; display: block; margin-bottom: 1rem;">📁</span>
                         <p style="color: white; margin: 0 0 1.25rem 0;">Preview not available for this file type (${ext.toUpperCase()}).</p>
-                        <a href="${fileUrl}" download class="btn btn-primary btn-sm" style="display: inline-flex; align-items: center; gap: 0.25rem;">📥 Download File</a>
+                        <a title="Download File" href="${fileUrl}" download class="btn btn-primary btn-sm" style="display: inline-flex; align-items: center; gap: 0.25rem;">📥 Download File</a>
                     </div>
                 `;
             }
@@ -1487,7 +1495,7 @@
         <div class="modal-content" style="background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.95)); border: 1px solid var(--border-glass); border-radius: 16px; width: 90%; height: 90%; max-width: 1000px; display: flex; flex-direction: column; box-shadow: 0 25px 60px rgba(0,0,0,0.6); padding: 1.25rem; margin: 2% auto;">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-glass); padding-bottom: 0.75rem; margin-bottom: 1rem;">
                 <h3 id="doc-viewer-title" style="font-size: 1.1rem; font-weight: 700; color: white; display: flex; align-items: center; gap: 0.35rem; margin: 0;">👁️ Document Viewer</h3>
-                <button type="button" onclick="closeDocViewer()" style="background: none; border: none; color: var(--text-secondary); font-size: 1.25rem; cursor: pointer; line-height: 1;">✕</button>
+                <button title="✕" type="button" onclick="closeDocViewer()" style="background: none; border: none; color: var(--text-secondary); font-size: 1.25rem; cursor: pointer; line-height: 1;">✕</button>
             </div>
             <div id="doc-viewer-body" style="flex-grow: 1; display: flex; align-items: center; justify-content: center; overflow: hidden; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.03); border-radius: 8px;">
                 <!-- Content loaded dynamically -->
@@ -1498,7 +1506,7 @@
         <div class="modal-content" style="background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.95)); border: 1px solid var(--border-glass); border-radius: 16px; padding: 1.5rem; width: 90%; max-width: 500px; text-align: left; box-shadow: 0 20px 50px rgba(0,0,0,0.5); margin: 10% auto;">
             <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-glass); padding-bottom: 0.75rem; margin-bottom: 1.25rem;">
                 <h3 id="rfp-interaction-modal-title" style="font-size: 1.15rem; font-weight: 700; color: white; display: flex; align-items: center; gap: 0.35rem; margin: 0;">📝 Log Discussion/Interaction</h3>
-                <button type="button" class="btn-close" onclick="closeModal('add-rfp-interaction-modal')" style="background: none; border: none; color: var(--text-secondary); font-size: 1.15rem; cursor: pointer; line-height: 1;">✕</button>
+                <button title="✕" type="button" class="btn-close" onclick="closeModal('add-rfp-interaction-modal')" style="background: none; border: none; color: var(--text-secondary); font-size: 1.15rem; cursor: pointer; line-height: 1;">✕</button>
             </div>
             
             <form action="{{ url_for('rfp_interaction_add', rfp_id=rfp['id']) }}" method="POST">
@@ -1553,8 +1561,8 @@
                 </div>
                 
                 <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--border-glass); padding-top: 0.75rem; margin-top: 1.25rem;">
-                    <button type="button" class="btn btn-secondary btn-sm" onclick="closeModal('add-rfp-interaction-modal')">Cancel</button>
-                    <button type="submit" class="btn btn-primary btn-sm">Save Interaction Log</button>
+                    <button title="Cancel" type="button" class="btn btn-secondary btn-sm" onclick="closeModal('add-rfp-interaction-modal')">Cancel</button>
+                    <button title="Save Interaction Log" type="submit" class="btn btn-primary btn-sm">Save Interaction Log</button>
                 </div>
             </form>
         </div>
@@ -1562,7 +1570,7 @@
 
     <!-- Sidebar Show Button (appears when sidebar is hidden) -->
     <div id="show-sidebar-btn" style="position:fixed;top:12px;left:0;z-index:9999;display:none;">
-        <button onclick="var s=document.querySelector('.sidebar');s.style.display='';this.parentElement.style.display='none';localStorage.setItem('sidebar-collapsed','false');" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;border:none;border-radius:0 10px 10px 0;width:32px;height:48px;cursor:pointer;box-shadow:2px 0 12px rgba(99,102,241,0.4);font-size:1.4rem;display:flex;align-items:center;justify-content:center;">&raquo;</button>
+        <button title="&raquo;" onclick="var s=document.querySelector('.sidebar');s.style.display='';this.parentElement.style.display='none';localStorage.setItem('sidebar-collapsed','false');" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;border:none;border-radius:0 10px 10px 0;width:32px;height:48px;cursor:pointer;box-shadow:2px 0 12px rgba(99,102,241,0.4);font-size:1.4rem;display:flex;align-items:center;justify-content:center;">&raquo;</button>
     </div>
     <script>
     (function(){

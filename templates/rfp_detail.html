@@ -29,11 +29,7 @@
     <div class="app-container">
         
         <!-- Sidebar Navigation -->
-        <a title="{% if portal_settings['portal_logo'] %}
-                            
-                        {% else %}
-                             {{ portal_settings['portal_name'] }}
-                        {% endif %}"side class="sidebar">
+        <aside class="sidebar">
             <div class="sidebar-header">
                 <div class="logo-container" style="display: flex; align-items: center; justify-content: center; max-width: 100%; padding: 6px 0; text-decoration: none; gap: 0.4rem;">
                     <a href="{{ url_for('dashboard') }}" style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.25rem; color: var(--text-primary); letter-spacing: -0.03em; text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">

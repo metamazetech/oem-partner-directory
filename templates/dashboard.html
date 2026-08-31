@@ -31,11 +31,7 @@
     <div class="app-container">
         
         <!-- Sidebar Navigation -->
-        <a title="{% if portal_settings['portal_logo'] %}
-                            
-                        {% else %}
-                             {{ portal_settings['portal_name'] }}
-                        {% endif %}"side class="sidebar">
+        <aside class="sidebar">
             <div class="sidebar-header">
                 <div class="logo-container" style="display: flex; align-items: center; justify-content: center; max-width: 100%; padding: 6px 0; text-decoration: none; gap: 0.4rem;">
                     <a href="{{ url_for('dashboard') }}" style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.25rem; color: var(--text-primary); letter-spacing: -0.03em; text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
@@ -199,21 +195,12 @@
             </section>
             
             <!-- Dashboard Layout Grid -->
-            <div class="dashboard-layout-grid layout-single-column">
+            <div class="dashboard-layout-grid">
                 
                 <!-- Left Column: Search & Partners Directory -->
                 <div>
                     <!-- Search & Filter Controls -->
-                    <a title="Reminders & Follow-ups
-                    Relationship follow-up tasks due for execution.
-                    
-                    
-                        {% if reminders %}
-                            {% for r in reminders %}
-                                
-                                    
-                                        
-                                            {{ r['company_name'] }}"side class="glass-card" id="reminders-panel-tour" style="margin-bottom: 1.5rem;">
+                    <aside class="glass-card" id="reminders-panel-tour" style="margin-bottom: 1.5rem;">
                     <h2 class="card-title" style="margin-bottom: 0.5rem;">📅 Reminders & Follow-ups</h2>
                     <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.5rem;">Relationship follow-up tasks due for execution.</p>
                     

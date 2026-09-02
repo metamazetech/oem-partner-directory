@@ -123,6 +123,7 @@ def init_db():
     cursor.execute("INSERT OR IGNORE INTO portal_settings (key, value) VALUES (?, ?)", ('favicon', ''))
     cursor.execute("INSERT OR IGNORE INTO portal_settings (key, value) VALUES (?, ?)", ('forgot_password_enabled', 'true'))
     cursor.execute("INSERT OR IGNORE INTO portal_settings (key, value) VALUES (?, ?)", ('portal_version', 'v4.0'))
+    cursor.execute("INSERT OR IGNORE INTO portal_settings (key, value) VALUES (?, ?)", ('session_timeout_minutes', '600'))
     
     # Pre-seed default groups if empty
     cursor.execute("SELECT COUNT(*) FROM oem_groups")

@@ -197,6 +197,20 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+
+@app.before_request
+def make_session_permanent():
+    from datetime import timedelta
+    session.permanent = True
+    try:
+        conn = database.get_db_connection()
+        val = conn.execute("SELECT value FROM portal_settings WHERE key = 'session_timeout_minutes'").fetchone()
+        conn.close()
+        timeout = int(val['value']) if (val and val['value']) else 600
+    except:
+        timeout = 600
+    app.permanent_session_lifetime = timedelta(minutes=timeout)
+
 @app.before_request
 def csrf_protect():
     if 'csrf_token' not in session:
@@ -2584,11 +2598,15 @@ def admin_update_rfp_password():
 @admin_required
 def update_settings():
     portal_name = request.form.get('portal_name', '').strip()
+    session_timeout_minutes = request.form.get('session_timeout_minutes', '').strip()
     
     conn = database.get_db_connection()
     
     if portal_name:
         conn.execute('INSERT OR REPLACE INTO portal_settings (key, value) VALUES (?, ?)', ('portal_name', portal_name))
+        
+    if session_timeout_minutes and session_timeout_minutes.isdigit():
+        conn.execute('INSERT OR REPLACE INTO portal_settings (key, value) VALUES (?, ?)', ('session_timeout_minutes', session_timeout_minutes))
         
     # Handle logo file upload
     if 'portal_logo' in request.files:

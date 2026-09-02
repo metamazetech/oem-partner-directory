@@ -237,7 +237,14 @@
                     
                     <!-- Vendor Profile Panel -->
                     <div class="glass-card">
-                        <h2 class="card-title">👥 Team Contacts</h2>
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                            <h2 class="card-title" style="margin-bottom:0;">👥 Team Contacts</h2>
+                            {% if contact_persons %}
+                            <button class="btn btn-secondary btn-sm" onclick="shareAllContacts()" style="padding: 0.35rem 0.75rem; font-size: 0.75rem; display:flex; align-items:center; gap:0.4rem;">
+                                <span>🔗</span> Share All
+                            </button>
+                            {% endif %}
+                        </div>
                         
                         <div style="display:flex; flex-direction:column; gap:1rem;">
                             {% for person in contact_persons %}
@@ -366,7 +373,7 @@
                         <div class="portfolio-header">
                             <h2 class="card-title" style="margin-bottom:0;">🕸️ Solutions Portfolio</h2>
                             {% if contact['website'] and session['role'] != 'viewer' %}
-                                <button title="Fetch Offerings" id="btn-scrape-site" class="btn btn-primary btn-sm" onclick="triggerWebsiteScrape({{ contact['id'] }})">
+                                <button type="button" title="Fetch Offerings" id="btn-scrape-site" class="btn btn-primary btn-sm" onclick="triggerWebsiteScrape(event, {{ contact['id'] }})">
                                     🔄 Fetch Offerings
                                 </button>
                             {% endif %}
@@ -405,7 +412,7 @@
                                 {% if session['role'] != 'viewer' %}
                                 <div class="item-add-box" style="margin-bottom:1rem; display:flex; gap:0.5rem;">
                                     <input type="text" id="new-custom-product-input" class="form-control" placeholder="Add manual product..." style="padding:0.5rem 0.75rem; font-size:0.85rem;">
-                                    <button title="Add" class="btn btn-primary btn-sm" onclick="addCustomItem({{ contact['id'] }}, 'product')" style="padding:0.4rem 0.8rem;">Add</button>
+                                    <button type="button" title="Add" class="btn btn-primary btn-sm" onclick="addCustomItem(event, {{ contact['id'] }}, 'product')" style="padding:0.4rem 0.8rem;">Add</button>
                                 </div>
                                 {% endif %}
                                 
@@ -448,7 +455,7 @@
                                 {% if session['role'] != 'viewer' %}
                                 <div class="item-add-box" style="margin-bottom:1rem; display:flex; gap:0.5rem;">
                                     <input type="text" id="new-custom-service-input" class="form-control" placeholder="Add manual service..." style="padding:0.5rem 0.75rem; font-size:0.85rem;">
-                                    <button title="Add" class="btn btn-primary btn-sm" onclick="addCustomItem({{ contact['id'] }}, 'service')" style="padding:0.4rem 0.8rem;">Add</button>
+                                    <button type="button" title="Add" class="btn btn-primary btn-sm" onclick="addCustomItem(event, {{ contact['id'] }}, 'service')" style="padding:0.4rem 0.8rem;">Add</button>
                                 </div>
                                 {% endif %}
                                 

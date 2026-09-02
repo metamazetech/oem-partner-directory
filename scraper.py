@@ -145,7 +145,16 @@ def scrape_oem_website(url, company_name=None):
             for s in fallback["services"]:
                 if s not in result["services"]:
                     result["services"].append(s)
-                    
+        else:
+            open_fallback = search_open_internet_offerings(company_name)
+            if open_fallback:
+                for p in open_fallback.get("products", []):
+                    if p not in result["products"]:
+                        result["products"].append(p)
+                for s in open_fallback.get("services", []):
+                    if s not in result["services"]:
+                        result["services"].append(s)
+
     # Double-check default fallbacks if still empty
     if not result["products"] and not result["services"]:
         result["products"] = ["Enterprise Systems Infrastructure", "Software Licenses & Maintenance", "Technology Modules"]

@@ -149,8 +149,11 @@ document.addEventListener('DOMContentLoaded', () => {
     initExportInterceptors();
 });
 
-// Trigger AJAX Website Scraper on OEM detail page
-function triggerWebsiteScrape(contactId) {
+// Trigger AJAX Website Scrape on OEM detail page
+function triggerWebsiteScrape(event, contactId) {
+    if (event) {
+        event.preventDefault();
+    }
     const btn = document.getElementById('btn-scrape-site');
     const productsList = document.getElementById('fetched-products-list');
     const servicesList = document.getElementById('fetched-services-list');
@@ -292,7 +295,10 @@ function triggerWebsiteScrape(contactId) {
 }
 
 // Add Custom Portfolio Item (Product or Service)
-function addCustomItem(contactId, itemType) {
+function addCustomItem(event, contactId, itemType) {
+    if (event) {
+        event.preventDefault();
+    }
     const input = document.getElementById(`new-custom-${itemType}-input`);
     const list = document.getElementById(`fetched-${itemType}s-list`);
     

@@ -166,7 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
         sidebar.style.flexDirection = 'column';
         
         // Fetch the HTML panel
-        fetch('/api/reminders/panel')
+        fetch(getAppUrl('/api/reminders/panel'))
             .then(res => res.text())
             .then(html => {
                 remindersWrapper.innerHTML = html;
@@ -2562,7 +2562,7 @@ window.uploadRestoreWithProgress = uploadRestoreWithProgress;
 
 /* Dynamic User Reminders Popup Alerts */
 function checkUserReminders() {
-    fetch('/user/reminders/pending')
+    fetch(getAppUrl('/user/reminders/pending'))
         .then(response => {
             if (!response.ok) return;
             return response.json();
@@ -2669,7 +2669,7 @@ function completeReminder(reminderId, btn) {
     btn.disabled = true;
     btn.innerHTML = 'Updating...';
     
-    fetch(`/user/reminders/${reminderId}/complete`, {
+    fetch(getAppUrl(`/user/reminders/${reminderId}/complete`), {
         method: 'POST'
     })
     .then(res => res.json())

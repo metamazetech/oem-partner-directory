@@ -142,10 +142,17 @@
     </style>
     {% endif %}
 </head>
+
+    <!-- Mobile Hamburger Toggle -->
+    <button id="global-mobile-toggle" class="mobile-toggle-btn" onclick="document.querySelector('.sidebar').classList.toggle('menu-open')" style="display: none;">☰</button>
 <body class="{{ theme }}">
     
 {% set enabled_tools = portal_settings.get('enabled_work_tools', 'unit_converter,currency_calculator,pocket_calculator,cctv_calculator,power_calculator,pdf_converter,cloud_calculator,subnet_calculator').split(',') %}
     <div class="app-container">
+
+    <!-- Mobile Hamburger Toggle -->
+    <button id="global-mobile-toggle" class="mobile-toggle-btn" onclick="document.querySelector('.sidebar').classList.toggle('menu-open')" style="display: none;">☰</button>
+
         
         <!-- Sidebar Navigation -->
         <aside class="sidebar">

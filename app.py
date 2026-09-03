@@ -202,8 +202,9 @@ def admin_required(f):
 def make_session_permanent():
     from datetime import timedelta
     session.permanent = True
+    session.modified = True
     try:
-        conn = database.get_db_connection()
+        conn = get_db_connection()
         val = conn.execute("SELECT value FROM portal_settings WHERE key = 'session_timeout_minutes'").fetchone()
         conn.close()
         timeout = int(val['value']) if (val and val['value']) else 600

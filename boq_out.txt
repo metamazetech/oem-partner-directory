@@ -1,0 +1,135 @@
+<tbody id="boq-matrix-tbody">
+                            {% if boq_matrix %}
+                                {% for item in boq_matrix %}
+                                    <tr class="boq-row" style="border-bottom: 1px solid rgba(255,255,255,0.03);">
+                                        <td style="padding: 0.5rem 0.25rem;">
+                                            <input type="text" class="form-control boq-item-name" value="{{ item['item_name'] }}" placeholder="e.g. Next-Gen Firewall Layer-7" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem;" required>
+                                        </td>
+                                        <td style="padding: 0.5rem 0.25rem;">
+                                            <input type="number" class="form-control boq-item-qty" value="{{ item['quantity'] }}" min="1" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem; text-align: center;" required>
+                                        </td>
+                                        <td style="padding: 0.5rem 0.25rem; min-width: 180px;">
+                                            <!-- Multi-select dropdown -->
+                                            <div class="oem-selector-dropdown" style="position: relative;">
+                                                <button title="{% if item['selected_oems'] %}{{ item['selected_oems'] }}{% else %}Select OEMs...{% endif %}
+                                                    
+                                                    ▼" type="button" class="form-control dropdown-toggle-btn" onclick="toggleOemDropdown(this)" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem; text-align: left; display: flex; justify-content: space-between; align-items: center; color: white; width: 100%;">
+                                                    <span class="selected-oems-text">
+                                                        {% if item['selected_oems'] %}{{ item['selected_oems'] }}{% else %}Select OEMs...{% endif %}
+                                                    </span>
+                                                    <span>▼</span>
+                                                </button>
+                                                <div class="oem-dropdown-menu" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #1e293b; border: 1px solid var(--border-glass); border-radius: 8px; z-index: 100; max-height: 180px; overflow-y: auto; padding: 0.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+                                                    <!-- Seeded Directory OEMs -->
+                                                    {% set selected_oems_list = (item['selected_oems'] or '').split(', ') %}
+                                                    <div class="checkbox-list">
+                                                        {% for oem in directory_oems %}
+                                                            <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.5rem; color: white; font-size: 0.85rem; cursor: pointer; border-radius: 4px;">
+                                                                <input type="checkbox" class="oem-checkbox" value="{{ oem }}" {% if oem in selected_oems_list %}checked{% endif %} onchange="updateSelectedOemsText(this)">
+                                                                <span>{{ oem }}</span>
+                                                            </label>
+                                                        {% endfor %}
+                                                        <!-- Custom OEMs that were saved but aren't in directory_oems -->
+                                                        {% for oem in selected_oems_list %}
+                                                            {% if oem and oem not in directory_oems %}
+                                                                <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.5rem; color: white; font-size: 0.85rem; cursor: pointer; border-radius: 4px;">
+                                                                    <input type="checkbox" class="oem-checkbox" value="{{ oem }}" checked onchange="updateSelectedOemsText(this)">
+                                                                    <span>{{ oem }}</span>
+                                                                </label>
+                                                            {% endif %}
+                                                        {% endfor %}
+                                                    </div>
+                                                    <!-- Add custom OEM input -->
+                                                    <div style="display: flex; gap: 0.25rem; margin-top: 0.5rem; padding: 0.25rem 0.5rem; border-top: 1px solid rgba(255,255,255,0.05);">
+                                                        <input type="text" class="custom-oem-input" placeholder="Add custom..." style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-glass); border-radius: 4px; padding: 0.25rem; font-size: 0.75rem; color: white; width: 70%;">
+                                                        <button title="+" type="button" class="btn btn-primary btn-sm" onclick="addCustomOemCheckbox(this)" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; border-radius: 4px;">+</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td style="padding: 0.5rem 0.25rem; min-width: 200px;">
+                                            <!-- Document Received Checkboxes list -->
+                                            <div class="oem-doc-checklist-container" style="display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 0.5rem; width: 100%; max-width: 250px; padding-bottom: 4px; white-space: nowrap;">
+                                                {% if item['selected_oems'] %}
+                                                    {% set docs_recd_list = (item['oems_doc_status'] or '').split(', ') %}
+                                                    {% for oem in selected_oems_list %}
+                                                        {% if oem %}
+                                                            <label style="display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.75rem; color: #a5b4fc; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); padding: 0.15rem 0.35rem; border-radius: 4px; cursor: pointer; margin-top: 0.2rem;">
+                                                                <input type="checkbox" class="oem-doc-received-checkbox" value="{{ oem }}" {% if oem in docs_recd_list %}checked{% endif %}>
+                                                                <span>{{ oem }} Doc Recd</span>
+                                                            </label>
+                                                        {% endif %}
+                                                    {% endfor %}
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                        <td style="padding: 0.5rem 0.25rem;">
+                                            <input type="text" class="form-control boq-item-remarks" value="{{ item['remarks'] or '' }}" placeholder="Remarks (serves all selected OEMs)..." style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem;">
+                                        </td>
+                                        <td style="padding: 0.5rem 0.25rem;">
+                                            <select class="form-control boq-item-doc-required" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem; padding: 0.4rem 0.6rem;">
+                                                <option value="Yes" {% if item['document_required'] == 'Yes' %}selected{% endif %}>Yes</option>
+                                                <option value="No" {% if item['document_required'] == 'No' or not item['document_required'] %}selected{% endif %}>No</option>
+                                            </select>
+                                        </td>
+                                        <td style="padding: 0.5rem 0.25rem; text-align: right;">
+                                            <button title="️" type="button" onclick="removeBoqRow(this)" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 1.1rem; padding: 0.25rem;">🗑️</button>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            {% else %}
+                                <!-- Seed one empty row if matrix is empty -->
+                                <tr class="boq-row" style="border-bottom: 1px solid rgba(255,255,255,0.03);">
+                                    <td style="padding: 0.5rem 0.25rem;">
+                                        <input type="text" class="form-control boq-item-name" placeholder="e.g. Core Layer-3 Switch" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem;" required>
+                                    </td>
+                                    <td style="padding: 0.5rem 0.25rem;">
+                                        <input type="number" class="form-control boq-item-qty" value="1" min="1" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem; text-align: center;" required>
+                                    </td>
+                                    <td style="padding: 0.5rem 0.25rem; min-width: 180px;">
+                                        <div class="oem-selector-dropdown" style="position: relative;">
+                                            <button title="Select OEMs...
+                                                ▼" type="button" class="form-control dropdown-toggle-btn" onclick="toggleOemDropdown(this)" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem; text-align: left; display: flex; justify-content: space-between; align-items: center; color: white; width: 100%;">
+                                                <span class="selected-oems-text">Select OEMs...</span>
+                                                <span>▼</span>
+                                            </button>
+                                            <div class="oem-dropdown-menu" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #1e293b; border: 1px solid var(--border-glass); border-radius: 8px; z-index: 100; max-height: 180px; overflow-y: auto; padding: 0.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+                                                <div class="checkbox-list">
+                                                    {% for oem in directory_oems %}
+                                                        <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.5rem; color: white; font-size: 0.85rem; cursor: pointer; border-radius: 4px;">
+                                                            <input type="checkbox" class="oem-checkbox" value="{{ oem }}" onchange="updateSelectedOemsText(this)">
+                                                            <span>{{ oem }}</span>
+                                                        </label>
+                                                    {% endfor %}
+                                                </div>
+                                                <div style="display: flex; gap: 0.25rem; margin-top: 0.5rem; padding: 0.25rem 0.5rem; border-top: 1px solid rgba(255,255,255,0.05);">
+                                                    <input type="text" class="custom-oem-input" placeholder="Add custom..." style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-glass); border-radius: 4px; padding: 0.25rem; font-size: 0.75rem; color: white; width: 70%;">
+                                                    <button title="+" type="button" class="btn btn-primary btn-sm" onclick="addCustomOemCheckbox(this)" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; border-radius: 4px;">+</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td style="padding: 0.5rem 0.25rem; min-width: 200px;">
+                                        <!-- Document Received Checkboxes list -->
+                                        <div class="oem-doc-checklist-container" style="display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 0.5rem; width: 100%; max-width: 250px; padding-bottom: 4px; white-space: nowrap;">
+                                        </div>
+                                    </td>
+                                    <td style="padding: 0.5rem 0.25rem;">
+                                        <input type="text" class="form-control boq-item-remarks" placeholder="Remarks (serves all selected OEMs)..." style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem;">
+                                    </td>
+                                    <td style="padding: 0.5rem 0.25rem;">
+                                        <select class="form-control boq-item-doc-required" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem; padding: 0.4rem 0.6rem;">
+                                            <option value="Yes">Yes</option>
+                                            <option value="No" selected>No</option>
+                                        </select>
+                                    </td>
+                                    <td style="padding: 0.5rem 0.25rem; text-align: right;">
+                                        <button title="️" type="button" onclick="removeBoqRow(this)" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 1.1rem; padding: 0.25rem;">🗑️</button>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                    </div>
+                    
+              

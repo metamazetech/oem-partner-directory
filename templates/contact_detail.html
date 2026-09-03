@@ -95,9 +95,16 @@
     </style>
     {% endif %}
 </head>
+
+    <!-- Mobile Hamburger Toggle -->
+    <button id="global-mobile-toggle" class="mobile-toggle-btn" onclick="document.querySelector('.sidebar').classList.toggle('menu-open')" style="display: none;">☰</button>
 <body class="{{ session.get('theme', 'theme-slate-dark') }}">
     
     <div class="app-container">
+
+    <!-- Mobile Hamburger Toggle -->
+    <button id="global-mobile-toggle" class="mobile-toggle-btn" onclick="document.querySelector('.sidebar').classList.toggle('menu-open')" style="display: none;">☰</button>
+
         
         <!-- Sidebar Navigation -->
         <aside class="sidebar">

@@ -85,6 +85,12 @@
             </div>
             
             <div class="nav-container">
+                <form action="{{ url_for('universal_search') }}" method="GET" style="padding: 0.5rem 1rem;">
+                    <div style="display: flex; gap: 0.5rem; position: relative;">
+                        <input type="text" name="q" placeholder="Universal Search..." style="width: 100%; padding: 0.4rem 0.5rem 0.4rem 2rem; border-radius: 6px; border: 1px solid var(--border-glass); background: rgba(15,23,42,0.6); color: white; font-size: 0.85rem;" required>
+                        <span style="position: absolute; left: 0.5rem; top: 50%; transform: translateY(-50%); font-size: 0.9rem; pointer-events: none;">🔍</span>
+                    </div>
+                </form>
                 <nav>
                     <ul class="nav-menu">
                         <li class="nav-item">
@@ -219,8 +225,11 @@
                                         <td style="padding: 1rem; color: var(--text-primary);">
                                             {{ rfp['pre_bid_date'] if rfp['pre_bid_date'] else 'N/A' }}
                                         </td>
-                                        <td style="padding: 1rem; color: var(--text-primary);">
+                                        <td style="padding: 1rem; color: var(--text-primary);" class="rfp-submission-date" data-date="{{ rfp['submission_date'] }}">
                                             {{ rfp['submission_date'] if rfp['submission_date'] else 'N/A' }}
+                                            {% if rfp['submission_date'] %}
+                                                <div class="countdown-badge" style="margin-top: 0.25rem; font-size: 0.75rem; background: rgba(59, 130, 246, 0.15); color: #93c5fd; padding: 0.1rem 0.4rem; border-radius: 4px; display: inline-block;">⏳ Calculating...</div>
+                                            {% endif %}
                                         </td>
                                         <td style="padding: 1rem;">
                                             {% if rfp['contact_name'] %}
@@ -522,6 +531,39 @@
             if(b) b.style.display='block';
         }
     })();
+
+    // RFP Countdown Timer
+    function updateCountdowns() {
+        document.querySelectorAll('.rfp-submission-date').forEach(function(td) {
+            const dateStr = td.getAttribute('data-date');
+            if (!dateStr || dateStr === 'None' || dateStr === '') return;
+            const badge = td.querySelector('.countdown-badge');
+            if (!badge) return;
+
+            const targetDate = new Date(dateStr + "T23:59:59");
+            const now = new Date();
+            const diff = targetDate - now;
+
+            if (diff < 0) {
+                badge.innerHTML = "⏳ Passed";
+                badge.style.background = "rgba(239, 68, 68, 0.15)";
+                badge.style.color = "#fca5a5";
+            } else {
+                const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                badge.innerHTML = "⏳ " + days + " Days, " + hours + " Hrs Left";
+                if (days <= 3) {
+                    badge.style.background = "rgba(245, 158, 11, 0.15)";
+                    badge.style.color = "var(--color-warning)";
+                } else {
+                    badge.style.background = "rgba(59, 130, 246, 0.15)";
+                    badge.style.color = "#93c5fd";
+                }
+            }
+        });
+    }
+    updateCountdowns();
+    setInterval(updateCountdowns, 60000); // update every minute
     </script>
 </body>
 </html>

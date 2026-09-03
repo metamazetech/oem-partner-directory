@@ -112,6 +112,11 @@
                         <input type="password" id="password" name="password" class="form-control" placeholder="Enter password" required>
                     </div>
                     
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label" for="captcha">Solve: {{ captcha_question }}*</label>
+                        <input type="text" id="captcha" name="captcha" class="form-control" placeholder="Answer" required>
+                    </div>
+
                     {% if portal_settings.get('forgot_password_enabled') == 'true' %}
                         <div style="text-align: right; margin-top: -0.5rem; margin-bottom: 1rem;">
                             <a title="Forgot Password?" href="javascript:void(0)" onclick="openForgotPasswordModal()" style="font-size: 0.8rem; color: var(--primary); text-decoration: none; font-weight: 500;">

@@ -85,6 +85,12 @@
             </div>
             
             <div class="nav-container">
+                <form action="{{ url_for('universal_search') }}" method="GET" style="padding: 0.5rem 1rem;">
+                    <div style="display: flex; gap: 0.5rem; position: relative;">
+                        <input type="text" name="q" placeholder="Universal Search..." style="width: 100%; padding: 0.4rem 0.5rem 0.4rem 2rem; border-radius: 6px; border: 1px solid var(--border-glass); background: rgba(15,23,42,0.6); color: white; font-size: 0.85rem;" required>
+                        <span style="position: absolute; left: 0.5rem; top: 50%; transform: translateY(-50%); font-size: 0.9rem; pointer-events: none;">🔍</span>
+                    </div>
+                </form>
                 <nav>
                     <ul class="nav-menu">
                         <li class="nav-item">

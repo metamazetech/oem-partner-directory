@@ -12,7 +12,15 @@ from scraper import scrape_oem_website
 app = Flask(__name__)
 app.url_map.strict_slashes = False
 import secrets
-app.secret_key = os.environ.get('FLASK_SECRET_KEY', secrets.token_hex(32))
+# Persistent Secret Key Logic
+SECRET_KEY_FILE = '.secret_key'
+if os.path.exists(SECRET_KEY_FILE):
+    with open(SECRET_KEY_FILE, 'r') as f:
+        app.secret_key = f.read().strip()
+else:
+    app.secret_key = os.environ.get('FLASK_SECRET_KEY', secrets.token_hex(32))
+    with open(SECRET_KEY_FILE, 'w') as f:
+        f.write(app.secret_key)
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 if not app.debug:
@@ -135,9 +143,10 @@ def download_company_logo(website, contact_id, company_name=None):
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     
     # List of public logo/favicon API services
+    # We will prioritize Google since Clearbit often fails or returns placeholder blocks
     sources = [
-        f"https://logo.clearbit.com/{domain}",
         f"https://www.google.com/s2/favicons?sz=128&domain={domain}",
+        f"https://logo.clearbit.com/{domain}",
         f"https://icons.duckduckgo.com/ip3/{domain}.ico"
     ]
     
@@ -314,13 +323,18 @@ def login():
         return redirect(url_for('dashboard'))
         
     if request.method == 'POST':
+        user_captcha = request.form.get('captcha', '').strip()
+        if str(user_captcha) != str(session.get('captcha_answer', '')):
+            flash('Invalid captcha. Please try again.', 'error')
+            return redirect(url_for('login'))
+
         ip = request.remote_addr
         now = time.time()
         if ip in login_attempts:
             login_attempts[ip] = [t for t in login_attempts[ip] if now - t < 60]
             if len(login_attempts[ip]) >= 5:
                 flash('Too many login attempts. Please try again later.', 'error')
-                return render_template('login.html')
+                return redirect(url_for('login'))
         login_attempts.setdefault(ip, []).append(now)
 
         username = request.form['username'].strip()
@@ -351,7 +365,12 @@ def login():
         else:
             flash('Invalid username or password.', 'error')
             
-    return render_template('login.html')
+    import random
+    num1 = random.randint(1, 10)
+    num2 = random.randint(1, 10)
+    session['captcha_answer'] = str(num1 + num2)
+    captcha_question = f"{num1} + {num2} = ?"
+    return render_template('login.html', captcha_question=captcha_question)
 
 @app.route('/register', methods=['POST'])
 def register():
@@ -518,6 +537,43 @@ def serve_service_worker():
     response = send_from_directory('static', 'service-worker.js', mimetype='application/javascript')
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     return response
+@app.route('/search')
+@login_required
+def universal_search():
+    query = request.args.get('q', '').strip()
+    if not query:
+        return redirect(url_for('dashboard'))
+        
+    conn = database.get_db_connection()
+    search_pattern = f"%{query}%"
+    
+    contacts = conn.execute('''
+        SELECT id, company_name as title, type as subtitle, 'Contact' as category, group_name as extra
+        FROM contacts 
+        WHERE company_name LIKE ? OR group_name LIKE ? OR fetched_products LIKE ? OR fetched_services LIKE ? OR custom_products LIKE ? OR custom_services LIKE ? OR contact_persons LIKE ?
+    ''', (search_pattern,)*7).fetchall()
+    
+    news = conn.execute('''
+        SELECT id, title, oem_name as subtitle, 'News' as category, link as extra
+        FROM oem_news
+        WHERE title LIKE ? OR snippet LIKE ? OR oem_name LIKE ?
+    ''', (search_pattern,)*3).fetchall()
+    
+    rfps = conn.execute('''
+        SELECT id, rfp_number as title, customer_name as subtitle, 'RFP' as category, opportunity_from as extra
+        FROM rfps
+        WHERE rfp_number LIKE ? OR customer_name LIKE ? OR title LIKE ?
+    ''', (search_pattern,)*3).fetchall()
+    
+    conn.close()
+    
+    results = {
+        'Contacts': [dict(r) for r in contacts],
+        'News': [dict(r) for r in news],
+        'RFPs': [dict(r) for r in rfps]
+    }
+    
+    return render_template('search_results.html', query=query, results=results, portal_settings=get_portal_settings())
 
 @app.route('/')
 @login_required
@@ -1487,7 +1543,7 @@ def admin_update_category_icon(group_id):
     return redirect(url_for('admin_panel'))
 
 # Export Partners to CSV (Respecting allowed groups)
-@app.route('/export/csv')
+@app.route('/export')
 @login_required
 def export_csv():
     if session.get('role') == 'viewer':
@@ -1510,13 +1566,14 @@ def export_csv():
     
     import csv
     import io
+    import datetime
     output = io.StringIO()
     writer = csv.writer(output)
     
     # CSV Headers
     writer.writerow([
         'Company Name', 'Type', 'OEM Group', 'Website', 'Address', 
-        'Contact Name', 'Designation', 'Email', 'Phone'
+        'Contact Persons (Name | Designation | Email | Phone)'
     ])
     
     export_rows_count = 0
@@ -1527,29 +1584,41 @@ def export_csv():
         except Exception:
             persons = []
             
+        contact_strs = []
         if persons:
             for p in persons:
-                writer.writerow([
-                    c['company_name'], c['type'], c['group_name'] or '', c['website'] or '', c['address'] or '',
-                    p.get('name') or '', p.get('designation') or '', p.get('email') or '', p.get('phone') or ''
-                ])
-                export_rows_count += 1
+                name = p.get('name') or ''
+                desig = p.get('designation') or ''
+                email = p.get('email') or ''
+                phone = p.get('phone') or ''
+                contact_strs.append(f"{name} | {desig} | {email} | {phone}")
         else:
-            writer.writerow([
-                c['company_name'], c['type'], c['group_name'] or '', c['website'] or '', c['address'] or '',
-                c['name'] or '', c['designation'] or '', c['email'] or '', c['phone'] or ''
-            ])
-            export_rows_count += 1
+            name = c['name'] or ''
+            desig = c['designation'] or ''
+            email = c['email'] or ''
+            phone = c['phone'] or ''
+            if any([name, desig, email, phone]):
+                contact_strs.append(f"{name} | {desig} | {email} | {phone}")
+                
+        writer.writerow([
+            c['company_name'], c['type'], c['group_name'] or '', c['website'] or '', c['address'] or '',
+            " ; ".join(contact_strs)
+        ])
+        export_rows_count += 1
             
     output.seek(0)
     
     # Audit log tracking for exports
     log_audit('CSV_EXPORT', f"Exported partner directory as CSV (Total contacts exported: {export_rows_count}).")
+    
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M")
+    filename = f"OEM_Export_{timestamp}.csv"
+    
     from flask import Response
     return Response(
         output.getvalue(),
         mimetype="text/csv",
-        headers={"Content-disposition": "attachment; filename=partners_export.csv"}
+        headers={"Content-disposition": f"attachment; filename={filename}"}
     )
 
 # Download CSV Import Template
@@ -2137,18 +2206,11 @@ def run_master_sync_thread(user_id, username):
                 existing_products = []
                 existing_services = []
             
-            if cleaned_website:
-                from scraper import scrape_oem_website
-                scraped = scrape_oem_website(cleaned_website, cleaned_company)
-                if scraped:
-                    scraped_products = scraped.get('products', [])
-                    scraped_services = scraped.get('services', [])
-            
-            # Fallback to search open internet if scrape failed or returned very few items
-            if len(scraped_products) < 3 or len(scraped_services) < 3:
+            if cleaned_website or cleaned_company:
                 try:
                     from scraper import search_open_internet_offerings
-                    search_results = search_open_internet_offerings(cleaned_company)
+                    domain = cleaned_website if cleaned_website else cleaned_company
+                    search_results = search_open_internet_offerings(domain)
                     for p in search_results.get('products', []):
                         if p not in scraped_products:
                             scraped_products.append(p)
@@ -2221,7 +2283,7 @@ def run_master_sync_thread(user_id, username):
     except Exception as e:
         print(f"Audit log completion error: {e}")
 
-@app.route('/admin/refresh-all-contacts', methods=['POST'])
+@app.route('/admin/fetch-all-offerings', methods=['POST'])
 @admin_required
 def admin_refresh_all_contacts():
     global master_sync_in_progress
@@ -4587,13 +4649,78 @@ def user_pending_reminders():
         reminders.append({
             "id": row['id'],
             "followup_date": row['followup_date'],
-            "next_steps": row['next_steps'] or row['summary'],
+            "task": row['next_steps'] or row['summary'],
             "company_name": row['company_name'],
             "contact_id": row['contact_id']
         })
         
+    # Fetch rfp reminders
+    rfp_reminders_rows = conn.execute('''
+        SELECT r.id, r.reminder_date, r.task_description, r.status, f.rfp_number, f.id as rfp_id, 'manual_reminder' as source
+        FROM rfp_reminders r
+        JOIN rfps f ON r.rfp_id = f.id
+        WHERE r.status = 'pending'
+        UNION ALL
+        SELECT i.id, i.followup_date as reminder_date, ('[' || UPPER(i.section) || '] ' || i.next_steps) as task_description, i.followup_status as status, f.rfp_number, f.id as rfp_id, 'interaction_followup' as source
+        FROM rfp_interactions i
+        JOIN rfps f ON i.rfp_id = f.id
+        WHERE i.followup_status = 'pending' AND i.followup_date IS NOT NULL AND i.followup_date != ''
+        ORDER BY reminder_date ASC
+    ''').fetchall()
+    
+    rfp_reminders = []
+    for row in rfp_reminders_rows:
+        rfp_reminders.append({
+            "id": row['id'],
+            "reminder_date": row['reminder_date'],
+            "task_description": row['task_description'],
+            "rfp_number": row['rfp_number'],
+            "rfp_id": row['rfp_id'],
+            "source": row['source']
+        })
+
     conn.close()
-    return jsonify({"status": "success", "reminders": reminders})
+    return jsonify({"status": "success", "reminders": reminders, "rfp_reminders": rfp_reminders})
+
+@app.route('/api/reminders/panel')
+@login_required
+def reminders_panel():
+    user_id = session.get('user_id')
+    import datetime
+    today_str = datetime.date.today().strftime('%Y-%m-%d')
+    conn = database.get_db_connection()
+    user_row = conn.execute('SELECT allowed_groups FROM users WHERE id = ?', (user_id,)).fetchone()
+    allowed_groups = user_row['allowed_groups'] if user_row else 'All'
+    
+    all_reminders = conn.execute('''
+        SELECT i.id, i.followup_date, i.next_steps as task, c.company_name, c.group_name, c.id as contact_id, u.username as assigned_to
+        FROM interactions i
+        JOIN contacts c ON i.contact_id = c.id
+        JOIN users u ON i.user_id = u.id
+        WHERE i.followup_date IS NOT NULL AND i.followup_date != '' AND i.followup_status = 'pending'
+        ORDER BY i.followup_date ASC
+    ''').fetchall()
+    
+    if allowed_groups.lower() != 'all':
+        groups_list = [g.strip().lower() for g in allowed_groups.split(',')]
+        reminders = [r for r in all_reminders if (r['group_name'] or '').strip().lower() in groups_list]
+    else:
+        reminders = list(all_reminders)
+        
+    rfp_reminders = conn.execute('''
+        SELECT r.id, r.reminder_date, r.task_description, r.status, f.rfp_number, f.id as rfp_id, 'manual_reminder' as source
+        FROM rfp_reminders r
+        JOIN rfps f ON r.rfp_id = f.id
+        WHERE r.status = 'pending'
+        UNION ALL
+        SELECT i.id, i.followup_date as reminder_date, ('[' || UPPER(i.section) || '] ' || i.next_steps) as task_description, i.followup_status as status, f.rfp_number, f.id as rfp_id, 'interaction_followup' as source
+        FROM rfp_interactions i
+        JOIN rfps f ON i.rfp_id = f.id
+        WHERE i.followup_status = 'pending' AND i.followup_date IS NOT NULL AND i.followup_date != ''
+        ORDER BY reminder_date ASC
+    ''').fetchall()
+    conn.close()
+    return render_template('reminders_panel.html', reminders=reminders, rfp_reminders=rfp_reminders, today_str=today_str)
 
 @app.route('/user/reminders/<int:interaction_id>/complete', methods=['POST'])
 @login_required

@@ -8,6 +8,8 @@
     <link rel="icon" type="image/x-icon" href="{% if portal_settings['favicon'] %}{{ url_for('uploaded_file', filename=portal_settings['favicon']) }}{% else %}{{ url_for('static', filename='favicon.ico') }}{% endif %}">
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/gridstack@7.2.1/dist/gridstack.min.css" rel="stylesheet"/>
+    <script src="https://cdn.jsdelivr.net/npm/gridstack@7.2.1/dist/gridstack-all.js"></script>
     <script>
         window.BASE_URL = "{{ url_for('dashboard') }}";
         window.USER_PREFERENCES = {{ session.get('dashboard_layout', '{}') | safe }};
@@ -89,6 +91,12 @@
             </div>
             
             <div class="nav-container">
+                <form action="{{ url_for('universal_search') }}" method="GET" style="padding: 0.5rem 1rem;">
+                    <div style="display: flex; gap: 0.5rem; position: relative;">
+                        <input type="text" name="q" placeholder="Universal Search..." style="width: 100%; padding: 0.4rem 0.5rem 0.4rem 2rem; border-radius: 6px; border: 1px solid var(--border-glass); background: rgba(15,23,42,0.6); color: white; font-size: 0.85rem;" required>
+                        <span style="position: absolute; left: 0.5rem; top: 50%; transform: translateY(-50%); font-size: 0.9rem; pointer-events: none;">🔍</span>
+                    </div>
+                </form>
                 <nav>
                     <ul class="nav-menu">
                         <li class="nav-item active">
@@ -204,36 +212,54 @@
             </div>
             
             <!-- Statistical Cards -->
-            <section class="stats-grid">
-                <div class="stat-card">
-                    <div>
-                        <span class="stat-label">Total Partners</span>
-                        <div id="stat-total-partners" class="stat-number">{{ stats['total'] }}</div>
+            <section class="stats-grid grid-stack">
+                <div class="stat-card grid-stack-item" gs-w="3" gs-h="1">
+                    <div class="grid-stack-item-content" style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span class="stat-label">Total Partners</span>
+                            <div id="stat-total-partners" class="stat-number">{{ stats['total'] }}</div>
+                        </div>
+                        <div class="stat-icon" style="color: var(--primary);">👥</div>
                     </div>
-                    <div class="stat-icon" style="color: var(--primary);">👥</div>
                 </div>
-                <div class="stat-card">
-                    <div>
-                        <span class="stat-label">OEMs</span>
-                        <div id="stat-oems" class="stat-number">{{ stats['oems'] }}</div>
+                <div class="stat-card grid-stack-item" gs-w="3" gs-h="1">
+                    <div class="grid-stack-item-content" style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span class="stat-label">OEMs</span>
+                            <div id="stat-oems" class="stat-number">{{ stats['oems'] }}</div>
+                        </div>
+                        <div class="stat-icon" style="color: var(--color-oem);">🏢</div>
                     </div>
-                    <div class="stat-icon" style="color: var(--color-oem);">🏢</div>
                 </div>
-                <div class="stat-card">
-                    <div>
-                        <span class="stat-label">Distributors</span>
-                        <div id="stat-distributors" class="stat-number">{{ stats['distributors'] }}</div>
+                <div class="stat-card grid-stack-item" gs-w="3" gs-h="1">
+                    <div class="grid-stack-item-content" style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span class="stat-label">Distributors</span>
+                            <div id="stat-distributors" class="stat-number">{{ stats['distributors'] }}</div>
+                        </div>
+                        <div class="stat-icon" style="color: var(--color-distributor);">🚚</div>
                     </div>
-                    <div class="stat-icon" style="color: var(--color-distributor);">🚚</div>
                 </div>
-                <div class="stat-card">
-                    <div>
-                        <span class="stat-label">Interactions</span>
-                        <div class="stat-number">{{ stats['interactions'] }}</div>
+                <div class="stat-card grid-stack-item" gs-w="3" gs-h="1">
+                    <div class="grid-stack-item-content" style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span class="stat-label">Interactions</span>
+                            <div class="stat-number">{{ stats['interactions'] }}</div>
+                        </div>
+                        <div class="stat-icon" style="color: var(--secondary);">📝</div>
                     </div>
-                    <div class="stat-icon" style="color: var(--secondary);">📝</div>
                 </div>
             </section>
+            
+            <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    GridStack.init({
+                        cellHeight: '80px',
+                        margin: 15,
+                        column: 12
+                    }, '.grid-stack');
+                });
+            </script>
             
             <!-- Dashboard Layout Grid -->
             <div class="dashboard-layout-grid">
@@ -241,89 +267,7 @@
                 <!-- Left Column: Search & Partners Directory -->
                 <div>
                     <!-- Search & Filter Controls -->
-                    <aside class="glass-card" id="reminders-panel-tour" style="margin-bottom: 1.5rem;">
-                    <h2 class="card-title" style="margin-bottom: 0.5rem;">📅 Reminders & Follow-ups</h2>
-                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.5rem;">Relationship follow-up tasks due for execution.</p>
-                    
-                    <div style="display: flex; flex-direction: column; gap: 1rem;">
-                        {% if reminders %}
-                            {% for r in reminders %}
-                                <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-glass); border-radius: 12px; padding: 1rem; position: relative;">
-                                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem; gap: 0.5rem;">
-                                        <a href="{{ url_for('contact_detail', contact_id=r['contact_id']) }}" style="font-weight: 700; color: var(--text-primary); font-size: 0.9rem; text-decoration: none;">
-                                            {{ r['company_name'] }} 🔗
-                                        </a>
-                                        
-                                        <!-- Follow-up Due Badge -->
-                                        {% if r['followup_date'] < today_str %}
-                                            <span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.3); font-size: 0.65rem; padding: 0.1rem 0.35rem;">Overdue</span>
-                                        {% elif r['followup_date'] == today_str %}
-                                            <span class="badge" style="background: rgba(245, 158, 11, 0.15); color: var(--color-warning); border: 1px solid rgba(245, 158, 11, 0.3); font-size: 0.65rem; padding: 0.1rem 0.35rem;">Today</span>
-                                        {% else %}
-                                            <span class="badge" style="background: rgba(59, 130, 246, 0.15); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.3); font-size: 0.65rem; padding: 0.1rem 0.35rem;">Upcoming</span>
-                                        {% endif %}
-                                    </div>
-                                    
-                                    <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4; margin-bottom: 0.75rem;">
-                                        <strong>Task:</strong> {{ r['task'] or 'Follow up relationship' }}
-                                    </p>
-                                    
-                                    <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.03); padding-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted);">
-                                        <span>📅 Due: {{ r['followup_date'] }}</span>
-                                        <form action="{{ url_for('complete_followup', interaction_id=r['id']) }}" method="POST" style="margin: 0;">
-                                            <button title="✓ Done" type="submit" class="btn btn-secondary btn-sm" style="padding: 0.25rem 0.5rem; font-size: 0.65rem; background: rgba(16, 185, 129, 0.1); color: var(--color-oem); border-color: rgba(16, 185, 129, 0.2); border-radius: 4px;">✓ Done</button>
-                                        </form>
-                                    </div>
-                                </div>
-                            {% endfor %}
-                        {% else %}
-                            <div style="text-align: center; padding: 2rem 1rem; border: 1px dashed var(--border-glass); border-radius: 12px; color: var(--text-muted); font-size: 0.8rem;">
-                                All caught up! No pending follow-ups.
-                            </div>
-                        {% endif %}
-                    </div>
-                    
-                    <h2 class="card-title" style="margin-top: 2rem; margin-bottom: 0.5rem; border-top: 1px solid var(--border-glass); padding-top: 1.5rem;">📋 RFP Follow-ups</h2>
-                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.5rem;">Active deadlines and reminders for RFP opportunities.</p>
-                    
-                    <div style="display: flex; flex-direction: column; gap: 1rem;">
-                        {% if rfp_reminders %}
-                            {% for r in rfp_reminders %}
-                                <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-glass); border-radius: 12px; padding: 1rem; position: relative;">
-                                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem; gap: 0.5rem;">
-                                        <a title="RFP: {{ r['rfp_number'] }}" href="{{ url_for('rfp_detail', rfp_id=r['rfp_id']) }}" style="font-weight: 700; color: var(--text-primary); font-size: 0.9rem; text-decoration: none;">
-                                            RFP: {{ r['rfp_number'] }} 🔗
-                                        </a>
-                                        
-                                        <!-- Follow-up Due Badge -->
-                                        {% if r['reminder_date'] < today_str %}
-                                            <span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.3); font-size: 0.65rem; padding: 0.1rem 0.35rem;">Overdue</span>
-                                        {% elif r['reminder_date'] == today_str %}
-                                            <span class="badge" style="background: rgba(245, 158, 11, 0.15); color: var(--color-warning); border: 1px solid rgba(245, 158, 11, 0.3); font-size: 0.65rem; padding: 0.1rem 0.35rem;">Today</span>
-                                        {% else %}
-                                            <span class="badge" style="background: rgba(59, 130, 246, 0.15); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.3); font-size: 0.65rem; padding: 0.1rem 0.35rem;">Upcoming</span>
-                                        {% endif %}
-                                    </div>
-                                    
-                                    <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4; margin-bottom: 0.75rem;">
-                                        <strong>Task:</strong> {{ r['task_description'] }}
-                                    </p>
-                                    
-                                    <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.03); padding-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted);">
-                                        <span>📅 Due: {{ r['reminder_date'] }}</span>
-                                        <form action="{{ url_for('rfp_reminder_complete_dashboard', reminder_id=r['id']) }}?source={{ r['source'] }}" method="POST" style="margin: 0;">
-                                            <button title="✓ Done" type="submit" class="btn btn-secondary btn-sm" style="padding: 0.25rem 0.5rem; font-size: 0.65rem; background: rgba(16, 185, 129, 0.1); color: var(--color-oem); border-color: rgba(16, 185, 129, 0.2); border-radius: 4px;">✓ Done</button>
-                                        </form>
-                                    </div>
-                                </div>
-                            {% endfor %}
-                        {% else %}
-                            <div style="text-align: center; padding: 2rem 1rem; border: 1px dashed var(--border-glass); border-radius: 12px; color: var(--text-muted); font-size: 0.8rem;">
-                                No pending RFP reminders.
-                            </div>
-                        {% endif %}
-                    </div>
-                </aside>
+<!-- Reminders panel moved to sidebar -->
 
 <section class="search-bar-container" style="flex-wrap: wrap; gap: 0.75rem;">
                         <div class="search-input-wrapper" style="flex: 1; min-width: 250px;">
@@ -367,11 +311,14 @@
                                 {% endfor %}
                                 
                                 {% if group_contacts|length > 0 %}
-                                    <div class="category-group" data-category-group-name="{{ group['name'] }}">
+                                    <div class="category-group" data-category-group-name="{{ group['name'] }}" style="grid-column: 1 / -1;">
                                         <div class="category-header" onclick="toggleCategoryAccordion('cat-group-{{ loop.index }}')">
                                             <div style="display: flex; align-items: center; gap: 0.75rem;">
                                                 <span class="category-icon">
-                                                    {% if '.' in group['icon'] %}
+                                                    {% if group['name'] == 'AC' %}❄️
+                                                    {% elif group['name'] == 'AV' %}📺
+                                                    {% elif group['name'] == 'Access Control' %}🔐
+                                                    {% elif '.' in group['icon'] %}
                                                         <img src="{{ url_for('uploaded_file', filename=group['icon']) }}" style="width: 20px; height: 20px; object-fit: contain; vertical-align: middle; filter: brightness(0) invert(1);">
                                                     {% else %}
                                                         {{ group['icon'] }}

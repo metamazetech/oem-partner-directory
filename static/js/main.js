@@ -147,6 +147,32 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     initExportInterceptors();
+    
+    // 3. Globally inject Reminders & Follow-ups panel into the sidebar
+    const navContainer = document.querySelector('.sidebar .nav-container');
+    if (navContainer) {
+        const remindersWrapper = document.createElement('div');
+        remindersWrapper.id = 'global-sidebar-reminders';
+        remindersWrapper.style.padding = '1rem 0.75rem';
+        remindersWrapper.style.overflowY = 'auto';
+        remindersWrapper.style.flex = '1';
+        remindersWrapper.style.marginTop = '0.5rem';
+        remindersWrapper.style.borderTop = '1px solid rgba(255,255,255,0.05)';
+        navContainer.parentNode.insertBefore(remindersWrapper, navContainer.nextSibling);
+        
+        // Ensure sidebar has flex column layout if not already
+        const sidebar = document.querySelector('.sidebar');
+        sidebar.style.display = 'flex';
+        sidebar.style.flexDirection = 'column';
+        
+        // Fetch the HTML panel
+        fetch('/api/reminders/panel')
+            .then(res => res.text())
+            .then(html => {
+                remindersWrapper.innerHTML = html;
+            })
+            .catch(err => console.error('Failed to load reminders panel', err));
+    }
 });
 
 // Trigger AJAX Website Scrape on OEM detail page

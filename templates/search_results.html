@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Search Results - {{ portal_settings['portal_name'] }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ portal_settings.get('portal_version', '4.0') }}">
+    <script>
+        window.USER_THEME = "{{ session.get('theme', 'theme-slate-dark') }}";
+    </script>
+</head>
+<body class="{{ session.get('theme', 'theme-slate-dark') }}">
+    <div class="app-container">
+        <!-- Sidebar Navigation (Simplified) -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-container">
+                    <a href="{{ url_for('dashboard') }}" style="color:white; text-decoration:none; font-size:1.25rem;">
+                        {% if portal_settings['portal_logo'] %}
+                            <img src="{{ url_for('uploaded_file', filename=portal_settings['portal_logo']) }}" style="max-height:40px;">
+                        {% else %}
+                            <span>📂</span> {{ portal_settings['portal_name'] }}
+                        {% endif %}
+                    </a>
+                </div>
+            </div>
+            <div class="nav-container">
+                <nav>
+                    <ul class="nav-menu">
+                        <li class="nav-item"><a href="{{ url_for('dashboard') }}"><span>📊</span> Dashboard</a></li>
+                        <li class="nav-item"><a href="{{ url_for('oem_news_page') }}"><span>📰</span> OEM News</a></li>
+                        <li class="nav-item"><a href="{{ url_for('rfps_list') }}"><span>📋</span> RFP Section</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <div class="header-bar">
+                <div>
+                    <h1 class="page-title">Search Results for "{{ query }}"</h1>
+                </div>
+            </div>
+
+            <div class="content-wrapper">
+                {% for category, items in results.items() %}
+                    {% if items %}
+                        <div class="glass-card" style="margin-bottom: 2rem;">
+                            <div class="card-header">
+                                <h3 class="card-title">{{ category }} ({{ items|length }})</h3>
+                            </div>
+                            <div class="card-body">
+                                <ul style="list-style: none; padding: 0;">
+                                {% for item in items %}
+                                    <li style="padding: 1rem; border-bottom: 1px solid var(--border-glass);">
+                                        {% if category == 'Contacts' %}
+                                            <a href="{{ url_for('contact_detail', contact_id=item.id) }}" style="color: var(--primary); font-weight: bold; font-size: 1.1rem; text-decoration: none;">{{ item.title }}</a>
+                                            <p style="margin: 0.5rem 0 0; color: var(--text-secondary);">Type: {{ item.subtitle }} | Group: {{ item.extra }}</p>
+                                        {% elif category == 'News' %}
+                                            <a href="{{ item.extra }}" target="_blank" style="color: var(--primary); font-weight: bold; font-size: 1.1rem; text-decoration: none;">{{ item.title }}</a>
+                                            <p style="margin: 0.5rem 0 0; color: var(--text-secondary);">OEM: {{ item.subtitle }}</p>
+                                        {% elif category == 'RFPs' %}
+                                            <a href="{{ url_for('rfp_detail', rfp_id=item.id) }}" style="color: var(--primary); font-weight: bold; font-size: 1.1rem; text-decoration: none;">{{ item.title }}</a>
+                                            <p style="margin: 0.5rem 0 0; color: var(--text-secondary);">Customer: {{ item.subtitle }} | From: {{ item.extra }}</p>
+                                        {% endif %}
+                                    </li>
+                                {% endfor %}
+                                </ul>
+                            </div>
+                        </div>
+                    {% endif %}
+                {% else %}
+                    <div class="glass-card">
+                        <div class="card-body text-center">
+                            <p style="color: var(--text-muted);">No results found for "{{ query }}".</p>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </main>
+    </div>
+</body>
+</html>

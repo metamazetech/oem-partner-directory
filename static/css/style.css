@@ -1811,7 +1811,9 @@ body, aside, main, .glass-card, input, select, textarea, button, .btn {
 @media (max-width: 768px) {
     .sidebar {
         position: fixed !important;
-        left: -300px;
+        left: -400px;
+        box-sizing: border-box;
+        width: 280px; /* Force consistent width */
         top: 0;
         height: 100vh;
         z-index: 10000;
@@ -2286,4 +2288,23 @@ body, aside, main, .glass-card, input, select, textarea, button, .btn {
     #sidebar-collapse-btn {
         display: none;
     }
+}
+
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    z-index: 9999;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.sidebar-overlay.active {
+    display: block;
+    opacity: 1;
 }

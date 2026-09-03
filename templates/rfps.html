@@ -23,14 +23,48 @@
     {% endif %}
 </head>
 
+    
     <!-- Mobile Hamburger Toggle -->
-    <button id="global-mobile-toggle" class="mobile-toggle-btn" onclick="document.querySelector('.sidebar').classList.toggle('menu-open')" style="display: none;">☰</button>
+    <div class="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+    <button id="global-mobile-toggle" class="mobile-toggle-btn" onclick="toggleMobileSidebar()" style="display: none;">☰</button>
+    
+    <script>
+    function toggleMobileSidebar() {
+        const sidebar = document.querySelector('.sidebar');
+        const overlay = document.querySelector('.sidebar-overlay');
+        if (sidebar.classList.contains('menu-open')) {
+            sidebar.classList.remove('menu-open');
+            if(overlay) overlay.classList.remove('active');
+        } else {
+            sidebar.classList.add('menu-open');
+            if(overlay) overlay.classList.add('active');
+        }
+    }
+    </script>
+
 <body class="{{ session.get('theme', 'theme-slate-dark') }}">
     
     <div class="app-container">
 
+    
     <!-- Mobile Hamburger Toggle -->
-    <button id="global-mobile-toggle" class="mobile-toggle-btn" onclick="document.querySelector('.sidebar').classList.toggle('menu-open')" style="display: none;">☰</button>
+    <div class="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+    <button id="global-mobile-toggle" class="mobile-toggle-btn" onclick="toggleMobileSidebar()" style="display: none;">☰</button>
+    
+    <script>
+    function toggleMobileSidebar() {
+        const sidebar = document.querySelector('.sidebar');
+        const overlay = document.querySelector('.sidebar-overlay');
+        if (sidebar.classList.contains('menu-open')) {
+            sidebar.classList.remove('menu-open');
+            if(overlay) overlay.classList.remove('active');
+        } else {
+            sidebar.classList.add('menu-open');
+            if(overlay) overlay.classList.add('active');
+        }
+    }
+    </script>
+
 
         
         <!-- Sidebar Navigation -->
@@ -47,7 +81,7 @@
                     <span style="font-size: 0.6rem; color: var(--text-muted); background: rgba(255,255,255,0.05); border: 1px solid var(--border-glass); padding: 0.1rem 0.3rem; border-radius: 4px; font-weight: 700; vertical-align: middle;">{{ portal_settings.get('portal_version', 'v4.0') }}</span>
                 </div>
                 <button id="sidebar-collapse-btn" onclick="this.closest('.sidebar').style.display='none';var b=document.getElementById('show-sidebar-btn');if(b)b.style.display='flex';localStorage.setItem('sidebar-collapsed','true');" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:1.1rem;padding:4px 8px;border-radius:6px;transition:all 0.2s;" title="Hide Sidebar">&laquo;</button>
-                <button id="mobile-nav-toggle" class="mobile-toggle-btn">☰</button>
+                
             </div>
             
             <div class="nav-container">

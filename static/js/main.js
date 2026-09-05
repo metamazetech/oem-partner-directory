@@ -2846,3 +2846,15 @@ function uploadUpdateWithProgress() {
 
     xhr.send(formData);
 }
+
+
+function filterDirectoryByGroup(groupName) {
+    const groups = document.querySelectorAll('.category-group');
+    groups.forEach(group => {
+        if (groupName === 'all' || group.getAttribute('data-category-group-name') === groupName) {
+            group.style.display = 'block';
+        } else {
+            group.style.display = 'none';
+        }
+    });
+}

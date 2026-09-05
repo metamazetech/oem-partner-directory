@@ -2482,18 +2482,16 @@ def restore_master_backup():
 @app.route('/admin/auto-update', methods=['POST'])
 @admin_required
 def admin_auto_update():
+    logs = ["Starting update process..."]
     if 'update_file' not in request.files:
-        flash("No file uploaded.", "error")
-        return redirect(url_for('admin_panel'))
+        return jsonify({"status": "error", "message": "No file uploaded."})
         
     file = request.files['update_file']
     if file.filename == '':
-        flash("No file selected.", "error")
-        return redirect(url_for('admin_panel'))
+        return jsonify({"status": "error", "message": "No file selected."})
         
     if not file.filename.endswith('.zip'):
-        flash("Invalid file format. Please upload a .zip codebase archive.", "error")
-        return redirect(url_for('admin_panel'))
+        return jsonify({"status": "error", "message": "Invalid file format. Please upload a .zip codebase archive."})
         
     import zipfile
     import shutil
@@ -2507,17 +2505,16 @@ def admin_auto_update():
     
     # 1. Complete Pre-Update Backup
     try:
+        logs.append("Initializing pre-update safety backup...")
         os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
         
-        # Build the pre-update backup zip
         compress_method = zipfile.ZIP_DEFLATED
         with zipfile.ZipFile(backup_zip_path, 'w', compress_method) as zipf:
-            # Add database
             db_path = database.DB_PATH
             if os.path.exists(db_path):
                 zipf.write(db_path, arcname='oem_tracker.db')
+                logs.append("Backed up database.")
             
-            # Add uploads (except backups)
             upload_folder = app.config['UPLOAD_FOLDER']
             if os.path.exists(upload_folder):
                 for root, dirs, files in os.walk(upload_folder):
@@ -2527,8 +2524,8 @@ def admin_auto_update():
                         filepath = os.path.join(root, f)
                         rel_path = os.path.relpath(filepath, upload_folder)
                         zipf.write(filepath, arcname=os.path.join('uploads', rel_path))
+                logs.append("Backed up user uploads.")
                         
-            # Add code files
             root_dir = os.getcwd()
             for root, dirs, files in os.walk(root_dir):
                 if 'venv' in root or '.git' in root or '__pycache__' in root or 'uploads' in root or 'tmp' in root:
@@ -2539,13 +2536,15 @@ def admin_auto_update():
                     filepath = os.path.join(root, f)
                     rel_path = os.path.relpath(filepath, root_dir)
                     zipf.write(filepath, arcname=os.path.join('code', rel_path))
+            logs.append("Backed up codebase files.")
                     
         log_audit('PORTAL_UPDATE_BACKUP', f"Created automatic pre-update backup: {backup_filename}")
+        logs.append(f"Backup created successfully: {backup_filename}")
     except Exception as backup_err:
-        flash(f"Failed to create pre-update backup: {backup_err}. Update aborted for safety.", "error")
-        return redirect(url_for('admin_panel'))
+        return jsonify({"status": "error", "message": f"Failed to create backup: {backup_err}. Aborted."})
         
     # 2. Extract Uploaded Codebase ZIP
+    logs.append("Extracting uploaded update archive...")
     temp_zip_path = os.path.join(app.config['UPLOAD_FOLDER'], 'temp_update.zip')
     try:
         file.save(temp_zip_path)
@@ -2553,7 +2552,6 @@ def admin_auto_update():
         with zipfile.ZipFile(temp_zip_path, 'r') as zipf:
             namelist = zipf.namelist()
             
-            # Determine if there is a common prefix directory
             common_prefix = ""
             if namelist:
                 first_parts = namelist[0].split('/')
@@ -2567,34 +2565,33 @@ def admin_auto_update():
                 if name == common_prefix or name.endswith('/'):
                     continue
                 
-                # Strip common prefix folder
                 rel_path = name[len(common_prefix):] if common_prefix else name
                 
-                # Skip virtual environments, git configs, or database files
                 if 'venv/' in name or '.git/' in name or '__pycache__/' in name or name.endswith('.zip') or name.endswith('.db'):
                     continue
                     
                 target_path = os.path.join(app.root_path, rel_path)
                 real_target = os.path.realpath(target_path)
                 if not real_target.startswith(os.path.realpath(app.root_path)):
-                    continue  # skip files trying to escape app directory
+                    continue 
                 os.makedirs(os.path.dirname(target_path), exist_ok=True)
                 
-                # Write file safely
                 file_data = zipf.read(name)
                 with open(target_path, 'wb') as f_out:
                     f_out.write(file_data)
                 extracted_files += 1
                 
+        logs.append(f"Successfully extracted and overwritten {extracted_files} core files.")
+                
         # 3. Automatically Install Dependencies
         req_path = os.path.join(app.root_path, 'requirements.txt')
-        pip_status = "No requirements.txt found."
         if os.path.exists(req_path):
+            logs.append("Found requirements.txt, checking dependencies...")
             try:
                 subprocess.run([sys.executable, '-m', 'pip', 'install', '-r', req_path], check=True)
-                pip_status = "Dependencies successfully updated."
+                logs.append("Python dependencies verified and updated.")
             except Exception as pip_err:
-                pip_status = f"Warning: Dependency installation returned error: {pip_err}"
+                logs.append(f"Warning: Dependency check returned error: {pip_err}")
                 
         # Read current version, increment and update
         try:
@@ -2614,29 +2611,32 @@ def admin_auto_update():
                          (new_ver, datetime.date.today().strftime('%Y-%m-%d'), 'Auto-update applied', 'Minor patch update from codebase push'))
             conn.commit()
             conn.close()
+            logs.append(f"Version bumped to {new_ver}.")
         except Exception as e:
-            print(f"Failed to bump version: {e}")
+            logs.append(f"Notice: Failed to bump version: {e}")
             
         # 4. Trigger WSGI restart for Passenger/cPanel
         try:
+            logs.append("Triggering application server reload (WSGI Restart)...")
             tmp_dir = os.path.join(os.getcwd(), 'tmp')
             os.makedirs(tmp_dir, exist_ok=True)
             with open(os.path.join(tmp_dir, 'restart.txt'), 'w') as f_restart:
                 f_restart.write(f'restart_{timestamp}')
         except Exception as restart_err:
-            print(f"WSGI Restart trigger error: {restart_err}")
+            logs.append(f"Warning: WSGI Restart trigger error: {restart_err}")
             
-        log_audit('PORTAL_UPDATE_APPLIED', f"Application auto-update applied: {extracted_files} files written. {pip_status}")
-        flash(f"Portal updated successfully! Pre-update backup saved as: {backup_filename}. {extracted_files} files updated. {pip_status}", "success")
+        log_audit('PORTAL_UPDATE_APPLIED', f"Application auto-update applied: {extracted_files} files.")
+        logs.append("Update complete! The portal will now restart automatically.")
+        
+        return jsonify({"status": "success", "message": chr(10).join(logs)})
         
     except Exception as update_err:
-        flash(f"Failed to apply codebase update: {update_err}. Please restore files manually if the portal fails to load.", "error")
+        return jsonify({"status": "error", "message": f"Update failed: {update_err}"})
     finally:
         if os.path.exists(temp_zip_path):
             try: os.remove(temp_zip_path)
             except: pass
-            
-    return redirect(url_for('admin_panel'))
+
 
 @app.route('/admin/rfp-password/update', methods=['POST'])
 @admin_required
@@ -4720,7 +4720,7 @@ def reminders():
         ORDER BY reminder_date ASC
     ''').fetchall()
     conn.close()
-    return render_template('reminders_panel.html', reminders=reminders, rfp_reminders=rfp_reminders, today_str=today_str)
+    return render_template('reminders.html', reminders=reminders, rfp_reminders=rfp_reminders, today_str=today_str, portal_settings=get_portal_settings())
 
 @app.route('/user/reminders/<int:interaction_id>/complete', methods=['POST'])
 @login_required

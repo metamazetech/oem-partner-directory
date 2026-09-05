@@ -13,30 +13,92 @@
         <!-- Sidebar Navigation (Simplified) -->
         <aside class="sidebar">
             <div class="sidebar-header">
-                <div class="logo-container">
-                    <a href="{{ url_for('dashboard') }}" style="color:white; text-decoration:none; font-size:1.25rem;">
+                <div class="logo-container" style="display: flex; align-items: center; justify-content: center; max-width: 100%; padding: 6px 0; text-decoration: none; gap: 0.4rem;">
+                    <a href="{{ url_for('dashboard') }}" style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.25rem; color: var(--text-primary); letter-spacing: -0.03em; text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
                         {% if portal_settings['portal_logo'] %}
-                            <img src="{{ url_for('uploaded_file', filename=portal_settings['portal_logo']) }}" style="max-height:40px;">
+                            <img src="{{ url_for('uploaded_file', filename=portal_settings['portal_logo']) }}" style="max-height: 40px; max-width: 100%; object-fit: contain;" alt="Logo">
                         {% else %}
                             <span>📂</span> {{ portal_settings['portal_name'] }}
                         {% endif %}
                     </a>
+                    <span style="font-size: 0.6rem; color: var(--text-muted); background: rgba(255,255,255,0.05); border: 1px solid var(--border-glass); padding: 0.1rem 0.3rem; border-radius: 4px; font-weight: 700; vertical-align: middle;">{{ portal_settings.get('portal_version', 'v4.0') }}</span>
                 </div>
+                <button id="sidebar-collapse-btn" onclick="this.closest('.sidebar').style.display='none';var b=document.getElementById('show-sidebar-btn');if(b)b.style.display='flex';localStorage.setItem('sidebar-collapsed','true');" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:1.1rem;padding:4px 8px;border-radius:6px;transition:all 0.2s;" title="Hide Sidebar">&laquo;</button>
+                
             </div>
+            
             <div class="nav-container">
+                <form action="javascript:void(0);" onsubmit="window.location.href = getAppUrl('/search?q=' + encodeURIComponent(this.q.value));" method="GET" style="padding: 0.5rem 1rem;">
+                    <div style="display: flex; gap: 0.5rem; position: relative;">
+                        <input type="text" name="q" placeholder="Universal Search..." style="width: 100%; padding: 0.4rem 0.5rem 0.4rem 2rem; border-radius: 6px; border: 1px solid var(--border-glass); background: rgba(15,23,42,0.6); color: white; font-size: 0.85rem;" required>
+                        <span style="position: absolute; left: 0.5rem; top: 50%; transform: translateY(-50%); font-size: 0.9rem; pointer-events: none;">🔍</span>
+                    </div>
+                </form>
                 <nav>
                     <ul class="nav-menu">
-                        <li class="nav-item"><a href="{{ url_for('dashboard') }}"><span>📊</span> Dashboard</a></li>
-                        <li class="nav-item"><a href="{{ url_for('oem_news_page') }}"><span>📰</span> OEM News</a></li>
-                        <li class="nav-item"><a href="{{ url_for('rfps_list') }}"><span>📋</span> RFP Section</a></li>
-                    
                         <li class="nav-item">
+                            <a title="Dashboard" href="{{ url_for('dashboard') }}">
+                                <span>📊</span> Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a title="OEM News" href="{{ url_for('oem_news_page') }}">
+                                <span>📰</span> OEM News
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a title="RFP Section" href="{{ url_for('rfps_list') }}">
+                                <span>📋</span> RFP Section
+                            </a>
+                        </li>
+                        {% if session['role'] == 'admin' %}
+                        <li class="nav-item">
+                            <a title="️ Admin Panel" href="{{ url_for('admin_panel') }}" id="btn-admin-tour">
+                                <span>🛡️</span> Admin Panel
+                            </a>
+                        </li>
+                        {% endif %}
+                                                {% set enabled_tools = portal_settings.get('enabled_work_tools', 'unit_converter,currency_calculator,pocket_calculator,cctv_calculator,power_calculator,pdf_converter,cloud_calculator').split(',') %}
+                        {% if enabled_tools and enabled_tools[0] != '' %}
+                        <li class="nav-item">
+                            <a title="️ Work Tools" href="{{ url_for('work_tools') }}">
+                                <span>🛠️</span> Work Tools
+                            </a>
+                        </li>
+                        {% endif %}
+<li class="nav-item" id="install-app-item">
+                            <a title="Install App" href="javascript:void(0)" onclick="installApp()" style="color: #34d399;">
+                                <span>📱</span> Install App
+                            </a>
+                        </li>
+                        
+                    
+                        
+<li class="nav-item">
                             <a title="Reminders" href="{{ url_for('reminders') }}">
                                 <span>⏰</span> Reminders
                             </a>
                         </li>
+<li class="nav-item">
+                            <a title="Sign Out" href="{{ url_for('logout') }}" style="color: #fca5a5;">
+                                <span>🚪</span> Sign Out
+                            </a>
+                        </li>
 </ul>
+                    
                 </nav>
+            </div>
+            
+            <!-- User profile display at the bottom of the sidebar -->
+            <div class="sidebar-user-profile" style="margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border-glass); display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.5rem;">
+                <div class="user-avatar" style="position: relative; width: 34px; height: 34px; border-radius: 50%; font-size: 0.85rem; font-weight: 700; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; flex-shrink: 0; margin: 0;">
+                    {{ session['username'][0].upper() }}
+                    <a href="javascript:void(0)" onclick="openModal('preferences-modal')" style="position: absolute; bottom: -3px; right: -3px; background: var(--primary); font-size: 0.55rem; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center; border-radius: 50%; text-decoration: none; border: 1px solid var(--border-glass);" title="Personalize Portal Layout & Theme">⚙️</a>
+                </div>
+                <div style="display: flex; flex-direction: column; min-width: 0;">
+                    <span style="font-size: 0.8rem; font-weight: 700; color: white; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left;">{{ session['username'] }}</span>
+                    <span style="font-size: 0.65rem; color: var(--text-secondary); line-height: 1.2; text-transform: capitalize; text-align: left;">{{ session['role'] }}</span>
+                </div>
             </div>
         </aside>
 

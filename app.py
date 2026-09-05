@@ -4682,9 +4682,9 @@ def user_pending_reminders():
     conn.close()
     return jsonify({"status": "success", "reminders": reminders, "rfp_reminders": rfp_reminders})
 
-@app.route('/api/reminders/panel')
+@app.route('/reminders')
 @login_required
-def reminders_panel():
+def reminders():
     user_id = session.get('user_id')
     import datetime
     today_str = datetime.date.today().strftime('%Y-%m-%d')

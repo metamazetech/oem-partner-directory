@@ -165,15 +165,7 @@ document.addEventListener('DOMContentLoaded', () => {
         sidebar.style.display = 'flex';
         sidebar.style.flexDirection = 'column';
         
-        // Fetch the HTML panel
-        fetch(getAppUrl('/api/reminders/panel'))
-            .then(res => res.text())
-            .then(html => {
-                remindersWrapper.innerHTML = html;
-            })
-            .catch(err => console.error('Failed to load reminders panel', err));
-    }
-});
+        
 
 // Trigger AJAX Website Scrape on OEM detail page
 function triggerWebsiteScrape(event, contactId) {

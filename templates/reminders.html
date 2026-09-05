@@ -103,7 +103,7 @@
                                 <span>📰</span> OEM News
                             </a>
                         </li>
-                        <li class="nav-item active">
+                        <li class="nav-item">
                             <a title="RFP Section" href="{{ url_for('rfps_list') }}">
                                 <span>📋</span> RFP Section
                             </a>
@@ -134,7 +134,7 @@
                             </a>
                         </li>
                     
-                        <li class="nav-item">
+                        <li class="nav-item active">
                             <a title="Reminders" href="{{ url_for('reminders') }}">
                                 <span>⏰</span> Reminders
                             </a>
@@ -158,197 +158,96 @@
         
         <!-- Main Content Area -->
         <main class="main-content">
-            
-            <div class="header-bar" style="margin-bottom: 2rem;">
-                <div>
-                    <h1 class="page-title">📋 RFP Procurement Opportunities</h1>
-                    <p style="color: var(--text-secondary); margin-top: 0.25rem;">Manage RFPs, track document checklists, map BoQ offerings, and upload bidding files.</p>
-                </div>
-                <div>
-                    <button title="➕ Create RFP" class="btn btn-primary" onclick="openModal('create-rfp-modal')" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px;">
-                        <span>➕</span> Create RFP
-                    </button>
-                </div>
-            </div>
-            
-            <!-- Flash messages -->
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="alert-message alert-{{ 'error' if category == 'error' else 'success' }}" style="margin-bottom: 1.5rem;">
-                            {% if category == 'error' %}⚠️{% else %}✓{% endif %}
-                            <span>{{ message }}</span>
-                        </div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
-            
-            <!-- Universal Search Box -->
-            <section class="glass-card" style="padding: 1.25rem; margin-bottom: 2rem;">
-                <form action="{{ url_for('rfps_list') }}" method="GET" style="display: flex; gap: 0.75rem; align-items: center; margin: 0;">
-                    <div style="position: relative; flex-grow: 1; display: flex; align-items: center;">
-                        <input type="text" name="search" class="form-control" placeholder="🔍 Universal Search: search RFPs by number, contact, BoQ matrix items, checklists, or files..." value="{{ search_query or '' }}" style="width: 100%; padding-left: 2.5rem; background: rgba(15,23,42,0.4); border: 1px solid var(--border-glass);">
-                    </div>
-                    <button title="Search" type="submit" class="btn btn-primary" style="padding: 0.6rem 1.25rem;">Search</button>
-                    {% if search_query %}
-                        <a href="{{ url_for('rfps_list') }}" class="btn btn-secondary" style="text-decoration: none; padding: 0.6rem 1.25rem; display: inline-flex; align-items: center; justify-content: center;">Clear</a>
-                    {% endif %}
-                </form>
-            </section>
-            
-            <!-- Tabs Navigation -->
-            <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-glass); padding-bottom: 0.5rem;">
-                <button title="Opportunities List" type="button" class="tab-btn active" onclick="switchRfpTab('opportunities-view', this)" style="background: none; border: none; color: white; padding: 0.5rem 1rem; font-weight: 600; cursor: pointer; border-bottom: 2px solid var(--primary); transition: all 0.3s; font-size: 0.95rem;">
-                    📂 Opportunities List
-                </button>
-                <button title="OEM Assignment Matrix" type="button" class="tab-btn" onclick="switchRfpTab('oem-mapping-view', this)" style="background: none; border: none; color: var(--text-secondary); padding: 0.5rem 1rem; font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.3s; font-size: 0.95rem;">
-                    🤝 OEM Assignment Matrix
-                </button>
-            </div>
 
-            <!-- Opportunities Tab Content -->
-            <div id="opportunities-view" class="rfp-tab-content">
-                {% if rfps %}
-                    <div class="glass-card" style="padding: 0; overflow-x: auto; border: 1px solid var(--border-glass);">
-                        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
-                            <thead>
-                                <tr style="background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--border-glass);">
-                                    <th style="padding: 1rem; color: var(--text-secondary); font-weight: 700;">RFP Number</th>
-                                    <th style="padding: 1rem; color: var(--text-secondary); font-weight: 700;">Pre-Bid Date</th>
-                                    <th style="padding: 1rem; color: var(--text-secondary); font-weight: 700;">Submission Date</th>
-                                    <th style="padding: 1rem; color: var(--text-secondary); font-weight: 700;">Key Contact</th>
-                                    <th style="padding: 1rem; color: var(--text-secondary); font-weight: 700; text-align: right;">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="rfps-table-body">
-                                {% for rfp in rfps %}
-                                    <tr class="rfp-row" data-id="{{ rfp['id'] }}" data-name="{{ rfp['rfp_number'] }}" style="border-bottom: 1px solid rgba(255,255,255,0.03); transition: background 0.2s; cursor: grab;" onmouseover="this.style.background='rgba(99,102,241,0.03)'" onmouseout="this.style.background='transparent'">
-                                        <td style="padding: 1rem; font-weight: 700;">
-                                            <a title="{{ rfp['rfp_number'] }}" href="{{ url_for('rfp_detail', rfp_id=rfp['id']) }}" style="color: white; text-decoration: none; transition: color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='white'">
-                                                📄 {{ rfp['rfp_number'] }}
-                                            </a>
-                                        </td>
-                                        <td style="padding: 1rem; color: var(--text-primary);">
-                                            {{ rfp['pre_bid_date'] if rfp['pre_bid_date'] else 'N/A' }}
-                                        </td>
-                                        <td style="padding: 1rem; color: var(--text-primary);" class="rfp-submission-date" data-date="{{ rfp['submission_date'] }}">
-                                            {{ rfp['submission_date'] if rfp['submission_date'] else 'N/A' }}
-                                            {% if rfp['submission_date'] %}
-                                                <div class="countdown-badge" style="margin-top: 0.25rem; font-size: 0.75rem; background: rgba(59, 130, 246, 0.15); color: #93c5fd; padding: 0.1rem 0.4rem; border-radius: 4px; display: inline-block;">⏳ Calculating...</div>
-                                            {% endif %}
-                                        </td>
-                                        <td style="padding: 1rem;">
-                                            {% if rfp['contact_name'] %}
-                                                <div style="font-weight: 600; color: white; font-size: 0.85rem;">{{ rfp['contact_name'] }}</div>
-                                                <div style="font-size: 0.75rem; color: var(--text-muted);">{{ rfp['contact_email'] }}</div>
-                                            {% else %}
-                                                <span style="color: var(--text-muted); font-size: 0.8rem;">No details configured</span>
-                                            {% endif %}
-                                        </td>
-                                        <td style="padding: 1rem; text-align: right;">
-                                            <div style="display: inline-flex; gap: 0.4rem; align-items: center; justify-content: flex-end;">
-                                                <a href="{{ url_for('rfp_detail', rfp_id=rfp['id']) }}" class="btn btn-secondary btn-sm" style="text-decoration: none; padding: 0.25rem 0.6rem; font-size: 0.78rem; border-radius: 4px;">Workspace</a>
-                                                <form action="{{ url_for('rfp_delete', rfp_id=rfp['id']) }}" method="POST" style="margin: 0;" onsubmit="return confirmDeleteMatch(event, '{{ rfp['rfp_number'] }}');">
-                                                    <button title="Delete" type="submit" class="btn btn-danger btn-sm" style="padding: 0.25rem 0.6rem; font-size: 0.78rem; border-radius: 4px;">Delete</button>
-                                                </form>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                {% else %}
-                    <div class="glass-card" style="padding: 3rem; text-align: center; border: 1px dashed var(--border-glass);">
-                        <span style="font-size: 3rem; display: block; margin-bottom: 1rem;">📋</span>
-                        <h3 style="margin: 0 0 0.5rem 0; color: white;">No RFP Opportunities Found</h3>
-                        <p style="margin: 0 0 1.5rem 0; color: var(--text-secondary); font-size: 0.9rem;">Start by creating your first Request for Proposal opportunity record in the system.</p>
-                        <button title="Create RFP" class="btn btn-primary" onclick="openModal('create-rfp-modal')" style="padding: 0.5rem 1.25rem; font-size: 0.85rem; border-radius: 8px;">Create RFP</button>
-                    </div>
-                {% endif %}
-            </div>
-
-            <!-- OEM Assignment Matrix Tab Content -->
-            <div id="oem-mapping-view" class="rfp-tab-content" style="display: none;">
-                <div class="glass-card" style="padding: 1.5rem; border: 1px solid var(--border-glass);">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
-                        <div>
-                            <h3 style="color: white; margin: 0 0 0.25rem 0; display: flex; align-items: center; gap: 0.5rem;">🤝 OEM RFP Assignment Matrix</h3>
-                            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">Track at a glance which RFPs each OEM partner is associated with via product matrix slots or documentation checklists.</p>
-                        </div>
-                        <div style="display: flex; gap: 0.75rem; align-items: center;">
-                            <button title="Show All OEMs" id="toggle-oems-view-btn" onclick="toggleOemsView()" class="btn btn-secondary btn-sm" style="padding: 0.4rem 0.8rem; font-size: 0.8rem; border-radius: 6px;">
-                                Show All OEMs
-                            </button>
-                            <a title="Export CSV" href="{{ url_for('export_oem_matrix_csv') }}" class="btn btn-primary btn-sm" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.4rem 0.8rem; font-size: 0.8rem; border-radius: 6px;">
-                                📥 Export CSV
-                            </a>
-                        </div>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+        <div>
+            <h1 style="font-size: 1.8rem; font-weight: 700; margin-bottom: 0.25rem;">Reminders & Follow-ups</h1>
+            <p style="color: var(--text-secondary); font-size: 0.95rem;">Manage your pending tasks and communications.</p>
+        </div>
+    </div>
+    <div style="background: rgba(30, 41, 59, 0.5); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border-glass);">
+    <aside class="glass-card" id="reminders-panel-tour" style="margin-bottom: 1.5rem; background: transparent; border: none; box-shadow: none; padding: 0;">
+    <h2 class="card-title" style="margin-bottom: 0.5rem; font-size: 1rem;">📅 Reminders & Follow-ups</h2>
+    
+    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+        {% if reminders %}
+            {% for r in reminders %}
+                <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-glass); border-radius: 8px; padding: 0.75rem; position: relative;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.25rem; gap: 0.5rem;">
+                        <a href="{{ url_for('contact_detail', contact_id=r['contact_id']) }}" style="font-weight: 700; color: var(--text-primary); font-size: 0.85rem; text-decoration: none;">
+                            {{ r['company_name'] }}
+                        </a>
+                        
+                        {% if r['followup_date'] < today_str %}
+                            <span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #fca5a5; font-size: 0.6rem; padding: 0.1rem 0.25rem;">Overdue</span>
+                        {% elif r['followup_date'] == today_str %}
+                            <span class="badge" style="background: rgba(245, 158, 11, 0.15); color: var(--color-warning); font-size: 0.6rem; padding: 0.1rem 0.25rem;">Today</span>
+                        {% else %}
+                            <span class="badge" style="background: rgba(59, 130, 246, 0.15); color: #93c5fd; font-size: 0.6rem; padding: 0.1rem 0.25rem;">Upcoming</span>
+                        {% endif %}
                     </div>
                     
-                    <div style="overflow-x: auto;">
-                        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
-                            <thead>
-                                <tr style="background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--border-glass);">
-                                    <th style="padding: 1rem; color: var(--text-secondary); font-weight: 700; width: 25%;">OEM / Partner Name</th>
-                                    <th style="padding: 1rem; color: var(--text-secondary); font-weight: 700; width: 15%; text-align: center;">Assigned RFPs Count</th>
-                                    <th style="padding: 1rem; color: var(--text-secondary); font-weight: 700; width: 60%;">RFP Details & Mappings</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% if oem_rfp_mapping %}
-                                    {% for oem_item in oem_rfp_mapping %}
-                                        <tr class="{% if oem_item['rfp_count'] > 0 %}oem-row-assigned{% else %}oem-row-unassigned{% endif %}" 
-                                            style="border-bottom: 1px solid rgba(255,255,255,0.03); transition: background 0.2s; {% if oem_item['rfp_count'] == 0 %}display: none;{% endif %}" 
-                                            onmouseover="this.style.background='rgba(99,102,241,0.03)'" 
-                                            onmouseout="this.style.background='transparent'">
-                                            <td style="padding: 1rem; font-weight: 700; color: white;">
-                                                🏢 {{ oem_item['oem_name'] }}
-                                            </td>
-                                            <td style="padding: 1rem; text-align: center; font-weight: 700;">
-                                                <span class="badge" style="padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.8rem; text-transform: none;
-                                                    {% if oem_item['rfp_count'] > 0 %}
-                                                        background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3);
-                                                    {% else %}
-                                                        background: rgba(255, 255, 255, 0.05); color: var(--text-secondary); border: 1px solid rgba(255, 255, 255, 0.1);
-                                                    {% endif %}">
-                                                    {{ oem_item['rfp_count'] }} RFP(s)
-                                                </span>
-                                            </td>
-                                            <td style="padding: 1rem;">
-                                                {% if oem_item['rfps'] %}
-                                                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                                                        {% for rfp_map in oem_item['rfps'] %}
-                                                            <div style="display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.85rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 0.4rem 0.6rem; border-radius: 6px;">
-                                                                <a title="{{ rfp_map['rfp_number'] }}" href="{{ url_for('rfp_detail', rfp_id=rfp_map['id']) }}" style="color: var(--primary); text-decoration: none; font-weight: 700; white-space: nowrap; transition: color 0.2s;" onmouseover="this.style.color='white'" onmouseout="this.style.color='var(--primary)'">
-                                                                    📄 {{ rfp_map['rfp_number'] }}
-                                                                </a>
-                                                                <span style="color: var(--text-secondary); word-break: break-all;">
-                                                                    {{ rfp_map['details'] }}
-                                                                </span>
-                                                            </div>
-                                                        {% endfor %}
-                                                    </div>
-                                                {% else %}
-                                                    <span style="color: var(--text-muted); font-size: 0.8rem; font-style: italic;">No active RFP assignments</span>
-                                                {% endif %}
-                                            </td>
-                                        </tr>
-                                    {% endfor %}
-                                {% else %}
-                                    <tr>
-                                        <td colspan="3" style="padding: 2rem; text-align: center; color: var(--text-muted); font-style: italic;">
-                                            No OEMs defined in Partner Directory.
-                                        </td>
-                                    </tr>
-                                {% endif %}
-                            </tbody>
-                        </table>
+                    <p style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.3; margin-bottom: 0.5rem;">
+                        {{ r['task'] or 'Follow up relationship' }}
+                    </p>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.03); padding-top: 0.4rem; font-size: 0.7rem; color: var(--text-muted);">
+                        <span>📅 {{ r['followup_date'] }}</span>
+                        <form action="{{ url_for('complete_followup', interaction_id=r['id']) }}" method="POST" style="margin: 0;">
+                            <button title="✓ Done" type="submit" class="btn btn-secondary btn-sm" style="padding: 0.15rem 0.4rem; font-size: 0.6rem; background: rgba(16, 185, 129, 0.1); color: var(--color-oem); border-color: rgba(16, 185, 129, 0.2); border-radius: 4px;">✓ Done</button>
+                        </form>
                     </div>
                 </div>
+            {% endfor %}
+        {% else %}
+            <div style="text-align: center; padding: 1rem 0.5rem; border: 1px dashed var(--border-glass); border-radius: 8px; color: var(--text-muted); font-size: 0.75rem;">
+                All caught up!
             </div>
-            
-        </main>
+        {% endif %}
+    </div>
+    
+    <h2 class="card-title" style="margin-top: 1.5rem; margin-bottom: 0.5rem; border-top: 1px solid var(--border-glass); padding-top: 1rem; font-size: 1rem;">📋 RFP Follow-ups</h2>
+    
+    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+        {% if rfp_reminders %}
+            {% for r in rfp_reminders %}
+                <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-glass); border-radius: 8px; padding: 0.75rem; position: relative;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.25rem; gap: 0.5rem;">
+                        <a title="RFP: {{ r['rfp_number'] }}" href="{{ url_for('rfp_detail', rfp_id=r['rfp_id']) }}" style="font-weight: 700; color: var(--text-primary); font-size: 0.85rem; text-decoration: none;">
+                            RFP: {{ r['rfp_number'] }}
+                        </a>
+                        
+                        {% if r['reminder_date'] < today_str %}
+                            <span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #fca5a5; font-size: 0.6rem; padding: 0.1rem 0.25rem;">Overdue</span>
+                        {% elif r['reminder_date'] == today_str %}
+                            <span class="badge" style="background: rgba(245, 158, 11, 0.15); color: var(--color-warning); font-size: 0.6rem; padding: 0.1rem 0.25rem;">Today</span>
+                        {% else %}
+                            <span class="badge" style="background: rgba(59, 130, 246, 0.15); color: #93c5fd; font-size: 0.6rem; padding: 0.1rem 0.25rem;">Upcoming</span>
+                        {% endif %}
+                    </div>
+                    
+                    <p style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.3; margin-bottom: 0.5rem;">
+                        {{ r['task_description'] }}
+                    </p>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.03); padding-top: 0.4rem; font-size: 0.7rem; color: var(--text-muted);">
+                        <span>📅 {{ r['reminder_date'] }}</span>
+                        <form action="{{ url_for('rfp_reminder_complete_dashboard', reminder_id=r['id']) }}?source={{ r['source'] }}" method="POST" style="margin: 0;">
+                            <button title="✓ Done" type="submit" class="btn btn-secondary btn-sm" style="padding: 0.15rem 0.4rem; font-size: 0.6rem; background: rgba(16, 185, 129, 0.1); color: var(--color-oem); border-color: rgba(16, 185, 129, 0.2); border-radius: 4px;">✓ Done</button>
+                        </form>
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div style="text-align: center; padding: 1rem 0.5rem; border: 1px dashed var(--border-glass); border-radius: 8px; color: var(--text-muted); font-size: 0.75rem;">
+                No pending RFP reminders.
+            </div>
+        {% endif %}
+    </div>
+</aside>
+
+</div>
+</main>
     </div>
     
     <!-- Create RFP Modal -->

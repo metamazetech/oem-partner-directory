@@ -162,10 +162,12 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Ensure sidebar has flex column layout if not already
         const sidebar = document.querySelector('.sidebar');
-        sidebar.style.display = 'flex';
-        sidebar.style.flexDirection = 'column';
-        
-        
+        if (sidebar) {
+            sidebar.style.display = 'flex';
+            sidebar.style.flexDirection = 'column';
+        }
+    }
+});
 
 // Trigger AJAX Website Scrape on OEM detail page
 function triggerWebsiteScrape(event, contactId) {

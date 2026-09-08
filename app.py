@@ -537,6 +537,12 @@ def serve_service_worker():
     response = send_from_directory('static', 'service-worker.js', mimetype='application/javascript')
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     return response
+def get_portal_settings():
+    conn = database.get_db_connection()
+    rows = conn.execute("SELECT key, value FROM portal_settings").fetchall()
+    conn.close()
+    return {r['key']: r['value'] for r in rows}
+
 @app.route('/search')
 @login_required
 def universal_search():
@@ -2637,6 +2643,33 @@ def admin_auto_update():
             try: os.remove(temp_zip_path)
             except: pass
 
+
+@app.route('/admin/rfp-ip/update', methods=['POST'])
+@admin_required
+def admin_update_rfp_ip():
+    ip_whitelist = request.form.get('rfp_ip_whitelist', '').strip()
+    conn = database.get_db_connection()
+    try:
+        country_whitelist = request.form.get('rfp_country_whitelist', '').strip().upper()
+        
+        if ip_whitelist:
+            conn.execute("INSERT OR REPLACE INTO portal_settings (key, value) VALUES ('rfp_ip_whitelist', ?)", (ip_whitelist,))
+        else:
+            conn.execute("DELETE FROM portal_settings WHERE key = 'rfp_ip_whitelist'")
+            
+        if country_whitelist:
+            conn.execute("INSERT OR REPLACE INTO portal_settings (key, value) VALUES ('rfp_country_whitelist', ?)", (country_whitelist,))
+        else:
+            conn.execute("DELETE FROM portal_settings WHERE key = 'rfp_country_whitelist'")
+            
+        conn.commit()
+        log_audit('SETTINGS_RFP_ACCESS', "Updated RFP IP & Country Whitelists")
+        flash("RFP Access Whitelists successfully updated.", "success")
+    except Exception as e:
+        flash(f"Error updating RFP IP Whitelist: {e}", "error")
+    finally:
+        conn.close()
+    return redirect(url_for('admin'))
 
 @app.route('/admin/rfp-password/update', methods=['POST'])
 @admin_required

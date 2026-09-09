@@ -1,8 +1,25 @@
-# OEM & Partner Directory Portal - Setup & Deployment Guide
+# OEM Partner Directory & Project Management Portal (v4.9)
+*Also known as the NextNode Yellow Pages / Comprehensive CRM & PM Suite*
 
-This guide provides step-by-step instructions for deploying and running the OEM & Partner Relationship Directory Portal on **local development/production servers** and **cPanel Shared Hosting (using Passenger WSGI)**.
+The OEM Partner Directory is a powerful, self-hosted web portal designed to unify contact management, RFP/Tender tracking, project lifecycle management, automated news aggregation, and offline engineering calculation tools into a single, highly customizable platform.
+
+## 🚀 Key Features
+
+*   **📇 Smart Directory & OCR Scanning:** Manage OEMs and Distributors with categorization, company logos, and intelligent OCR Visiting Card scanning.
+*   **💼 Project Management Suite (Perfex CRM Replica):** 
+    *   Full project lifecycle and pipeline tracking.
+    *   Interactive Gantt Charts, Milestone tracking, and Timesheets.
+    *   Client Collaboration portal and Activity Audit Logs.
+*   **📑 RFP & Tender Tracking with Security:** Track project opportunities, BOQ matrix integrations, deadlines, and customer assignments. Protect the RFP workspace via **Session-Lock passwords** and **WAN IP / Country Whitelisting**.
+*   **⏰ Task Reminders & Follow-ups:** Unified dashboard to track assigned follow-ups, interaction logs, and upcoming RFP deadlines.
+*   **🌐 Automated OEM News & Portfolio Scraping:** Live feed fetching the latest updates and offerings directly from partner domains using background scrapers, complete with Search and Sort functionality.
+*   **🔍 Universal Global Search:** Instantly find Contacts, RFPs, and News articles directly from the unified sidebar search.
+*   **📱 Modern UI (GridStack & Themes):** A responsive, drag-and-drop dashboard powered by GridStack.js with multiple UI themes (Cyberpunk, Ocean, Slate, etc.).
+*   **🛠️ Offline-First Engineering Tools:** Built-in Unit Converters, Currency Calculators, CCTV Bandwidth Calculators, Data Center Power Load tools, and PDF-to-CSV Extractors.
+*   **🔄 Built-in Auto-Updater:** Upgrade the entire portal codebase via a simple `.zip` upload directly from the Admin Panel, complete with live terminal progress streaming and auto-backup generation.
 
 ---
+
 
 ## 🌟 Key Features & Capabilities
 

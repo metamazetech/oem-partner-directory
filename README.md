@@ -1,17 +1,13 @@
-# OEM Partner Directory & Project Management Portal (v4.9)
-*Also known as the NextNode Yellow Pages / Comprehensive CRM & PM Suite*
+# OEM Partner Directory & RFP Tracker (v4.9)
+*Also known as the NextNode Yellow Pages*
 
-The OEM Partner Directory is a powerful, self-hosted web portal designed to unify contact management, RFP/Tender tracking, project lifecycle management, automated news aggregation, and offline engineering calculation tools into a single, highly customizable platform.
+The OEM Partner Directory is a streamlined, self-hosted web portal designed to unify contact management, RFP/Tender tracking, automated news aggregation, and offline engineering calculation tools into a single, highly customizable platform.
 
 ## 🚀 Key Features
 
-*   **📇 Smart Directory & OCR Scanning:** Manage OEMs and Distributors with categorization, company logos, and intelligent OCR Visiting Card scanning.
-*   **💼 Project Management Suite (Perfex CRM Replica):** 
-    *   Full project lifecycle and pipeline tracking.
-    *   Interactive Gantt Charts, Milestone tracking, and Timesheets.
-    *   Client Collaboration portal and Activity Audit Logs.
+*   **📇 Smart Directory & OCR Scanning:** Manage OEMs and Distributors with dynamic categorization, automatic company logo fetching, and intelligent OCR Visiting Card scanning.
 *   **📑 RFP & Tender Tracking with Security:** Track project opportunities, BOQ matrix integrations, deadlines, and customer assignments. Protect the RFP workspace via **Session-Lock passwords** and **WAN IP / Country Whitelisting**.
-*   **⏰ Task Reminders & Follow-ups:** Unified dashboard to track assigned follow-ups, interaction logs, and upcoming RFP deadlines.
+*   **⏰ Task Reminders & Follow-ups:** Unified dedicated dashboard to track assigned follow-ups, interaction logs, and upcoming RFP deadlines.
 *   **🌐 Automated OEM News & Portfolio Scraping:** Live feed fetching the latest updates and offerings directly from partner domains using background scrapers, complete with Search and Sort functionality.
 *   **🔍 Universal Global Search:** Instantly find Contacts, RFPs, and News articles directly from the unified sidebar search.
 *   **📱 Modern UI (GridStack & Themes):** A responsive, drag-and-drop dashboard powered by GridStack.js with multiple UI themes (Cyberpunk, Ocean, Slate, etc.).

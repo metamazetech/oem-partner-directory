@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Builder - PCBuilder Replica</title>
+    {% if portal_settings.get('favicon') %}
+        <link rel="icon" type="image/x-icon" href="{{ url_for('uploaded_file', filename=portal_settings.get('favicon')) }}">
+    {% else %}
+        <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    {% endif %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap">
+    
+<!-- Custom Price & URL Override Modal -->
+<div id="override-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px); z-index: 10000; align-items: center; justify-content: center;">
+    <div class="glass-card" style="width: 95%; max-width: 500px; padding: 1.5rem; border: 1px solid rgba(255,255,255,0.1);">
+        <h3 style="margin-top: 0; margin-bottom: 1rem; font-size: 1.25rem; color: white;">Override Price & Source Link</h3>
+        
+        <label style="display: block; margin-bottom: 0.5rem; color: #9ca3af; font-size: 0.9rem;">Custom Price (₹)</label>
+        <input type="number" id="override-price" class="form-control" style="width: 100%; margin-bottom: 1rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 0.75rem; border-radius: 4px;" placeholder="e.g. 28999">
+        
+        <label style="display: block; margin-bottom: 0.5rem; color: #9ca3af; font-size: 0.9rem;">Product URL (Where did you find it?)</label>
+        <input type="url" id="override-url" class="form-control" style="width: 100%; margin-bottom: 1.5rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 0.75rem; border-radius: 4px;" placeholder="https://amazon.in/dp/...">
+        
+        <input type="hidden" id="override-cat-id">
+        
+        <div style="display: flex; justify-content: flex-end; gap: 1rem;">
+            <button onclick="document.getElementById('override-modal').style.display='none'" class="btn" style="background: transparent; color: #9ca3af; border: 1px solid rgba(255,255,255,0.1);">Cancel</button>
+            <button onclick="saveOverride()" class="btn btn-primary" style="background: #10b981; border: none;">Save Override</button>
+        </div>
+    </div>
+</div>
+
+<style>
+        .bucket-tab-content {
+            display: none;
+        }
+        .bucket-tab-content.active {
+            display: block;
+        }
+        .bucket-tab-btn {
+            padding: 0.35rem 0.6rem;
+            font-size: 0.72rem;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            white-space: nowrap;
+            transition: var(--transition);
+        }
+        .bucket-tab-btn:hover {
+            background: rgba(255,255,255,0.08);
+            color: white;
+        }
+        .bucket-tab-btn.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+        .bucket-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 0.6rem 0.8rem;
+            margin-bottom: 0.5rem;
+            cursor: grab;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: white;
+            font-size: 0.82rem;
+            transition: var(--transition);
+        }
+        .bucket-item:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: var(--primary);
+            transform: translateY(-1px);
+        }
+        .drop-zone {
+            background: rgba(0, 0, 0, 0.15);
+            border: 2px dashed rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
+            min-height: 180px;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            transition: var(--transition);
+            margin-bottom: 1rem;
+        }
+        .drop-zone.dragover {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.05);
+        }
+        .drop-item {
+            background: rgba(99, 102, 241, 0.12);
+            border: 1px solid rgba(99, 102, 241, 0.25);
+            border-radius: 6px;
+            padding: 0.5rem 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: white;
+            font-size: 0.8rem;
+        }
+        .drop-item button {
+            background: none;
+            border: none;
+            color: #ef4444;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        .cloud-comparison-bar {
+            height: 24px;
+            border-radius: 6px;
+            overflow: hidden;
+            display: flex;
+            background: rgba(255, 255, 255, 0.05);
+            margin-bottom: 1rem;
+        }
+        .cloud-comparison-fill {
+            height: 100%;
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            padding-left: 0.5rem;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+        
+        /* Power Load Table styling */
+        .power-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1rem;
+        }
+        .power-table th, .power-table td {
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            color: white;
+            font-size: 0.82rem;
+        }
+        .power-table th {
+            text-align: left;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+    </style>
+    {% if theme == 'theme-custom' and custom_theme_colors %}
+    
+<!-- Custom Price & URL Override Modal -->
+<div id="override-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px); z-index: 10000; align-items: center; justify-content: center;">
+    <div class="glass-card" style="width: 95%; max-width: 500px; padding: 1.5rem; border: 1px solid rgba(255,255,255,0.1);">
+        <h3 style="margin-top: 0; margin-bottom: 1rem; font-size: 1.25rem; color: white;">Override Price & Source Link</h3>
+        
+        <label style="display: block; margin-bottom: 0.5rem; color: #9ca3af; font-size: 0.9rem;">Custom Price (₹)</label>
+        <input type="number" id="override-price" class="form-control" style="width: 100%; margin-bottom: 1rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 0.75rem; border-radius: 4px;" placeholder="e.g. 28999">
+        
+        <label style="display: block; margin-bottom: 0.5rem; color: #9ca3af; font-size: 0.9rem;">Product URL (Where did you find it?)</label>
+        <input type="url" id="override-url" class="form-control" style="width: 100%; margin-bottom: 1.5rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 0.75rem; border-radius: 4px;" placeholder="https://amazon.in/dp/...">
+        
+        <input type="hidden" id="override-cat-id">
+        
+        <div style="display: flex; justify-content: flex-end; gap: 1rem;">
+            <button onclick="document.getElementById('override-modal').style.display='none'" class="btn" style="background: transparent; color: #9ca3af; border: 1px solid rgba(255,255,255,0.1);">Cancel</button>
+            <button onclick="saveOverride()" class="btn btn-primary" style="background: #10b981; border: none;">Save Override</button>
+        </div>
+    </div>
+</div>
+
+<style>
+        :root {
+            --background-primary: {{ custom_theme_colors.get('bg_color', '#0f172a') }} !important;
+            --background-card: {{ custom_theme_colors.get('card_color', '#1e293b') }} !important;
+            --text-primary: {{ custom_theme_colors.get('text_color', '#ffffff') }} !important;
+            --text-secondary: {{ custom_theme_colors.get('text_muted', '#94a3b8') }} !important;
+            --primary: {{ custom_theme_colors.get('accent_color', '#6366f1') }} !important;
+            --sidebar-background: {{ custom_theme_colors.get('sidebar_color', '#1e293b') }} !important;
+        }
+    </style>
+    {% endif %}
+</head>
+
+    
+    <!-- Mobile Hamburger Toggle -->
+    <div class="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+    <button id="global-mobile-toggle" class="mobile-toggle-btn" onclick="toggleMobileSidebar()" style="display: none;">☰</button>
+    
+    <script>
+    function toggleMobileSidebar() {
+        const sidebar = document.querySelector('.sidebar');
+        const overlay = document.querySelector('.sidebar-overlay');
+        if (sidebar.classList.contains('menu-open')) {
+            sidebar.classList.remove('menu-open');
+            if(overlay) overlay.classList.remove('active');
+        } else {
+            sidebar.classList.add('menu-open');
+            if(overlay) overlay.classList.add('active');
+        }
+    }
+    </script>
+
+<body class="{{ theme }}">
+    
+{% set enabled_tools = portal_settings.get('enabled_work_tools', 'unit_converter,currency_calculator,pocket_calculator,cctv_calculator,power_calculator,pdf_converter,cloud_calculator,subnet_calculator').split(',') %}
+    <div class="app-container">
+
+    
+    <!-- Mobile Hamburger Toggle -->
+    <div class="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+    <button id="global-mobile-toggle" class="mobile-toggle-btn" onclick="toggleMobileSidebar()" style="display: none;">☰</button>
+    
+    <script>
+    function toggleMobileSidebar() {
+        const sidebar = document.querySelector('.sidebar');
+        const overlay = document.querySelector('.sidebar-overlay');
+        if (sidebar.classList.contains('menu-open')) {
+            sidebar.classList.remove('menu-open');
+            if(overlay) overlay.classList.remove('active');
+        } else {
+            sidebar.classList.add('menu-open');
+            if(overlay) overlay.classList.add('active');
+        }
+    }
+    </script>
+
+
+        
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div style="display: flex; flex-direction: column; flex-grow: 1;">
+            <div class="sidebar-header">
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <div class="logo-container" style="display: flex; align-items: center; justify-content: center; max-width: 100%; padding: 6px 0; text-decoration: none; gap: 0.4rem;">
+                    <a href="{{ url_for('dashboard') }}" style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.25rem; color: var(--text-primary); letter-spacing: -0.03em; text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
+                        {% if portal_settings.get('portal_logo') %}
+                            <img src="{{ url_for('uploaded_file', filename=portal_settings.get('portal_logo')) }}" style="max-height: 40px; max-width: 100%; object-fit: contain;" alt="Logo">
+                        {% else %}
+                            <span>📂</span> {{ portal_settings.get('portal_name', 'OEM Portal') }}
+                        {% endif %}
+                    </a>
+                </div>
+                <button id="sidebar-collapse-btn" onclick="this.closest('.sidebar').style.display='none';var b=document.getElementById('show-sidebar-btn');if(b)b.style.display='flex';localStorage.setItem('sidebar-collapsed','true');" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:1.1rem;padding:4px 8px;border-radius:6px;transition:all 0.2s;" title="Hide Sidebar">&laquo;</button>
+                
+            </div>
+        </div>
+            
+            <div class="nav-container">
+                <form action="javascript:void(0);" onsubmit="window.location.href = getAppUrl('/search?q=' + encodeURIComponent(this.q.value));" method="GET" style="padding: 0.5rem 1rem;">
+                    <div style="display: flex; gap: 0.5rem; position: relative;">
+                        <input type="text" name="q" placeholder="Universal Search..." style="width: 100%; padding: 0.4rem 0.5rem 0.4rem 2rem; border-radius: 6px; border: 1px solid var(--border-glass); background: rgba(15,23,42,0.6); color: white; font-size: 0.85rem;" required>
+                        <span style="position: absolute; left: 0.5rem; top: 50%; transform: translateY(-50%); font-size: 0.9rem; pointer-events: none;">🔍</span>
+                    </div>
+                </form>
+                <nav>
+                    <ul class="nav-menu">
+                        {% if role %}
+                            <li class="nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
+                                <a title="Dashboard" href="{{ url_for('dashboard') }}">
+                                    <span>📊</span> Dashboard
+                                </a>
+                            </li>
+                            <li class="nav-item {% if request.endpoint == 'oem_news_page' %}active{% endif %}">
+                                <a title="OEM News" href="{{ url_for('oem_news_page') }}">
+                                    <span>📰</span> OEM News
+                                </a>
+                            </li>
+                            <li class="nav-item {% if request.endpoint == 'rfps_list' %}active{% endif %}">
+                                <a title="RFP Section" href="{{ url_for('rfps_list') }}">
+                                    <span>📋</span> RFP Section
+                                </a>
+                            </li>
+                            {% if role == 'admin' %}
+                                <li class="nav-item {% if request.endpoint == 'admin_panel' %}active{% endif %}">
+                                    <a title="Admin Panel" href="{{ url_for('admin_panel') }}">
+                                        <span>⚙️</span> Admin Panel
+                                    </a>
+                                </li>
+                                <li class="nav-item {% if request.endpoint == 'timesheets.admin_timesheets' %}active{% endif %}">
+                                    <a title="Master Timesheets" href="{{ url_for('timesheets.admin_timesheets') }}">
+                                        <span>📈</span> Master Timesheets
+                                    </a>
+                                </li>
+                            {% endif %}
+                        {% else %}
+                            <li class="nav-item {% if request.endpoint == 'login' %}active{% endif %}">
+                                <a title="Portal Login" href="{{ url_for('dashboard') }}">
+                                    <span>🚪</span> Portal Login
+                                </a>
+                            </li>
+                        {% endif %}
+                        
+                        {% if enabled_tools and enabled_tools[0] != '' %}
+                        <li class="nav-item {% if request.endpoint == 'work_tools' %}active{% endif %}">
+                            <a title="Work Tools" href="{{ url_for('work_tools') }}">
+                                <span>🛠️</span> Work Tools
+                            </a>
+                        </li>
+                        {% endif %}
+                        
+                        {% if role %}
+                        <li class="nav-item {% if request.endpoint == 'reminders' %}active{% endif %}">
+                            <a title="Reminders" href="{{ url_for('reminders') }}">
+                                <span>⏰</span> Reminders
+                            </a>
+                        </li>
+                        <li class="nav-item {% if request.endpoint == 'timesheets.employee_timesheets' %}active{% endif %}">
+                            <a title="Time Sheet" href="{{ url_for('timesheets.employee_timesheets') }}">
+                                <span>⏱️</span> Time Sheet
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a title="Sign Out" href="{{ url_for('logout') }}" style="color: #fca5a5;">
+                                <span>🚪</span> Sign Out
+                            </a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            </div>
+        </aside>
+        
+        <!-- Main Content Area -->
+        <main class="main-content">
+
+<div style="max-width: 1200px; margin: 0 auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+    
+    <!-- Top Header & Wattage -->
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 1rem;">
+        <div>
+            <h1 style="font-size: 2rem; font-weight: 700; margin: 0; color: white;">System Builder</h1>
+            <p style="color: #9ca3af; margin: 0.5rem 0 0 0;">Build your custom PC/Server and verify compatibility.</p>
+        </div>
+        <div style="text-align: right;">
+            <div style="font-size: 0.9rem; color: #9ca3af; text-transform: uppercase; font-weight: 600; letter-spacing: 1px;">Estimated Wattage</div>
+            <div style="font-size: 2rem; font-weight: 800; color: #38bdf8;" id="est-wattage">0W</div>
+        </div>
+    </div>
+
+    <!-- Compatibility Banner -->
+    <div id="compat-banner" style="background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 4px; padding: 1rem; margin-bottom: 1.5rem; color: #4ade80; display: flex; align-items: center; gap: 0.75rem; font-weight: 500;">
+        <span style="font-size: 1.25rem;">✅</span> 
+        <span id="compat-text">Compatibility: No issues or incompatibilities found.</span>
+    </div>
+
+    <!-- PCBuilder Table List -->
+    <div class="glass-card" style="padding: 0; overflow-x: auto; border: 1px solid var(--border-glass);">
+        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+            <thead style="background: rgba(0,0,0,0.4); border-bottom: 2px solid var(--border-glass);">
+                <tr>
+                    <th style="padding: 1rem; font-weight: 600; color: #9ca3af; width: 15%;">Component</th>
+                    <th style="padding: 1rem; font-weight: 600; color: #9ca3af; width: 40%;">Selection</th>
+                    <th style="padding: 1rem; font-weight: 600; color: #9ca3af; width: 10%;">Price</th>
+                    <th style="padding: 1rem; font-weight: 600; color: #9ca3af; width: 15%;">Where</th>
+                    <th style="padding: 1rem; font-weight: 600; color: #9ca3af; width: 10%; text-align: center;">Qty</th>
+                    <th style="padding: 1rem; font-weight: 600; color: #9ca3af; width: 10%;"></th>
+                </tr>
+            </thead>
+            <tbody id="pcb-tbody" style="font-size: 0.95rem;">
+                <!-- Generated by JS -->
+            </tbody>
+            <tfoot>
+                <tr style="background: rgba(0,0,0,0.2); border-top: 2px solid var(--border-glass);">
+                    <td colspan="6" style="padding: 1rem;">
+                        <button onclick="addCustomCategory()" style="background: transparent; border: 1px dashed #6366f1; color: #818cf8; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-weight: 600; transition: all 0.2s;">
+                            + Add Custom Part
+                        </button>
+                    </td>
+                </tr>
+                <tr style="border-top: 2px solid var(--border-glass);">
+                    <td colspan="4" style="text-align: right; padding: 1.5rem 1rem; font-size: 1.25rem; font-weight: 700; color: #9ca3af;">Total:</td>
+                    <td colspan="2" style="padding: 1.5rem 1rem; font-size: 1.5rem; font-weight: 800; color: #10b981;" id="grand-total">₹0</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+    
+    <!-- Bottom Actions -->
+    <div style="position: sticky; bottom: 0; background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(8px); padding: 1rem 0; border-top: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: flex-end; align-items: center; gap: 1rem; margin-top: 1.5rem; z-index: 100;">
+        <input type="file" id="csv-upload" accept=".csv" style="display: none;" onchange="importCSV(event)">
+        <button onclick="document.getElementById('csv-upload').click()" class="btn btn-secondary" style="padding: 0.75rem 2rem; font-size: 1.1rem; font-weight: 600; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1);">
+            📂 Import CSV Quote
+        </button>
+        <button id="saveQuoteBtn" onclick="openNotesModal()" class="btn btn-primary" style="padding: 0.75rem 2rem; font-size: 1.1rem; font-weight: 600; background: linear-gradient(135deg, #3b82f6, #2563eb); border: none; box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4);">
+            💾 Save & Export Build
+        </button>
+    </div>
+    <div id="quote-success" style="display:none; color: #10b981; margin-top: 1rem; text-align: right; font-weight: 600;"></div>
+    
+    <!-- Notes Modal -->
+    <div id="notes-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px); z-index: 10000; align-items: center; justify-content: center;">
+        <div class="glass-card" style="width: 95%; max-width: 500px; padding: 1.5rem; border: 1px solid rgba(255,255,255,0.1);">
+            <h3 style="margin-top: 0; margin-bottom: 1rem; font-size: 1.25rem; color: white;">Save Quote Details</h3>
+            
+            <label style="display: block; margin-bottom: 0.5rem; color: #9ca3af; font-size: 0.9rem;">Client Name / Notes</label>
+            <textarea id="quote-notes" class="form-control" rows="3" style="width: 100%; margin-bottom: 1.5rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 0.75rem; border-radius: 4px;" placeholder="e.g., Development Server for Acme Corp..."></textarea>
+            
+            <div style="display: flex; justify-content: flex-end; gap: 1rem;">
+                <button onclick="document.getElementById('notes-modal').style.display='none'" class="btn" style="background: transparent; color: #9ca3af; border: 1px solid rgba(255,255,255,0.1);">Cancel</button>
+                <button onclick="executeSaveAndExport()" class="btn btn-primary" style="background: #10b981; border: none;">Generate CSV</button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Selection Modal (Preserving the smart 4-way search) -->
+<div id="selection-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px); z-index: 9999; align-items: center; justify-content: center;">
+    <div class="glass-card" style="width: 95%; max-width: 900px; max-height: 90vh; display: flex; flex-direction: column; padding: 0; overflow: hidden; border: 1px solid rgba(255,255,255,0.1);">
+        <div style="padding: 1.5rem; border-bottom: 1px solid var(--border-glass); display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.4);">
+            <h2 class="card-title" id="modal-title" style="margin: 0; font-size: 1.4rem;">Choose a Part</h2>
+            <button onclick="closeModal()" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.5rem; line-height: 1;">&times;</button>
+        </div>
+        
+        <div style="padding: 1rem 1.5rem; border-bottom: 1px solid var(--border-glass); background: rgba(0,0,0,0.2); display: flex; gap: 0.5rem;">
+            <input type="text" id="modal-search" class="form-control" placeholder="Search exact model or component (e.g., Ryzen 9 7950X, 128GB RAM)..." onkeypress="if(event.key==='Enter') executeModalSearch()" style="background: rgba(255,255,255,0.05);">
+            <button onclick="executeModalSearch()" class="btn btn-primary" style="white-space: nowrap;">Search Catalog</button>
+        </div>
+
+        <div id="modal-results" style="padding: 1rem; overflow-y: auto; flex-grow: 1; display: flex; flex-direction: column; gap: 0.5rem; background: rgba(0,0,0,0.2);"></div>
+    </div>
+</div>
+
+
+<!-- Custom Price & URL Override Modal -->
+<div id="override-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px); z-index: 10000; align-items: center; justify-content: center;">
+    <div class="glass-card" style="width: 95%; max-width: 500px; padding: 1.5rem; border: 1px solid rgba(255,255,255,0.1);">
+        <h3 style="margin-top: 0; margin-bottom: 1rem; font-size: 1.25rem; color: white;">Override Price & Source Link</h3>
+        
+        <label style="display: block; margin-bottom: 0.5rem; color: #9ca3af; font-size: 0.9rem;">Custom Price (₹)</label>
+        <input type="number" id="override-price" class="form-control" style="width: 100%; margin-bottom: 1rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 0.75rem; border-radius: 4px;" placeholder="e.g. 28999">
+        
+        <label style="display: block; margin-bottom: 0.5rem; color: #9ca3af; font-size: 0.9rem;">Product URL (Where did you find it?)</label>
+        <input type="url" id="override-url" class="form-control" style="width: 100%; margin-bottom: 1.5rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 0.75rem; border-radius: 4px;" placeholder="https://amazon.in/dp/...">
+        
+        <input type="hidden" id="override-cat-id">
+        
+        <div style="display: flex; justify-content: flex-end; gap: 1rem;">
+            <button onclick="document.getElementById('override-modal').style.display='none'" class="btn" style="background: transparent; color: #9ca3af; border: 1px solid rgba(255,255,255,0.1);">Cancel</button>
+            <button onclick="saveOverride()" class="btn btn-primary" style="background: #10b981; border: none;">Save Override</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .pcb-row { border-bottom: 1px solid rgba(255,255,255,0.05); transition: background 0.15s; }
+    .pcb-row:hover { background: rgba(255,255,255,0.02); }
+    .pcb-row td { padding: 1rem; vertical-align: middle; }
+    
+    .add-btn { background: #2563eb; color: white; border: none; padding: 0.4rem 1rem; border-radius: 4px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+    .add-btn:hover { background: #1d4ed8; }
+    
+    .remove-btn { background: transparent; border: none; color: #ef4444; font-size: 1.25rem; cursor: pointer; opacity: 0.7; transition: opacity 0.2s; }
+    .remove-btn:hover { opacity: 1; }
+    
+    .qty-ctrl { display: flex; align-items: center; justify-content: center; gap: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 4px; padding: 0.2rem; width: fit-content; margin: 0 auto; }
+    .qty-ctrl button { background: transparent; border: none; color: white; cursor: pointer; font-weight: bold; width: 20px; }
+    
+    .store-link { display: inline-flex; align-items: center; gap: 4px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; color: #cbd5e1; text-decoration: none; font-size: 0.85rem; border: 1px solid rgba(255,255,255,0.1); }
+    .store-link:hover { background: rgba(255,255,255,0.1); color: white; }
+    
+    /* Reused Component Card from old modal but styled for wider layout */
+    .comp-card { display: flex; flex-direction: column; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 1rem; gap: 1rem; }
+    @media(min-width: 768px){ .comp-card { flex-direction: row; align-items: center; justify-content: space-between; } }
+    .comp-details { flex-grow: 1; }
+    .btn-select { display: inline-flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.75rem; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.85rem; transition: transform 0.1s; }
+    .btn-select:hover { transform: translateY(-2px); text-decoration: none; }
+</style>
+
+<script>
+    let categories = [
+        { id: 'cpu', name: 'CPU' },
+        { id: 'cooler', name: 'CPU Cooler' },
+        { id: 'motherboard', name: 'Motherboard' },
+        { id: 'ram', name: 'Memory' },
+        { id: 'storage1', name: 'Storage' },
+        { id: 'gpu', name: 'Video Card' },
+        { id: 'cabinet', name: 'Case' },
+        { id: 'psu', name: 'Power Supply' },
+        { id: 'os', name: 'Operating System' },
+        { id: 'networking', name: 'Networking' }
+    ];
+
+    let buildState = {};
+    let activeModalCategory = null;
+    let quoteTotal = 0;
+
+    function formatINR(amount) {
+        return '₹' + amount.toLocaleString('en-IN');
+    }
+
+    function addCustomCategory() {
+        const id = 'custom_' + Date.now();
+        categories.push({ id: id, name: 'Custom Part', isCustom: true });
+        renderTable();
+        setTimeout(() => openCategory(id), 100);
+    }
+
+    function updateQty(catId, delta) {
+        if (buildState[catId]) {
+            buildState[catId].quantity = Math.max(1, buildState[catId].quantity + delta);
+            renderTable();
+        }
+    }
+
+    function removeCategory(catId) {
+        delete buildState[catId];
+        categories = categories.filter(c => c.id !== catId);
+        renderTable();
+    }
+
+    function clearCategory(catId) {
+        delete buildState[catId];
+        renderTable();
+    }
+
+    function editPrice(catId) {
+        if(buildState[catId]) {
+            document.getElementById('override-cat-id').value = catId;
+            document.getElementById('override-price').value = buildState[catId].selected_price;
+            document.getElementById('override-url').value = buildState[catId].custom_url || "";
+            document.getElementById('override-modal').style.display = 'flex';
+        }
+    }
+    
+    function saveOverride() {
+        const catId = document.getElementById('override-cat-id').value;
+        const priceVal = parseFloat(document.getElementById('override-price').value);
+        const urlVal = document.getElementById('override-url').value.trim();
+        
+        if (buildState[catId] && !isNaN(priceVal) && priceVal >= 0) {
+            buildState[catId].selected_price = priceVal;
+            buildState[catId].source = urlVal ? 'Custom Link' : 'Manual Override';
+            if (urlVal) buildState[catId].custom_url = urlVal;
+            
+            document.getElementById('override-modal').style.display = 'none';
+            renderTable();
+        } else {
+            alert("Please enter a valid price.");
+        }
+    }
+    
+    function setQty(catId, val) {
+        if (buildState[catId]) {
+            const parsed = parseInt(val);
+            if (!isNaN(parsed) && parsed > 0) {
+                buildState[catId].quantity = parsed;
+            } else {
+                buildState[catId].quantity = 1;
+            }
+            renderTable();
+        }
+    }
+
+    // Rough Wattage Estimator based on name keywords
+    function estimateWattage() {
+        let watts = 0;
+        
+        const cpu = buildState['cpu'];
+        if(cpu) {
+            let n = cpu.name.toLowerCase();
+            if(n.includes('i9') || n.includes('ryzen 9') || n.includes('epyc')) watts += 250;
+            else if(n.includes('xeon') || n.includes('i7') || n.includes('ryzen 7')) watts += 150;
+            else watts += 85;
+        }
+        
+        const gpu = buildState['gpu'];
+        if(gpu) {
+            let n = gpu.name.toLowerCase();
+            if(n.includes('4090') || n.includes('a100')) watts += 450;
+            else if(n.includes('4080') || n.includes('a6000')) watts += 320;
+            else if(n.includes('4070') || n.includes('3080')) watts += 220;
+            else if(n.includes('none')) watts += 0;
+            else watts += 150;
+        }
+        
+        if(buildState['motherboard']) watts += 40;
+        if(buildState['ram']) watts += (10 * buildState['ram'].quantity);
+        if(buildState['storage1']) watts += (10 * buildState['storage1'].quantity);
+        if(buildState['storage2']) watts += (15 * buildState['storage2'].quantity);
+        if(buildState['cooler']) watts += 15;
+        
+        document.getElementById('est-wattage').innerText = watts + 'W';
+        return watts;
+    }
+
+    // Compatibility Checker
+    function checkCompatibility() {
+        const banner = document.getElementById('compat-banner');
+        const text = document.getElementById('compat-text');
+        let issues = [];
+        
+        const cpu = buildState['cpu'];
+        const mb = buildState['motherboard'];
+        const ram = buildState['ram'];
+        
+        if(cpu && mb) {
+            if(cpu.socket && mb.socket && cpu.socket !== mb.socket) {
+                issues.push(`CPU Socket (${cpu.socket}) is incompatible with Motherboard Socket (${mb.socket}).`);
+            }
+        }
+        if(mb && ram) {
+            if(mb.ram_type && ram.type && mb.ram_type !== ram.type) {
+                issues.push(`Motherboard supports ${mb.ram_type}, but you selected ${ram.type} Memory.`);
+            }
+        }
+        
+        if(issues.length > 0) {
+            banner.style.background = 'rgba(239, 68, 68, 0.1)';
+            banner.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+            banner.style.color = '#ef4444';
+            banner.innerHTML = `<span style="font-size: 1.25rem;">⚠️</span> <span id="compat-text">Compatibility Issues Found:<br>• ${issues.join('<br>• ')}</span>`;
+        } else {
+            banner.style.background = 'rgba(34, 197, 94, 0.1)';
+            banner.style.borderColor = 'rgba(34, 197, 94, 0.3)';
+            banner.style.color = '#4ade80';
+            banner.innerHTML = `<span style="font-size: 1.25rem;">✅</span> <span id="compat-text">Compatibility: No issues or incompatibilities found.</span>`;
+        }
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('pcb-tbody');
+        tbody.innerHTML = '';
+        quoteTotal = 0;
+        
+        categories.forEach(cat => {
+            const tr = document.createElement('tr');
+            tr.className = 'pcb-row';
+            
+            const selected = buildState[cat.id];
+            
+            if (selected) {
+                const lineTotal = selected.selected_price * selected.quantity;
+                quoteTotal += lineTotal;
+                
+                let linkUrl = "#";
+                let linkText = `🌐 ${selected.source}`;
+                
+                if (selected.custom_url) {
+                    linkUrl = selected.custom_url;
+                    linkText = `🔗 Custom Link`;
+                } else if(selected.source === 'Amazon') linkUrl = selected.amazon_url;
+                else if(selected.source === 'Flipkart') linkUrl = selected.flipkart_url;
+                else if(selected.source === 'MDComputers') linkUrl = selected.md_url;
+                else if(selected.source === 'Vedant') linkUrl = selected.vedant_url;
+                
+                const removeAction = cat.isCustom ? `removeCategory('${cat.id}')` : `clearCategory('${cat.id}')`;
+
+                tr.innerHTML = `
+                    <td style="font-weight: 600; color: #cbd5e1;">${cat.name}</td>
+                    <td>
+                        <div style="font-weight: 700; color: white; font-size: 1.05rem;">${selected.name}</div>
+                        <div style="font-size: 0.8rem; color: #9ca3af; margin-top: 2px;">${selected.desc}</div>
+                    </td>
+                    <td>
+                        <span style="font-weight: 700; color: white; cursor: pointer; border-bottom: 1px dashed rgba(255,255,255,0.3);" title="Click to manually override price" onclick="editPrice('${cat.id}')">${formatINR(lineTotal)}</span>
+                    </td>
+                    <td>
+                        ${selected.selected_price > 0 && selected.source !== 'None' ? `<a href="${linkUrl}" target="_blank" class="store-link">${linkText}</a>` : `<span style="color:#64748b; font-style:italic;">-</span>`}
+                    </td>
+                    <td>
+                        <div class="qty-ctrl" style="gap: 0.25rem;">
+                            <button onclick="updateQty('${cat.id}', -1)">-</button>
+                            <input type="number" min="1" max="999" value="${selected.quantity}" onchange="setQty('${cat.id}', this.value)" style="width: 45px; text-align: center; background: rgba(0,0,0,0.4); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; font-weight: bold; padding: 2px;">
+                            <button onclick="updateQty('${cat.id}', 1)">+</button>
+                        </div>
+                    </td>
+                    <td style="text-align: right;">
+                        <button class="remove-btn" onclick="${removeAction}" title="Remove Component">✕</button>
+                    </td>
+                `;
+            } else {
+                tr.innerHTML = `
+                    <td style="font-weight: 600; color: #9ca3af;">${cat.name}</td>
+                    <td colspan="4">
+                        <button class="add-btn" onclick="openCategory('${cat.id}')">+ Choose A ${cat.name}</button>
+                    </td>
+                    <td style="text-align: right;">
+                        ${cat.isCustom ? `<button class="remove-btn" onclick="removeCategory('${cat.id}')" title="Remove Component">✕</button>` : ``}
+                    </td>
+                `;
+            }
+            tbody.appendChild(tr);
+        });
+        
+        document.getElementById('grand-total').innerText = formatINR(quoteTotal);
+        estimateWattage();
+        checkCompatibility();
+    }
+
+    function executeModalSearch() {
+        const query = document.getElementById('modal-search').value.trim();
+        openCategory(activeModalCategory.id, query);
+    }
+
+    async function openCategory(catId, query = '') {
+        activeModalCategory = categories.find(c => c.id === catId);
+        document.getElementById('modal-title').innerText = `Choose A ${activeModalCategory.name}`;
+        if (!query) document.getElementById('modal-search').value = '';
+
+        const modal = document.getElementById('selection-modal');
+        const resultsDiv = document.getElementById('modal-results');
+        
+        modal.style.display = 'flex';
+        resultsDiv.innerHTML = '<div style="text-align:center; padding: 3rem; color: var(--text-muted);"><div class="spinner-icon"></div> Searching Catalog & E-Commerce Prices...</div>';
+        
+        let url = '/api/components/' + catId + '?t=' + Date.now();
+        if (query) url += `&q=${encodeURIComponent(query)}`;
+
+        if (catId === 'motherboard' && buildState['cpu'] && buildState['cpu'].socket) url += `&socket=${buildState['cpu'].socket}`;
+        if (catId === 'cpu' && buildState['motherboard'] && buildState['motherboard'].socket) url += `&socket=${buildState['motherboard'].socket}`;
+        if (catId === 'ram' && buildState['motherboard'] && buildState['motherboard'].ram_type) url += `&ram_type=${buildState['motherboard'].ram_type}`;
+
+        try {
+            const res = await fetch(url);
+            const data = await res.json();
+            
+            resultsDiv.innerHTML = '';
+            
+            if (data.length === 0) {
+                resultsDiv.innerHTML = '<div style="text-align:center; padding: 3rem; color: #ef4444;">No components found. Try adjusting your search query.</div>';
+                return;
+            }
+            
+            data.forEach(item => {
+                const badge = item.socket ? `<span style="background: rgba(99,102,241,0.2); color: #818cf8; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; margin-left: 0.5rem;">${item.socket}</span>` : '';
+                const ramBadge = item.type || item.ram_type ? `<span style="background: rgba(236,72,153,0.2); color: #f472b6; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; margin-left: 0.5rem;">${item.type || item.ram_type}</span>` : '';
+                
+                const card = document.createElement('div');
+                card.className = 'comp-card';
+                
+                if (item.base_price === 0) {
+                    card.innerHTML = `
+                        <div class="comp-details">
+                            <strong style="font-size: 1.15rem; color: white;">${item.name}</strong>
+                            <div style="font-size: 0.9rem; color: #9ca3af; margin-top: 0.25rem;">${item.desc}</div>
+                        </div>
+                        <button class="add-btn" style="background: var(--surface-glass);" onclick='selectComponent(event, ${JSON.stringify(item)}, "None", 0)'>Select None</button>
+                    `;
+                } else {
+                    const prices = [
+                        { src: "Amazon", p: item.amazon_price },
+                        { src: "Flipkart", p: item.flipkart_price },
+                        { src: "MDComputers", p: item.md_price },
+                        { src: "Vedant", p: item.vedant_price }
+                    ].filter(x => x.p > 0);
+                    const minPrice = prices.length ? Math.min(...prices.map(x => x.p)) : 0;
+                    
+                    const getStyle = (isBest, bg, fg) => isBest ? `background: linear-gradient(135deg, ${bg}, #22c55e); color: ${fg}; box-shadow: 0 0 10px #22c55e; border: 1px solid #22c55e;` : `background: ${bg}; color: ${fg};`;
+                    const getBadge = (isBest) => isBest ? `<span style="position:absolute; top:-8px; right:-8px; background:#22c55e; color:white; font-size:0.6rem; padding:2px 5px; border-radius:10px; font-weight:bold;">🏆 BEST</span>` : ``;
+
+                    card.innerHTML = `
+                        <div class="comp-details">
+                            <strong style="font-size: 1.15rem; color: white;">${item.name}</strong> ${badge} ${ramBadge}
+                            <div style="font-size: 0.9rem; color: #9ca3af; margin-top: 0.3rem;">${item.desc}</div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; min-width: 320px;">
+                            <a href="${item.amazon_url}" target="_blank" onclick='return selectComponent(event, ${JSON.stringify(item)}, "Amazon", ${item.amazon_price})' class="btn-select" style="position:relative; ${getStyle(item.amazon_price === minPrice && minPrice>0, '#f59e0b', 'black')}">
+                                <span>🛒 Amazon</span> <strong>${formatINR(item.amazon_price)}</strong> ${getBadge(item.amazon_price === minPrice && minPrice>0)}
+                            </a>
+                            <a href="${item.flipkart_url}" target="_blank" onclick='return selectComponent(event, ${JSON.stringify(item)}, "Flipkart", ${item.flipkart_price})' class="btn-select" style="position:relative; ${getStyle(item.flipkart_price === minPrice && minPrice>0, '#3b82f6', 'white')}">
+                                <span>🛒 Flipkart</span> <strong>${formatINR(item.flipkart_price)}</strong> ${getBadge(item.flipkart_price === minPrice && minPrice>0)}
+                            </a>
+                            <a href="${item.md_url}" target="_blank" onclick='return selectComponent(event, ${JSON.stringify(item)}, "MDComputers", ${item.md_price})' class="btn-select" style="position:relative; ${getStyle(item.md_price === minPrice && minPrice>0, '#10b981', 'white')}">
+                                <span>🛒 MDComp</span> <strong>${formatINR(item.md_price)}</strong> ${getBadge(item.md_price === minPrice && minPrice>0)}
+                            </a>
+                            <a href="${item.vedant_url}" target="_blank" onclick='return selectComponent(event, ${JSON.stringify(item)}, "Vedant", ${item.vedant_price})' class="btn-select" style="position:relative; ${getStyle(item.vedant_price === minPrice && minPrice>0, '#6366f1', 'white')}">
+                                <span>🛒 Vedant</span> <strong>${formatINR(item.vedant_price)}</strong> ${getBadge(item.vedant_price === minPrice && minPrice>0)}
+                            </a>
+                        </div>
+                    `;
+                }
+                resultsDiv.appendChild(card);
+            });
+        } catch (err) {
+            resultsDiv.innerHTML = `<div style="text-align:center; padding: 3rem; color: #ef4444;">API Error: ${err}</div>`;
+        }
+    }
+
+    function selectComponent(event, item, source, price) {
+        item.source = source;
+        item.selected_price = price;
+        item.quantity = 1;
+        buildState[activeModalCategory.id] = item;
+        document.getElementById('selection-modal').style.display = 'none';
+        activeModalCategory = null;
+        renderTable();
+        return true; 
+    }
+
+    function closeModal() {
+        document.getElementById('selection-modal').style.display = 'none';
+        activeModalCategory = null;
+    }
+
+
+    function openNotesModal() {
+        if (quoteTotal === 0) {
+            alert("Your build is empty. Add items before saving.");
+            return;
+        }
+        document.getElementById('quote-notes').value = '';
+        document.getElementById('notes-modal').style.display = 'flex';
+    }
+
+    async function executeSaveAndExport() {
+        document.getElementById('notes-modal').style.display = 'none';
+        const notes = document.getElementById('quote-notes').value.trim();
+        const btn = document.getElementById('saveQuoteBtn');
+        btn.innerText = 'Processing...';
+        btn.disabled = true;
+        
+        const activeItems = Object.values(buildState).filter(i => i.selected_price > 0);
+        
+        const payload = {
+            total: quoteTotal,
+            items: activeItems,
+            notes: notes
+        };
+        
+        try {
+            const res = await fetch("{{ url_for('system_builder.save_quote') }}", {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (data.success) {
+                // Generate CSV
+                generateCSV(data.quote_id, data.date, notes, activeItems);
+                
+                document.getElementById('quote-success').innerHTML = `Build Exported & Saved!<br>Permalink ID: <strong>${data.quote_id}</strong><br><span style="font-size:0.75rem">${data.date}</span>`;
+                document.getElementById('quote-success').style.display = 'block';
+            }
+        } catch(e) {
+            console.error(e);
+        } finally {
+            btn.innerHTML = '💾 Save & Export Build';
+            btn.disabled = false;
+        }
+    }
+    
+    function generateCSV(quoteId, dateStr, notes, items) {
+        let csv = `Quote ID,${quoteId}\nDate,${dateStr}\nNotes,"${notes.replace(/"/g, '""')}"\nGrand Total,${quoteTotal}\n\n`;
+        csv += `Category ID,Item ID,Name,Description,Price,Quantity,Source,Custom URL,Socket,RAM Type\n`;
+        
+        // Ensure standard categories exist so the importer doesn't crash on custom ones
+        let catMap = {};
+        categories.forEach(c => catMap[c.id] = c);
+        
+        for (const i of items) {
+            // Find the category ID matching this item (by referencing buildState keys)
+            let cId = Object.keys(buildState).find(key => buildState[key].id === i.id) || 'custom_' + Date.now();
+            
+            const row = [
+                cId,
+                i.id || '',
+                `"${(i.name||'').replace(/"/g, '""')}"`,
+                `"${(i.desc||'').replace(/"/g, '""')}"`,
+                i.selected_price || 0,
+                i.quantity || 1,
+                `"${(i.source||'').replace(/"/g, '""')}"`,
+                `"${(i.custom_url||'').replace(/"/g, '""')}"`,
+                i.socket || '',
+                i.ram_type || i.type || ''
+            ];
+            csv += row.join(',') + '\n';
+        }
+        
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `System_Quote_${quoteId}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+    
+    function parseCSVLine(text) {
+        let ret = [], inQuote = false, val = '';
+        for (let i = 0; i < text.length; i++) {
+            let c = text[i];
+            if (inQuote) {
+                if (c === '"') {
+                    if (i+1 < text.length && text[i+1] === '"') { val += '"'; i++; } // Escaped quote
+                    else inQuote = false;
+                } else val += c;
+            } else {
+                if (c === '"') inQuote = true;
+                else if (c === ',') { ret.push(val); val = ''; }
+                else val += c;
+            }
+        }
+        ret.push(val);
+        return ret;
+    }
+
+    function importCSV(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const lines = e.target.result.split('\n');
+            let isData = false;
+            let newBuildState = {};
+            let metaQuoteId = "Unknown";
+            let metaNotes = "";
+            let metaDate = "";
+            
+            for (let rawLine of lines) {
+                const line = rawLine.trim();
+                if (!line) continue;
+                
+                if (line.startsWith('Category ID')) {
+                    isData = true;
+                    continue;
+                }
+                
+                if (!isData) {
+                    const parts = parseCSVLine(line);
+                    if (parts[0] === 'Quote ID') metaQuoteId = parts[1] || "";
+                    if (parts[0] === 'Date') metaDate = parts[1] || "";
+                    if (parts[0] === 'Notes') metaNotes = parts[1] || "";
+                    continue;
+                }
+                
+                if (isData) {
+                    const row = parseCSVLine(line);
+                    if (row.length < 5) continue;
+                    
+                    const catId = row[0];
+                    if (catId.startsWith('custom_') && !categories.find(c => c.id === catId)) {
+                        categories.push({ id: catId, name: 'Custom Part', isCustom: true });
+                    }
+                    
+                    newBuildState[catId] = {
+                        id: row[1],
+                        name: row[2],
+                        desc: row[3],
+                        selected_price: parseFloat(row[4]) || 0,
+                        quantity: parseInt(row[5]) || 1,
+                        source: row[6],
+                        custom_url: row[7],
+                        socket: row[8],
+                        ram_type: row[9],
+                        type: row[9] // alias for ram
+                    };
+                }
+            }
+            
+            buildState = newBuildState;
+            renderTable();
+            document.getElementById('quote-success').innerHTML = `Successfully Imported Quote!<br>Permalink ID: <strong>${metaQuoteId}</strong><br><span style="font-size:0.75rem">${metaDate}</span><br><div style="margin-top:0.5rem;color:#cbd5e1;font-style:italic;">"${metaNotes}"</div>`;
+            document.getElementById('quote-success').style.display = 'block';
+        };
+        reader.readAsText(file);
+        event.target.value = ''; // Reset input
+    }
+
+
+    window.onload = renderTable;
+</script>
+
+</main>
+    </div>
+
+    <!-- Mobile App Bottom Navigation -->
+    <div class="mobile-bottom-nav">
+        <a href="{{ url_for('dashboard') }}" class="mobile-nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
+            <span class="icon">📊</span>
+            <span>Home</span>
+        </a>
+        <a href="{{ url_for('oem_news_page') }}" class="mobile-nav-item {% if request.endpoint == 'oem_news_page' %}active{% endif %}">
+            <span class="icon">📰</span>
+            <span>News</span>
+        </a>
+        <a href="{{ url_for('work_tools') }}" class="mobile-nav-item {% if request.endpoint == 'work_tools' %}active{% endif %}">
+            <span class="icon">🛠️</span>
+            <span>Tools</span>
+        </a>
+        <a href="javascript:void(0)" onclick="toggleMobileSidebar()" class="mobile-nav-item">
+            <span class="icon">☰</span>
+            <span>Menu</span>
+        </a>
+    </div>
+
+</body>
+</html>

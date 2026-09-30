@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel Unlocker - {{ portal_settings.get("portal_name", "OEM Portal") }}</title>
+    {% if portal_settings.get('favicon') %}
+        <link rel="icon" type="image/x-icon" href="{{ url_for('uploaded_file', filename=portal_settings.get('favicon')) }}">
+    {% else %}
+        <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    {% endif %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap">
+    <style>
+        .bucket-tab-content {
+            display: none;
+        }
+        .bucket-tab-content.active {
+            display: block;
+        }
+        .bucket-tab-btn {
+            padding: 0.35rem 0.6rem;
+            font-size: 0.72rem;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            white-space: nowrap;
+            transition: var(--transition);
+        }
+        .bucket-tab-btn:hover {
+            background: rgba(255,255,255,0.08);
+            color: white;
+        }
+        .bucket-tab-btn.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+        .bucket-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 0.6rem 0.8rem;
+            margin-bottom: 0.5rem;
+            cursor: grab;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: white;
+            font-size: 0.82rem;
+            transition: var(--transition);
+        }
+        .bucket-item:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: var(--primary);
+            transform: translateY(-1px);
+        }
+        .drop-zone {
+            background: rgba(0, 0, 0, 0.15);
+            border: 2px dashed rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
+            min-height: 180px;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            transition: var(--transition);
+            margin-bottom: 1rem;
+        }
+        .drop-zone.dragover {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.05);
+        }
+        .drop-item {
+            background: rgba(99, 102, 241, 0.12);
+            border: 1px solid rgba(99, 102, 241, 0.25);
+            border-radius: 6px;
+            padding: 0.5rem 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: white;
+            font-size: 0.8rem;
+        }
+        .drop-item button {
+            background: none;
+            border: none;
+            color: #ef4444;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        .cloud-comparison-bar {
+            height: 24px;
+            border-radius: 6px;
+            overflow: hidden;
+            display: flex;
+            background: rgba(255, 255, 255, 0.05);
+            margin-bottom: 1rem;
+        }
+        .cloud-comparison-fill {
+            height: 100%;
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            padding-left: 0.5rem;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+        
+        /* Power Load Table styling */
+        .power-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1rem;
+        }
+        .power-table th, .power-table td {
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            color: white;
+            font-size: 0.82rem;
+        }
+        .power-table th {
+            text-align: left;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+    </style>
+    {% if theme == 'theme-custom' and custom_theme_colors %}
+    <style>
+        :root {
+            --background-primary: {{ custom_theme_colors.get('bg_color', '#0f172a') }} !important;
+            --background-card: {{ custom_theme_colors.get('card_color', '#1e293b') }} !important;
+            --text-primary: {{ custom_theme_colors.get('text_color', '#ffffff') }} !important;
+            --text-secondary: {{ custom_theme_colors.get('text_muted', '#94a3b8') }} !important;
+            --primary: {{ custom_theme_colors.get('accent_color', '#6366f1') }} !important;
+            --sidebar-background: {{ custom_theme_colors.get('sidebar_color', '#1e293b') }} !important;
+        }
+    </style>
+    {% endif %}
+</head>
+
+    
+    <!-- Mobile Hamburger Toggle -->
+    <div class="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+    <button id="global-mobile-toggle" class="mobile-toggle-btn" onclick="toggleMobileSidebar()" style="display: none;">☰</button>
+    
+    <script>
+    function toggleMobileSidebar() {
+        const sidebar = document.querySelector('.sidebar');
+        const overlay = document.querySelector('.sidebar-overlay');
+        if (sidebar.classList.contains('menu-open')) {
+            sidebar.classList.remove('menu-open');
+            if(overlay) overlay.classList.remove('active');
+        } else {
+            sidebar.classList.add('menu-open');
+            if(overlay) overlay.classList.add('active');
+        }
+    }
+    </script>
+
+<body class="{{ theme }}">
+    
+{% set enabled_tools = portal_settings.get('enabled_work_tools', 'unit_converter,currency_calculator,pocket_calculator,cctv_calculator,power_calculator,pdf_converter,cloud_calculator,subnet_calculator').split(',') %}
+    <div class="app-container">
+
+    
+    <!-- Mobile Hamburger Toggle -->
+    <div class="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+    <button id="global-mobile-toggle" class="mobile-toggle-btn" onclick="toggleMobileSidebar()" style="display: none;">☰</button>
+    
+    <script>
+    function toggleMobileSidebar() {
+        const sidebar = document.querySelector('.sidebar');
+        const overlay = document.querySelector('.sidebar-overlay');
+        if (sidebar.classList.contains('menu-open')) {
+            sidebar.classList.remove('menu-open');
+            if(overlay) overlay.classList.remove('active');
+        } else {
+            sidebar.classList.add('menu-open');
+            if(overlay) overlay.classList.add('active');
+        }
+    }
+    </script>
+
+
+        
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div style="display: flex; flex-direction: column; flex-grow: 1;">
+            <div class="sidebar-header">
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <div class="logo-container" style="display: flex; align-items: center; justify-content: center; max-width: 100%; padding: 6px 0; text-decoration: none; gap: 0.4rem;">
+                    <a href="{{ url_for('dashboard') }}" style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.25rem; color: var(--text-primary); letter-spacing: -0.03em; text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
+                        {% if portal_settings.get('portal_logo') %}
+                            <img src="{{ url_for('uploaded_file', filename=portal_settings.get('portal_logo')) }}" style="max-height: 40px; max-width: 100%; object-fit: contain;" alt="Logo">
+                        {% else %}
+                            <span>📂</span> {{ portal_settings.get('portal_name', 'OEM Portal') }}
+                        {% endif %}
+                    </a>
+                </div>
+                <button id="sidebar-collapse-btn" onclick="this.closest('.sidebar').style.display='none';var b=document.getElementById('show-sidebar-btn');if(b)b.style.display='flex';localStorage.setItem('sidebar-collapsed','true');" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:1.1rem;padding:4px 8px;border-radius:6px;transition:all 0.2s;" title="Hide Sidebar">&laquo;</button>
+                
+            </div>
+        </div>
+            
+            <div class="nav-container">
+                <form action="javascript:void(0);" onsubmit="window.location.href = getAppUrl('/search?q=' + encodeURIComponent(this.q.value));" method="GET" style="padding: 0.5rem 1rem;">
+                    <div style="display: flex; gap: 0.5rem; position: relative;">
+                        <input type="text" name="q" placeholder="Universal Search..." style="width: 100%; padding: 0.4rem 0.5rem 0.4rem 2rem; border-radius: 6px; border: 1px solid var(--border-glass); background: rgba(15,23,42,0.6); color: white; font-size: 0.85rem;" required>
+                        <span style="position: absolute; left: 0.5rem; top: 50%; transform: translateY(-50%); font-size: 0.9rem; pointer-events: none;">🔍</span>
+                    </div>
+                </form>
+                <nav>
+                    <ul class="nav-menu">
+                        {% if role %}
+                            <li class="nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
+                                <a title="Dashboard" href="{{ url_for('dashboard') }}">
+                                    <span>📊</span> Dashboard
+                                </a>
+                            </li>
+                            <li class="nav-item {% if request.endpoint == 'oem_news_page' %}active{% endif %}">
+                                <a title="OEM News" href="{{ url_for('oem_news_page') }}">
+                                    <span>📰</span> OEM News
+                                </a>
+                            </li>
+                            <li class="nav-item {% if request.endpoint == 'rfps_list' %}active{% endif %}">
+                                <a title="RFP Section" href="{{ url_for('rfps_list') }}">
+                                    <span>📋</span> RFP Section
+                                </a>
+                            </li>
+                            {% if role == 'admin' %}
+                                <li class="nav-item {% if request.endpoint == 'admin_panel' %}active{% endif %}">
+                                    <a title="Admin Panel" href="{{ url_for('admin_panel') }}">
+                                        <span>⚙️</span> Admin Panel
+                                    </a>
+                                </li>
+                                <li class="nav-item {% if request.endpoint == 'timesheets.admin_timesheets' %}active{% endif %}">
+                                    <a title="Master Timesheets" href="{{ url_for('timesheets.admin_timesheets') }}">
+                                        <span>📈</span> Master Timesheets
+                                    </a>
+                                </li>
+                            {% endif %}
+                        {% else %}
+                            <li class="nav-item {% if request.endpoint == 'login' %}active{% endif %}">
+                                <a title="Portal Login" href="{{ url_for('dashboard') }}">
+                                    <span>🚪</span> Portal Login
+                                </a>
+                            </li>
+                        {% endif %}
+                        
+                        {% if enabled_tools and enabled_tools[0] != '' %}
+                        <li class="nav-item {% if request.endpoint == 'work_tools' %}active{% endif %}">
+                            <a title="Work Tools" href="{{ url_for('work_tools') }}">
+                                <span>🛠️</span> Work Tools
+                            </a>
+                        </li>
+                        {% endif %}
+                        
+                        {% if role %}
+                        <li class="nav-item {% if request.endpoint == 'reminders' %}active{% endif %}">
+                            <a title="Reminders" href="{{ url_for('reminders') }}">
+                                <span>⏰</span> Reminders
+                            </a>
+                        </li>
+                        <li class="nav-item {% if request.endpoint == 'timesheets.employee_timesheets' %}active{% endif %}">
+                            <a title="Time Sheet" href="{{ url_for('timesheets.employee_timesheets') }}">
+                                <span>⏱️</span> Time Sheet
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a title="Sign Out" href="{{ url_for('logout') }}" style="color: #fca5a5;">
+                                <span>🚪</span> Sign Out
+                            </a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            </div>
+        </aside>
+        
+        <!-- Main Content Area -->
+        <main class="main-content">
+
+<div class="header-bar">
+    <div>
+        <h1 class="page-title">Excel Unlocker Utility</h1>
+        <p style="color: var(--text-secondary); margin-top: 0.25rem;">Remove encryption or worksheet protection offline.</p>
+    </div>
+</div>
+
+<div class="content-wrapper" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+    <!-- Upload Section -->
+    <div class="glass-card" style="padding: 1.5rem;">
+        <h2 class="card-title" style="margin-bottom: 1rem;">Upload & Configure</h2>
+        
+        <form id="excelForm" style="display: flex; flex-direction: column; gap: 1rem;">
+            <div class="form-group" style="margin: 0;">
+                <label class="form-label">Unlock Mode</label>
+                <select id="modeSelect" name="mode" class="form-control" onchange="togglePassword()">
+                    <option value="sheet_protection">Sheet/Workbook Protection (No Password Req.)</option>
+                    <option value="file_encryption">File Encryption (Requires Known Password)</option>
+                </select>
+            </div>
+            
+            <div id="passwordGroup" class="form-group" style="margin: 0; display: none;">
+                <label class="form-label">Current Password</label>
+                <input type="password" id="passwordInput" name="password" class="form-control" placeholder="Enter password to decrypt">
+            </div>
+
+            <div class="form-group" style="margin: 0;">
+                <label class="form-label">Target File (.xlsx, .xlsm)</label>
+                <input type="file" id="fileInput" name="file" class="form-control" accept=".xlsx,.xls,.xlsm" required>
+            </div>
+
+            <button type="submit" id="processBtn" class="btn btn-primary" style="margin-top: 1rem;">Start Processing</button>
+        </form>
+    </div>
+
+    <!-- Terminal Section -->
+    <div class="glass-card" style="padding: 1.5rem; display: flex; flex-direction: column;">
+        <h2 class="card-title" style="margin-bottom: 1rem;">Processing Log</h2>
+        <div id="terminal" style="flex-grow: 1; background: #0f172a; border-radius: 8px; padding: 1rem; color: #10b981; font-family: monospace; font-size: 0.85rem; overflow-y: auto; min-height: 250px; white-space: pre-wrap;">Awaiting job...</div>
+        
+        <div id="downloadArea" style="margin-top: 1rem; display: none;">
+            <a id="downloadLink" href="#" class="btn btn-primary" style="width: 100%; text-align: center; display: block; text-decoration: none;">Download Unlocked File</a>
+        </div>
+    </div>
+</div>
+
+<script>
+    function togglePassword() {
+        const mode = document.getElementById('modeSelect').value;
+        document.getElementById('passwordGroup').style.display = (mode === 'file_encryption') ? 'block' : 'none';
+    }
+
+    document.getElementById('excelForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const formData = new FormData(form);
+        const terminal = document.getElementById('terminal');
+        const processBtn = document.getElementById('processBtn');
+        const downloadArea = document.getElementById('downloadArea');
+        const downloadLink = document.getElementById('downloadLink');
+
+        terminal.innerHTML = "Initializing job...\n";
+        processBtn.disabled = true;
+        downloadArea.style.display = 'none';
+
+        try {
+            const uploadRes = await fetch("{{ url_for('excel_tool.upload_file') }}", {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await uploadRes.json();
+            if (data.error) {
+                terminal.innerHTML += `<span style="color:#ef4444;">Error: ${data.error}</span>\n`;
+                processBtn.disabled = false;
+                return;
+            }
+
+            const jobId = data.job_id;
+            const outputFilename = data.output_filename;
+
+            const eventSource = new EventSource(`/stream/${jobId}`);
+            eventSource.onmessage = function(event) {
+                if (event.data.includes("PROCESS_COMPLETE")) {
+                    eventSource.close();
+                    terminal.innerHTML += "<span style='color:#34d399;'>Process completed successfully!</span>\n";
+                    processBtn.disabled = false;
+                    downloadLink.href = `/download/${jobId}/${outputFilename}`;
+                    downloadArea.style.display = 'block';
+                } else {
+                    terminal.innerHTML += event.data + "\n";
+                    terminal.scrollTop = terminal.scrollHeight;
+                }
+            };
+            eventSource.onerror = function() {
+                eventSource.close();
+                processBtn.disabled = false;
+            };
+        } catch (err) {
+            terminal.innerHTML += `<span style="color:#ef4444;">Upload failed: ${err}</span>\n`;
+            processBtn.disabled = false;
+        }
+    });
+</script>
+
+</main>
+    </div>
+
+    <!-- Mobile App Bottom Navigation -->
+    <div class="mobile-bottom-nav">
+        <a href="{{ url_for('dashboard') }}" class="mobile-nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
+            <span class="icon">📊</span>
+            <span>Home</span>
+        </a>
+        <a href="{{ url_for('oem_news_page') }}" class="mobile-nav-item {% if request.endpoint == 'oem_news_page' %}active{% endif %}">
+            <span class="icon">📰</span>
+            <span>News</span>
+        </a>
+        <a href="{{ url_for('work_tools') }}" class="mobile-nav-item {% if request.endpoint == 'work_tools' %}active{% endif %}">
+            <span class="icon">🛠️</span>
+            <span>Tools</span>
+        </a>
+        <a href="javascript:void(0)" onclick="toggleMobileSidebar()" class="mobile-nav-item">
+            <span class="icon">☰</span>
+            <span>Menu</span>
+        </a>
+    </div>
+
+</body>
+</html>

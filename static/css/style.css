@@ -2308,3 +2308,101 @@ body, aside, main, .glass-card, input, select, textarea, button, .btn {
     display: block;
     opacity: 1;
 }
+
+/* App-like Mobile Refresh */
+.mobile-bottom-nav {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    /* Hide the old floating hamburger button */
+    .mobile-toggle-btn {
+        display: none !important;
+    }
+
+    /* Mobile Bottom Navigation Bar */
+    .mobile-bottom-nav {
+        display: flex !important;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background: rgba(15, 23, 42, 0.95);
+        backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px);
+        border-top: 1px solid rgba(255,255,255,0.08);
+        z-index: 9999;
+        justify-content: space-around;
+        align-items: center;
+        padding: 0.6rem 0;
+        padding-bottom: calc(0.6rem + env(safe-area-inset-bottom, 0px));
+        box-shadow: 0 -4px 25px rgba(0,0,0,0.6);
+    }
+
+    .mobile-nav-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: #94a3b8;
+        font-size: 0.7rem;
+        font-weight: 600;
+        gap: 0.2rem;
+        flex: 1;
+        text-decoration: none;
+        transition: all 0.2s ease;
+    }
+    
+    .mobile-nav-item.active, .mobile-nav-item:active {
+        color: #3b82f6;
+        transform: scale(1.05);
+    }
+    
+    .mobile-nav-item span.icon {
+        font-size: 1.35rem;
+        margin-bottom: 2px;
+    }
+
+    /* Adjust main content padding */
+    .main-content {
+        padding: 1.25rem 0.85rem 6.5rem 0.85rem !important;
+    }
+
+    /* Full-width aesthetic for cards */
+    .glass-card {
+        padding: 1.25rem !important;
+        border-radius: 20px !important;
+        margin-bottom: 1.25rem !important;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.3) !important;
+    }
+    
+    .page-title {
+        font-size: 1.6rem !important;
+    }
+
+    .header-bar {
+        padding: 0.5rem 0.25rem !important;
+        margin-bottom: 1.5rem !important;
+    }
+    
+    /* Make buttons touch-friendly */
+    .btn {
+        padding: 0.85rem 1.2rem !important;
+        font-size: 0.95rem !important;
+        border-radius: 12px !important;
+    }
+
+    /* Drawer Sidebar */
+    .sidebar {
+        width: 280px !important;
+        max-width: 85vw;
+        left: -100% !important;
+        border-right: 1px solid rgba(255,255,255,0.05);
+        padding-top: 1rem !important;
+        background: rgba(11, 15, 25, 0.98) !important;
+        box-shadow: 10px 0 30px rgba(0,0,0,0.5);
+    }
+    .sidebar.menu-open {
+        left: 0 !important;
+    }
+}

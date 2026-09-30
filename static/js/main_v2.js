@@ -1109,7 +1109,7 @@ function uploadCSVFile(file) {
                         console.error("JSON parsing error:", e);
                     }
                     
-                    if (xhr.status === 200 && responseJson && responseJson.status === 'success') {
+                    if (xhr.status === 200 && responseJson && (responseJson.status === 'success' || responseJson.status === 'warning')) {
                         updateProgressBar(95, "Resolving names and fetching company logos...");
                         setTimeout(() => {
                             updateProgressBar(100, "Import complete! Generating report summary...");
@@ -1163,13 +1163,31 @@ function uploadCSVFile(file) {
                             }, 800);
                         }, 1200);
                     } else {
-                        hideProgressOverlay();
                         csvFileInput.value = ''; // Reset input to allow re-upload
                         console.error("CSV Import failed. HTTP Status:", xhr.status);
                         console.error("Server Response Raw Text:", xhr.responseText);
                         
-                        const errorMsg = (responseJson && responseJson.message) ? responseJson.message : `Server Error (HTTP ${xhr.status}). If you just uploaded the new files, please click 'Restart' on your cPanel Python Application Manager to apply the updates.`;
-                        alert("❌ CSV Import Failed:\n\n" + errorMsg);
+                        const errorMsg = (responseJson && responseJson.message) ? responseJson.message : `Server Error (HTTP ${xhr.status}). Check server logs.`;
+                        
+                        // Turn progress bar red and show error directly
+                        let bar = document.getElementById('progress-bar-fill');
+                        if (bar) bar.style.background = '#ef4444'; // red-500
+                        
+                        updateProgressBar(100, `❌ Import Failed: ${errorMsg}`);
+                        
+                        // Add a close button to the overlay
+                        let overlayBox = document.querySelector('.progress-box');
+                        if (overlayBox) {
+                            let closeBtn = document.createElement('button');
+                            closeBtn.textContent = 'Close';
+                            closeBtn.className = 'btn btn-primary';
+                            closeBtn.style.marginTop = '1rem';
+                            closeBtn.onclick = () => { hideProgressOverlay(); };
+                            overlayBox.appendChild(closeBtn);
+                        } else {
+                            hideProgressOverlay();
+                            alert("❌ CSV Import Failed:\n\n" + errorMsg);
+                        }
                     }
                 }
             };
@@ -2414,67 +2432,29 @@ function calculateSubnet() {
 window.calculateSubnet = calculateSubnet;
 
 /* Master Backup download progress */
-async function downloadBackupWithProgress(event, downloadUrl) {
+function downloadBackupWithProgress(event, downloadUrl) {
     event.preventDefault();
     
     const container = document.getElementById('download-progress-container');
     const bar = document.getElementById('download-progress-bar');
     const text = document.getElementById('download-progress-text');
     
-    if (!container || !bar || !text) {
+    if (container && bar && text) {
+        container.style.display = 'block';
+        bar.style.width = '75%';
+        text.textContent = 'Generating...';
+        
+        // Use native browser download mechanism (most robust for cPanel/large files)
         window.location.href = downloadUrl;
-        return;
-    }
-    
-    container.style.display = 'block';
-    bar.style.width = '0%';
-    text.textContent = '0%';
-    
-    try {
-        const response = await fetch(downloadUrl);
-        if (!response.ok) throw new Error("Network response error");
-        
-        const reader = response.body.getReader();
-        const contentLength = +response.headers.get('Content-Length') || 25000000; // 25MB estimate fallback
-        
-        let receivedLength = 0;
-        const chunks = [];
-        
-        while(true) {
-            const {done, value} = await reader.read();
-            if (done) break;
-            
-            chunks.push(value);
-            receivedLength += value.length;
-            
-            const percent = Math.min(100, Math.round((receivedLength / contentLength) * 100));
-            bar.style.width = percent + '%';
-            text.textContent = percent + '%';
-        }
-        
-        bar.style.width = '100%';
-        text.textContent = '100%';
-        
-        // Convert chunks to Blob
-        const blob = new Blob(chunks, {type: 'application/zip'});
-        const blobUrl = URL.createObjectURL(blob);
-        
-        // Trigger download anchor programmatically
-        const a = document.createElement('a');
-        a.href = blobUrl;
-        const date = new Date().toISOString().slice(0, 10);
-        a.download = `master_portal_backup_${date}.zip`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(blobUrl);
         
         setTimeout(() => {
-            container.style.display = 'none';
-        }, 2000);
-    } catch (err) {
-        console.error("Backup download streaming failed:", err);
-        alert("Failed to stream backup. Falling back to default browser download.");
+            bar.style.width = '100%';
+            text.textContent = 'Done!';
+            setTimeout(() => {
+                container.style.display = 'none';
+            }, 2000);
+        }, 1500);
+    } else {
         window.location.href = downloadUrl;
     }
 }

@@ -10,6 +10,35 @@ import database
 from scraper import scrape_oem_website
 
 app = Flask(__name__)
+
+# Register Blueprints
+try:
+    from timesheets import timesheets_bp, init_db as init_timesheets_db
+    app.register_blueprint(timesheets_bp)
+    
+    # Initialize timesheets DB
+    import database
+    conn = database.get_db_connection()
+    init_timesheets_db(conn)
+    conn.close()
+except ImportError as e:
+    print(f"Failed to load timesheets: {e}")
+
+try:
+    from excel_tool import excel_bp
+    app.register_blueprint(excel_bp)
+except ImportError as e:
+    print(f"Failed to load excel tool: {e}")
+
+try:
+    from system_builder import builder_bp, init_builder_db
+    import database
+    conn = database.get_db_connection()
+    init_builder_db(conn)
+    conn.close()
+    app.register_blueprint(builder_bp)
+except ImportError as e:
+    print(f"Failed to load system builder: {e}")
 app.url_map.strict_slashes = False
 import secrets
 # Persistent Secret Key Logic
@@ -24,7 +53,8 @@ else:
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 if not app.debug:
-    app.config['SESSION_COOKIE_SECURE'] = True
+    # Disabled SESSION_COOKIE_SECURE to prevent Chrome from dropping sessions over HTTP/cPanel proxies
+    app.config['SESSION_COOKIE_SECURE'] = False
 
 @app.after_request
 def add_header(response):
@@ -93,10 +123,16 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+logo_download_lock = __import__('threading').Lock()
+
 def download_company_logo(website, contact_id, company_name=None):
     import urllib.request
     from urllib.parse import urlparse
     import socket
+    import time
+    
+    with logo_download_lock:
+        time.sleep(0.5)  # Rate limit prevention
     
     domain = None
     if website:
@@ -259,20 +295,47 @@ def log_audit(action, details, user_id=None):
 # Template context processor to inject dynamic OEM groups & portal settings in all pages
 @app.context_processor
 def inject_global_data():
-    conn = database.get_db_connection()
-    groups = conn.execute('SELECT * FROM oem_groups ORDER BY name ASC').fetchall()
-    settings_rows = conn.execute('SELECT key, value FROM portal_settings').fetchall()
+    import time
+    current_time = time.time()
     
+    # cPanel Memory Caching for Heavy Globals (TTL: 60s)
+    if current_time - app.config.get('GLOBAL_CACHE_TS', 0) < 60:
+        cached = app.config.get('GLOBAL_CACHE_DATA', {})
+        # We must uniquely calculate user-specific data outside the cache!
+        user_theme = session.get('theme', 'theme-slate-dark')
+        custom_theme_colors = {}
+        if 'user_id' in session:
+            conn = database.get_db_connection()
+            user_row = conn.execute('SELECT theme, custom_theme_colors FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+            conn.close()
+            if user_row:
+                user_theme = user_row['theme']
+                try:
+                    import json
+                    custom_theme_colors = json.loads(user_row['custom_theme_colors']) if user_row['custom_theme_colors'] else {}
+                except: pass
+        
+        return dict(
+            oem_groups=cached['groups'], 
+            portal_settings=cached['settings'], 
+            theme=user_theme, 
+            custom_theme_colors=custom_theme_colors,
+            useful_websites=cached['useful_websites'],
+            change_logs=cached['change_logs'],
+            csrf_token=session.get('csrf_token', ''),
+            role=session.get('role')
+        )
+
+    conn = database.get_db_connection()
+    groups = [dict(g) for g in conn.execute('SELECT * FROM oem_groups ORDER BY name ASC').fetchall()]
+    settings_rows = conn.execute('SELECT key, value FROM portal_settings').fetchall()
     settings = {row['key']: row['value'] for row in settings_rows}
     settings.setdefault('portal_name', 'OEM Directory')
     settings.setdefault('portal_logo', '')
     settings.setdefault('favicon', '')
-    settings['csrf_token'] = session.get('csrf_token', '')
     
-    # Safety fallback: clear database setting if brand image file is missing on disk
     upload_folder = app.config.get('UPLOAD_FOLDER')
     db_changed = False
-    
     for key in ('portal_logo', 'favicon'):
         val = settings.get(key)
         if val:
@@ -281,35 +344,44 @@ def inject_global_data():
                 settings[key] = ''
                 conn.execute('DELETE FROM portal_settings WHERE key = ?', (key,))
                 db_changed = True
-                
     if db_changed:
         conn.commit()
         
-    user_theme = 'theme-slate-dark'
+    useful_websites = [dict(w) for w in conn.execute('SELECT * FROM useful_websites ORDER BY title ASC').fetchall()]
+    change_logs = [dict(c) for c in conn.execute('SELECT * FROM change_logs ORDER BY release_date DESC, id DESC').fetchall()]
+    
+    # User Specific Theme Check
+    user_theme = session.get('theme', 'theme-slate-dark')
     custom_theme_colors = {}
-    import json
     if 'user_id' in session:
         user_row = conn.execute('SELECT theme, custom_theme_colors FROM users WHERE id = ?', (session['user_id'],)).fetchone()
         if user_row:
             user_theme = user_row['theme']
             try:
+                import json
                 custom_theme_colors = json.loads(user_row['custom_theme_colors']) if user_row['custom_theme_colors'] else {}
-            except:
-                pass
-    else:
-        user_theme = session.get('theme', 'theme-slate-dark')
-        
-    useful_websites = conn.execute('SELECT * FROM useful_websites ORDER BY title ASC').fetchall()
-    change_logs = conn.execute('SELECT * FROM change_logs ORDER BY release_date DESC, id DESC').fetchall()
-        
+            except: pass
+            
     conn.close()
+
+    # Save to global cache
+    app.config['GLOBAL_CACHE_TS'] = current_time
+    app.config['GLOBAL_CACHE_DATA'] = {
+        'groups': groups,
+        'settings': settings,
+        'useful_websites': useful_websites,
+        'change_logs': change_logs
+    }
+
     return dict(
         oem_groups=groups, 
         portal_settings=settings, 
         theme=user_theme, 
         custom_theme_colors=custom_theme_colors,
         useful_websites=useful_websites,
-        change_logs=change_logs
+        change_logs=change_logs,
+        csrf_token=session.get('csrf_token', ''),
+        role=session.get('role')
     )
 
 
@@ -1659,17 +1731,21 @@ def download_import_template():
 @login_required
 def import_csv():
     if session.get('role') == 'viewer':
-        return jsonify({"status": "error", "message": "Access Denied: View-only users cannot import CSV data."}), 403
+        flash("Access Denied: View-only users cannot import CSV data.", "error")
+        return redirect(url_for("dashboard"))
         
     if 'csv_file' not in request.files:
-        return jsonify({"status": "error", "message": "Import Failed: No file part was uploaded."}), 400
+        flash("Import Failed: No file part was uploaded.", "error")
+        return redirect(url_for("dashboard"))
         
     file = request.files['csv_file']
     if file.filename == '':
-        return jsonify({"status": "error", "message": "Import Failed: No selected file."}), 400
+        flash("Import Failed: No selected file.", "error")
+        return redirect(url_for("dashboard"))
         
     if not file.filename.endswith('.csv'):
-        return jsonify({"status": "error", "message": "Import Failed: Invalid file extension. Only CSV (.csv) files are supported."}), 400
+        flash("Import Failed: Invalid file extension. Only CSV (.csv) files are supported.", "error")
+        return redirect(url_for("dashboard"))
         
     import csv
     import io
@@ -1681,26 +1757,34 @@ def import_csv():
         stream = io.StringIO(file_decoded, newline=None)
         csv_reader = csv.reader(stream)
     except Exception as e:
-        return jsonify({"status": "error", "message": f"CSV Reading Error: Failed to parse character stream. Detail: {str(e)}"}), 400
+        flash(f"CSV Reading Error: Failed to parse character stream. Detail: {str(e)}", "error")
+        return redirect(url_for("dashboard"))
         
     try:
         headers = [h.strip() for h in next(csv_reader)]
     except StopIteration:
-        return jsonify({"status": "error", "message": "Import Failed: The uploaded CSV file is empty."}), 400
+        flash("Import Failed: The uploaded CSV file is empty.", "error")
+        return redirect(url_for("dashboard"))
     except Exception as e:
-        return jsonify({"status": "error", "message": f"CSV Reading Error: Failed to parse the header row. Detail: {str(e)}"}), 400
+        flash(f"CSV Reading Error: Failed to parse the header row. Detail: {str(e)}", "error")
+        return redirect(url_for("dashboard"))
         
+    
     # Header validations
-    expected_headers = ['Company Name', 'Type', 'OEM Group', 'Website', 'Address', 
-                        'Primary Contact Name', 'Primary Designation', 'Primary Email', 'Primary Phone']
+    is_v5_format = False
+    
+    if 'Contact Persons (Name | Designation | Email | Phone)' in headers:
+        is_v5_format = True
+        expected_headers = ['Company Name', 'Type', 'OEM Group', 'Website', 'Address', 'Contact Persons (Name | Designation | Email | Phone)']
+    else:
+        expected_headers = ['Company Name', 'Type', 'OEM Group', 'Website', 'Address', 
+                            'Primary Contact Name', 'Primary Designation', 'Primary Email', 'Primary Phone']
                         
     # Verify critical columns are present
     missing_headers = [h for h in expected_headers[:6] if h not in headers]
     if missing_headers:
-        return jsonify({
-            "status": "error", 
-            "message": f"CSV Column Mismatch: Missing expected headers: {', '.join(missing_headers)}. Please download the template for the correct column format."
-        }), 400
+        flash(f"CSV Column Mismatch: Missing expected headers: {', '.join(missing_headers)}. Please download the template for the correct column format.", "error")
+        return redirect(url_for('dashboard'))
         
     conn = database.get_db_connection()
     imported_count = 0
@@ -1714,28 +1798,64 @@ def import_csv():
             if not row:
                 continue
                 
-            # Pad row with blank items if missing columns to prevent index crashes
-            if len(row) < 9:
-                row = row + [''] * (9 - len(row))
-                warnings.append(f"Row {row_idx}: Contained less than 9 columns. Missing columns were auto-padded.")
-                
-            company_name = row[0].strip()
-            type_ = row[1].strip()
-            group_name = row[2].strip()
-            website = row[3].strip()
-            address = row[4].strip()
-            name = row[5].strip()
-            desig = row[6].strip()
-            email = row[7].strip()
-            phone = row[8].strip()
+            new_contact_persons = []
             
+            if is_v5_format:
+                if len(row) < 6:
+                    row = row + [''] * (6 - len(row))
+                company_name = row[0].strip()
+                type_ = row[1].strip()
+                group_name = row[2].strip()
+                website = row[3].strip()
+                address = row[4].strip()
+                
+                contacts_str = row[5].strip()
+                if contacts_str:
+                    for cp_str in contacts_str.split(' ; '):
+                        parts = [p.strip() for p in cp_str.split('|')]
+                        if len(parts) >= 1 and parts[0]:
+                            new_contact_persons.append({
+                                "name": parts[0],
+                                "designation": parts[1] if len(parts) > 1 else "",
+                                "email": parts[2] if len(parts) > 2 else "",
+                                "phone": parts[3] if len(parts) > 3 else ""
+                            })
+                if not new_contact_persons:
+                    new_contact_persons.append({
+                        "name": "Primary Contact",
+                        "designation": "", "email": "", "phone": ""
+                    })
+                    
+                name = new_contact_persons[0]["name"]
+                desig = new_contact_persons[0]["designation"]
+                email = new_contact_persons[0]["email"]
+                phone = new_contact_persons[0]["phone"]
+            else:
+                if len(row) < 9:
+                    row = row + [''] * (9 - len(row))
+                    warnings.append(f"Row {row_idx}: Contained less than 9 columns. Missing columns were auto-padded.")
+                    
+                company_name = row[0].strip()
+                type_ = row[1].strip()
+                group_name = row[2].strip()
+                website = row[3].strip()
+                address = row[4].strip()
+                name = row[5].strip()
+                desig = row[6].strip()
+                email = row[7].strip()
+                phone = row[8].strip()
+                
+                new_contact_persons = [{
+                    "name": name if name else "Primary Contact",
+                    "designation": desig,
+                    "email": email,
+                    "phone": phone
+                }]
+                
             # Handle blank items and assign placeholders with warnings
             if not company_name:
                 company_name = f"Unnamed Partner {row_idx}"
                 warnings.append(f"Row {row_idx}: 'Company Name' was blank, imported as '{company_name}'.")
-            if not name:
-                name = "Primary Contact"
-                warnings.append(f"Row {row_idx} ({company_name}): 'Primary Contact Name' was blank, imported as '{name}'.")
                 
             if type_ not in ['OEM', 'Distributor']:
                 type_ = 'OEM'
@@ -1757,7 +1877,6 @@ def import_csv():
                 existing_id = existing['id']
                 existing_persons_json = existing['contact_persons']
                 
-                # Parse existing contact persons list
                 existing_persons = []
                 if existing_persons_json:
                     try:
@@ -1765,7 +1884,6 @@ def import_csv():
                     except Exception:
                         pass
                 
-                # If existing list is empty, initialize it with the main primary contact info
                 if not existing_persons:
                     existing_persons = [{
                         "name": existing['name'],
@@ -1775,46 +1893,34 @@ def import_csv():
                     }]
                 
                 # Check if this new contact person already exists in the list to avoid duplicate entries
-                already_exists = False
-                for p in existing_persons:
-                    if p.get('name', '').lower() == name.lower() and p.get('email', '').lower() == email.lower():
-                        already_exists = True
-                        break
+                added_any = False
+                for new_cp in new_contact_persons:
+                    already_exists = False
+                    for p in existing_persons:
+                        if p.get('name', '').lower() == new_cp['name'].lower() and p.get('email', '').lower() == new_cp['email'].lower():
+                            already_exists = True
+                            break
+                    
+                    if not already_exists:
+                        existing_persons.append(new_cp)
+                        added_any = True
                 
-                if not already_exists:
-                    existing_persons.append({
-                        "name": name,
-                        "designation": desig,
-                        "email": email,
-                        "phone": phone
-                    })
+                if added_any:
                     conn.execute('UPDATE contacts SET contact_persons = ? WHERE id = ?', (json.dumps(existing_persons), existing_id))
                     imported_count += 1
                 else:
                     skipped_count += 1
                 continue
                 
-            contact_persons = [{
-                "name": name,
-                "designation": desig,
-                "email": email,
-                "phone": phone
-            }]
-            
             cursor = conn.cursor()
             cursor.execute('''
             INSERT INTO contacts (company_name, name, type, group_name, designation, email, phone, website, address, contact_persons, fetched_products, fetched_services, custom_products, custom_services, created_by)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', '[]', '[]', '[]', ?)
             ''', (
                 company_name, name, type_, group_name, desig, email, phone, website, address,
-                json.dumps(contact_persons), session['user_id']
+                json.dumps(new_contact_persons), session['user_id']
             ))
             contact_id = cursor.lastrowid
-            
-            # Try fetching logo
-            logo_filename = download_company_logo(website, contact_id, company_name)
-            if logo_filename:
-                cursor.execute("UPDATE contacts SET company_logo = ? WHERE id = ?", (logo_filename, contact_id))
                 
             imported_count += 1
             
@@ -1822,20 +1928,22 @@ def import_csv():
     except Exception as e:
         conn.rollback()
         conn.close()
-        return jsonify({"status": "error", "message": f"Database write error at row {row_idx}: {str(e)}. Import aborted."}), 500
+        flash(f"Database write error at row {row_idx}: {str(e)}. Import aborted.", "error")
+        return redirect(url_for('dashboard'))
         
     conn.close()
     
     try:
         log_audit('CSV_IMPORT', f"Imported {imported_count} partners, skipped {skipped_count} rows with {len(warnings)} notifications.")
     except Exception as e:
-        print(f"Failed to log audit event: {e}")
+        pass
         
-    return jsonify({
-        "status": "success", 
-        "message": f"Successfully imported {imported_count} vendor partners. Skipped {skipped_count} duplicate records.",
-        "warnings": warnings
-    })
+    flash(f"Successfully imported {imported_count} vendor partners. Skipped {skipped_count} duplicate records.", "success")
+    if warnings:
+        for w in warnings[:5]:
+            flash(w, "warning")
+    return redirect(url_for('dashboard'))
+
 
 def is_password_strong(password):
     import re
@@ -2329,6 +2437,13 @@ def download_master_backup():
         except ImportError:
             compress_method = zipfile.ZIP_STORED
             
+        # Force SQLite WAL Checkpoint so all recent data is written to the main DB file
+        try:
+            conn = database.get_db_connection()
+            conn.execute('PRAGMA wal_checkpoint(FULL)')
+            conn.close()
+        except: pass
+        
         with zipfile.ZipFile(temp_zip_path, 'w', compress_method) as zipf:
             # Add database
             db_path = database.DB_PATH

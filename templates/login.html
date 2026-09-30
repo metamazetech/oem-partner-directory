@@ -259,5 +259,26 @@
             animation: zoomFadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
         }
     </style>
+
+    <!-- Mobile App Bottom Navigation -->
+    <div class="mobile-bottom-nav">
+        <a href="{{ url_for('dashboard') }}" class="mobile-nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
+            <span class="icon">📊</span>
+            <span>Home</span>
+        </a>
+        <a href="{{ url_for('oem_news_page') }}" class="mobile-nav-item {% if request.endpoint == 'oem_news_page' %}active{% endif %}">
+            <span class="icon">📰</span>
+            <span>News</span>
+        </a>
+        <a href="{{ url_for('work_tools') }}" class="mobile-nav-item {% if request.endpoint == 'work_tools' %}active{% endif %}">
+            <span class="icon">🛠️</span>
+            <span>Tools</span>
+        </a>
+        <a href="javascript:void(0)" onclick="toggleMobileSidebar()" class="mobile-nav-item">
+            <span class="icon">☰</span>
+            <span>Menu</span>
+        </a>
+    </div>
+
 </body>
 </html>

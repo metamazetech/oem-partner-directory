@@ -217,58 +217,67 @@
                 <nav>
                     <ul class="nav-menu">
                         {% if role %}
-                            <li class="nav-item">
+                            <li class="nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
                                 <a title="Dashboard" href="{{ url_for('dashboard') }}">
                                     <span>📊</span> Dashboard
                                 </a>
                             </li>
-                            <li class="nav-item">
+                            <li class="nav-item {% if request.endpoint == 'oem_news_page' %}active{% endif %}">
                                 <a title="OEM News" href="{{ url_for('oem_news_page') }}">
                                     <span>📰</span> OEM News
                                 </a>
                             </li>
-                            <li class="nav-item">
+                            <li class="nav-item {% if request.endpoint == 'rfps_list' %}active{% endif %}">
                                 <a title="RFP Section" href="{{ url_for('rfps_list') }}">
                                     <span>📋</span> RFP Section
                                 </a>
                             </li>
                             {% if role == 'admin' %}
-                                <li class="nav-item">
-                                    <a title="️ Admin Panel" href="{{ url_for('admin_panel') }}">
-                                        <span>🛡️</span> Admin Panel
+                                <li class="nav-item {% if request.endpoint == 'admin_panel' %}active{% endif %}">
+                                    <a title="Admin Panel" href="{{ url_for('admin_panel') }}">
+                                        <span>⚙️</span> Admin Panel
+                                    </a>
+                                </li>
+                                <li class="nav-item {% if request.endpoint == 'timesheets.admin_timesheets' %}active{% endif %}">
+                                    <a title="Master Timesheets" href="{{ url_for('timesheets.admin_timesheets') }}">
+                                        <span>📈</span> Master Timesheets
                                     </a>
                                 </li>
                             {% endif %}
                         {% else %}
-                            <li class="nav-item">
+                            <li class="nav-item {% if request.endpoint == 'login' %}active{% endif %}">
                                 <a title="Portal Login" href="{{ url_for('dashboard') }}">
-                                    <span>🔑</span> Portal Login
+                                    <span>🚪</span> Portal Login
                                 </a>
                             </li>
                         {% endif %}
+                        
                         {% if enabled_tools and enabled_tools[0] != '' %}
-                        <li class="nav-item active">
-                            <a title="️ Work Tools" href="{{ url_for('work_tools') }}">
+                        <li class="nav-item {% if request.endpoint == 'work_tools' %}active{% endif %}">
+                            <a title="Work Tools" href="{{ url_for('work_tools') }}">
                                 <span>🛠️</span> Work Tools
                             </a>
                         </li>
                         {% endif %}
-                        {% if role %}
-                            
-                        {% endif %}
-                    
                         
-<li class="nav-item">
+                        {% if role %}
+                        <li class="nav-item {% if request.endpoint == 'reminders' %}active{% endif %}">
                             <a title="Reminders" href="{{ url_for('reminders') }}">
                                 <span>⏰</span> Reminders
                             </a>
                         </li>
-<li class="nav-item">
-                                <a title="Sign Out" href="{{ url_for('logout') }}" style="color: #fca5a5;">
-                                    <span>🚪</span> Sign Out
-                                </a>
-                            </li>
-</ul>
+                        <li class="nav-item {% if request.endpoint == 'timesheets.employee_timesheets' %}active{% endif %}">
+                            <a title="Time Sheet" href="{{ url_for('timesheets.employee_timesheets') }}">
+                                <span>⏱️</span> Time Sheet
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a title="Sign Out" href="{{ url_for('logout') }}" style="color: #fca5a5;">
+                                <span>🚪</span> Sign Out
+                            </a>
+                        </li>
+                        {% endif %}
+                    </ul>
                 </nav>
             </div>
         </aside>
@@ -296,6 +305,21 @@
             </div>
             
             <div class="work-tools-container-grid">
+                
+                <!-- TOOL: EXCEL PASSWORD UTILITY -->
+                <div class="glass-card" style="padding: 1.5rem; display: flex; flex-direction: column;">
+                    <h2 class="card-title" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">🔐 Excel Unlocker</h2>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.25rem;">Remove File Encryption or Workbook Protection instantly.</p>
+                    <a href="{{ url_for('excel_tool.index') }}" class="btn btn-primary" style="margin-top: auto; text-align: center; display: block; text-decoration: none;">Launch Tool</a>
+                </div>
+
+                <!-- TOOL: SYSTEM BUILDER -->
+                <div class="glass-card" style="padding: 1.5rem; display: flex; flex-direction: column;">
+                    <h2 class="card-title" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">🖥️ System Builder</h2>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.25rem;">Build custom PC, Server, or Network rigs with live internet price/availability scraping.</p>
+                    <a href="{{ url_for('system_builder.index') }}" class="btn btn-primary" style="margin-top: auto; text-align: center; display: block; text-decoration: none;">Launch Builder</a>
+                </div>
+
                 
                 {% if 'unit_converter' in enabled_tools %}
 <!-- TOOL 1: UNIT CONVERTER -->
@@ -1557,7 +1581,7 @@
             resultsCard.style.display = 'block';
         }
     </script>
-<script src="{{ url_for('static', filename='js/main.js') }}?v={{ portal_settings.get('portal_version', '4.0') }}"></script>
+<script src="{{ url_for('static', filename='js/main_v2.js') }}?v={{ portal_settings.get('portal_version', '4.0') }}"></script>
 
     <!-- Sidebar Show Button (appears when sidebar is hidden) -->
     <div id="show-sidebar-btn" style="position:fixed;top:12px;left:0;z-index:9999;display:none;">
@@ -1573,5 +1597,26 @@
         }
     })();
     </script>
+
+    <!-- Mobile App Bottom Navigation -->
+    <div class="mobile-bottom-nav">
+        <a href="{{ url_for('dashboard') }}" class="mobile-nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
+            <span class="icon">📊</span>
+            <span>Home</span>
+        </a>
+        <a href="{{ url_for('oem_news_page') }}" class="mobile-nav-item {% if request.endpoint == 'oem_news_page' %}active{% endif %}">
+            <span class="icon">📰</span>
+            <span>News</span>
+        </a>
+        <a href="{{ url_for('work_tools') }}" class="mobile-nav-item {% if request.endpoint == 'work_tools' %}active{% endif %}">
+            <span class="icon">🛠️</span>
+            <span>Tools</span>
+        </a>
+        <a href="javascript:void(0)" onclick="toggleMobileSidebar()" class="mobile-nav-item">
+            <span class="icon">☰</span>
+            <span>Menu</span>
+        </a>
+    </div>
+
 </body>
 </html>

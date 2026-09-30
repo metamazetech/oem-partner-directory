@@ -7,6 +7,10 @@ DB_PATH = os.environ.get('DATABASE_PATH', os.path.join(os.path.dirname(os.path.a
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH, timeout=30.0)
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA journal_mode = WAL")  # cPanel IOPS optimization
+    conn.execute("PRAGMA synchronous = NORMAL")
+    conn.execute("PRAGMA cache_size = -64000") # 64MB memory cache
+    conn.execute("PRAGMA temp_store = MEMORY")
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -424,6 +428,10 @@ def init_db():
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_oem_news_pubdate ON oem_news(pub_date)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_interactions_status ON interactions(followup_status)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action)')
+    
+    # Performance Indexes
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_oem_news_pub_date ON oem_news(pub_date)')
     
     conn.commit()
     conn.close()

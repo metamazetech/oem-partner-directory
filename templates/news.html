@@ -93,55 +93,68 @@
                 </form>
                 <nav>
                     <ul class="nav-menu">
-                        <li class="nav-item">
-                            <a title="Dashboard" href="{{ url_for('dashboard') }}">
-                                <span>📊</span> Dashboard
-                            </a>
-                        </li>
-                        <li class="nav-item active">
-                            <a title="OEM News" href="{{ url_for('oem_news_page') }}">
-                                <span>📰</span> OEM News
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a title="RFP Section" href="{{ url_for('rfps_list') }}">
-                                <span>📋</span> RFP Section
-                            </a>
-                        </li>
-                        {% if session['role'] == 'admin' %}
-                        <li class="nav-item">
-                            <a title="️ Admin Panel" href="{{ url_for('admin_panel') }}">
-                                <span>🛡️</span> Admin Panel
-                            </a>
-                        </li>
+                        {% if role %}
+                            <li class="nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
+                                <a title="Dashboard" href="{{ url_for('dashboard') }}">
+                                    <span>📊</span> Dashboard
+                                </a>
+                            </li>
+                            <li class="nav-item {% if request.endpoint == 'oem_news_page' %}active{% endif %}">
+                                <a title="OEM News" href="{{ url_for('oem_news_page') }}">
+                                    <span>📰</span> OEM News
+                                </a>
+                            </li>
+                            <li class="nav-item {% if request.endpoint == 'rfps_list' %}active{% endif %}">
+                                <a title="RFP Section" href="{{ url_for('rfps_list') }}">
+                                    <span>📋</span> RFP Section
+                                </a>
+                            </li>
+                            {% if role == 'admin' %}
+                                <li class="nav-item {% if request.endpoint == 'admin_panel' %}active{% endif %}">
+                                    <a title="Admin Panel" href="{{ url_for('admin_panel') }}">
+                                        <span>⚙️</span> Admin Panel
+                                    </a>
+                                </li>
+                                <li class="nav-item {% if request.endpoint == 'timesheets.admin_timesheets' %}active{% endif %}">
+                                    <a title="Master Timesheets" href="{{ url_for('timesheets.admin_timesheets') }}">
+                                        <span>📈</span> Master Timesheets
+                                    </a>
+                                </li>
+                            {% endif %}
+                        {% else %}
+                            <li class="nav-item {% if request.endpoint == 'login' %}active{% endif %}">
+                                <a title="Portal Login" href="{{ url_for('dashboard') }}">
+                                    <span>🚪</span> Portal Login
+                                </a>
+                            </li>
                         {% endif %}
-                                                {% set enabled_tools = portal_settings.get('enabled_work_tools', 'unit_converter,currency_calculator,pocket_calculator,cctv_calculator,power_calculator,pdf_converter,cloud_calculator').split(',') %}
+                        
                         {% if enabled_tools and enabled_tools[0] != '' %}
-                        <li class="nav-item">
-                            <a title="️ Work Tools" href="{{ url_for('work_tools') }}">
+                        <li class="nav-item {% if request.endpoint == 'work_tools' %}active{% endif %}">
+                            <a title="Work Tools" href="{{ url_for('work_tools') }}">
                                 <span>🛠️</span> Work Tools
                             </a>
                         </li>
                         {% endif %}
-<li class="nav-item" id="install-app-item">
-                            <a title="Install App" href="javascript:void(0)" onclick="installApp()" style="color: #34d399;">
-                                <span>📱</span> Install App
-                            </a>
-                        </li>
                         
-                    
-                        
-<li class="nav-item">
+                        {% if role %}
+                        <li class="nav-item {% if request.endpoint == 'reminders' %}active{% endif %}">
                             <a title="Reminders" href="{{ url_for('reminders') }}">
                                 <span>⏰</span> Reminders
                             </a>
                         </li>
-<li class="nav-item">
+                        <li class="nav-item {% if request.endpoint == 'timesheets.employee_timesheets' %}active{% endif %}">
+                            <a title="Time Sheet" href="{{ url_for('timesheets.employee_timesheets') }}">
+                                <span>⏱️</span> Time Sheet
+                            </a>
+                        </li>
+                        <li class="nav-item">
                             <a title="Sign Out" href="{{ url_for('logout') }}" style="color: #fca5a5;">
                                 <span>🚪</span> Sign Out
                             </a>
                         </li>
-</ul>
+                        {% endif %}
+                    </ul>
                 </nav>
             </div>
             
@@ -259,7 +272,7 @@
         }
     </style>
     
-    <script src="{{ url_for('static', filename='js/main.js') }}?v={{ portal_settings.get('portal_version', '4.0') }}"></script>
+    <script src="{{ url_for('static', filename='js/main_v2.js') }}?v={{ portal_settings.get('portal_version', '4.0') }}"></script>
     <script>
         function filterNews(oemName) {
             const cards = document.querySelectorAll('.news-card');
@@ -297,5 +310,26 @@
         }
     })();
     </script>
+
+    <!-- Mobile App Bottom Navigation -->
+    <div class="mobile-bottom-nav">
+        <a href="{{ url_for('dashboard') }}" class="mobile-nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
+            <span class="icon">📊</span>
+            <span>Home</span>
+        </a>
+        <a href="{{ url_for('oem_news_page') }}" class="mobile-nav-item {% if request.endpoint == 'oem_news_page' %}active{% endif %}">
+            <span class="icon">📰</span>
+            <span>News</span>
+        </a>
+        <a href="{{ url_for('work_tools') }}" class="mobile-nav-item {% if request.endpoint == 'work_tools' %}active{% endif %}">
+            <span class="icon">🛠️</span>
+            <span>Tools</span>
+        </a>
+        <a href="javascript:void(0)" onclick="toggleMobileSidebar()" class="mobile-nav-item">
+            <span class="icon">☰</span>
+            <span>Menu</span>
+        </a>
+    </div>
+
 </body>
 </html>

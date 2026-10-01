@@ -2614,14 +2614,17 @@ def restore_master_backup():
 def admin_auto_update():
     logs = ["Starting update process..."]
     if 'update_file' not in request.files:
-        return jsonify({"status": "error", "message": "No file uploaded."})
+        flash("No file uploaded.", "error")
+        return redirect(url_for('admin_panel'))
         
     file = request.files['update_file']
     if file.filename == '':
-        return jsonify({"status": "error", "message": "No file selected."})
+        flash("No file selected.", "error")
+        return redirect(url_for('admin_panel'))
         
     if not file.filename.endswith('.zip'):
-        return jsonify({"status": "error", "message": "Invalid file format. Please upload a .zip codebase archive."})
+        flash("Invalid file format. Please upload a .zip codebase archive.", "error")
+        return redirect(url_for('admin_panel'))
         
     import zipfile
     import shutil
@@ -2671,7 +2674,8 @@ def admin_auto_update():
         log_audit('PORTAL_UPDATE_BACKUP', f"Created automatic pre-update backup: {backup_filename}")
         logs.append(f"Backup created successfully: {backup_filename}")
     except Exception as backup_err:
-        return jsonify({"status": "error", "message": f"Failed to create backup: {backup_err}. Aborted."})
+        flash(f"Failed to create backup: {backup_err}. Aborted.", "error")
+        return redirect(url_for('admin_panel'))
         
     # 2. Extract Uploaded Codebase ZIP
     logs.append("Extracting uploaded update archive...")
@@ -2758,10 +2762,12 @@ def admin_auto_update():
         log_audit('PORTAL_UPDATE_APPLIED', f"Application auto-update applied: {extracted_files} files.")
         logs.append("Update complete! The portal will now restart automatically.")
         
-        return jsonify({"status": "success", "message": chr(10).join(logs)})
+        flash("Update complete!", "success")
+        return redirect(url_for('admin_panel'))
         
     except Exception as update_err:
-        return jsonify({"status": "error", "message": f"Update failed: {update_err}"})
+        flash(f"Update failed: {update_err}", "error")
+        return redirect(url_for('admin_panel'))
     finally:
         if os.path.exists(temp_zip_path):
             try: os.remove(temp_zip_path)
@@ -4065,7 +4071,8 @@ def rfp_boq_sample_csv():
 def rfp_import_checklist_csv(rfp_id):
     file = request.files.get('file')
     if not file or not file.filename:
-        return jsonify({"status": "error", "message": "No file uploaded."}), 400
+        flash("No file uploaded.", "error")
+        return redirect(url_for('admin_panel')), 400
         
     if not file.filename.endswith('.csv'):
         return jsonify({"status": "error", "message": "Invalid file format. Only CSV allowed."}), 400

@@ -749,7 +749,7 @@
                     Upload a new portal codebase `.zip` package. The portal will automatically export a complete backup of the active database and uploads before replacing code files, installing dependencies, and reloading the WSGI server.
                 </p>
                 
-                <form action="{{ url_for('admin_auto_update') }}" method="POST" enctype="multipart/form-data" onsubmit="event.preventDefault(); uploadUpdateWithProgress();" style="margin: 0;">
+                <form action="{{ url_for('admin_auto_update') }}" method="POST" enctype="multipart/form-data" onsubmit="document.getElementById('update-progress-container').style.display='block'; document.getElementById('update-progress-bar').style.width='100%'; document.getElementById('update-progress-bar').style.animation='pulse 1.5s infinite'; document.getElementById('update-progress-text').innerText='Uploading and processing (this may take a minute)...';" style="margin: 0;">
                     <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
                         <div style="flex: 1; min-width: 250px;">
                             <input type="file" name="update_file" id="update_file_input" accept=".zip" required class="form-control" style="font-size: 0.78rem; padding: 0.35rem; background: rgba(15,23,42,0.6); border: 1px solid var(--border-glass); color: white;">

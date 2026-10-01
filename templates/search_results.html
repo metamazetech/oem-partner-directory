@@ -78,13 +78,13 @@
                                 <span>🛠️</span> Work Tools
                             </a>
                         </li>
-                        <li class="nav-item {% if request.endpoint == 'excel_tool.excel_view' %}active{% endif %}">
-                            <a title="Excel Utility" href="{{ url_for('excel_tool.excel_view') }}">
+                        <li class="nav-item {% if request.endpoint == 'excel_tool.index' %}active{% endif %}">
+                            <a title="Excel Utility" href="{{ url_for('excel_tool.index') }}">
                                 <span>🔓</span> Excel Utility
                             </a>
                         </li>
-                        <li class="nav-item {% if request.endpoint == 'system_builder.builder_view' %}active{% endif %}">
-                            <a title="System Builder" href="{{ url_for('system_builder.builder_view') }}">
+                        <li class="nav-item {% if request.endpoint == 'system_builder.index' %}active{% endif %}">
+                            <a title="System Builder" href="{{ url_for('system_builder.index') }}">
                                 <span>🛠️</span> System Builder
                             </a>
                         </li>

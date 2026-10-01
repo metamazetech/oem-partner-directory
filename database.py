@@ -433,7 +433,35 @@ def init_db():
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_oem_news_pub_date ON oem_news(pub_date)')
     
+
+    # Version Auto-Migration Block
+    CURRENT_VERSION = 'v5.8'
+    try:
+        db_ver_row = cursor.execute("SELECT value FROM portal_settings WHERE key = 'portal_version'").fetchone()
+        db_ver = db_ver_row['value'] if db_ver_row else 'v4.0'
+        
+        if db_ver != CURRENT_VERSION:
+            # Update the DB version
+            cursor.execute("UPDATE portal_settings SET value = ? WHERE key = 'portal_version'", (CURRENT_VERSION,))
+            
+            # Insert change log for v5.7 if not exists
+            check_cl = cursor.execute("SELECT id FROM change_logs WHERE version = ?", (CURRENT_VERSION,)).fetchone()
+            if not check_cl:
+                import datetime
+                cursor.execute('''
+                    INSERT INTO change_logs (version, release_date, features, improvements) 
+                    VALUES (?, ?, ?, ?)
+                ''', (
+                    CURRENT_VERSION, 
+                    datetime.date.today().strftime('%Y-%m-%d'),
+                    'Timesheet & Productivity Tracker, System Builder Engine, Excel Password Remover Utility',
+                    'Fixed CSV dual-format parser logic, removed cPanel WAF tarpitting via native forms, enhanced mobile responsive UI routing.'
+                ))
+    except Exception as e:
+        print(f"Migration error: {e}")
+
     conn.commit()
+
     conn.close()
     print("Database initialized successfully.")
 

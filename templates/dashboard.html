@@ -123,7 +123,7 @@
                                 </li>
                                 <li class="nav-item {% if request.endpoint == 'timesheets.admin_timesheets' %}active{% endif %}">
                                     <a title="Master Timesheets" href="{{ url_for('timesheets.admin_timesheets') }}">
-                                        <span>📈</span> Master Timesheets
+                                        <span>⏱️</span> Master Timesheets
                                     </a>
                                 </li>
                             {% endif %}
@@ -139,6 +139,16 @@
                         <li class="nav-item {% if request.endpoint == 'work_tools' %}active{% endif %}">
                             <a title="Work Tools" href="{{ url_for('work_tools') }}">
                                 <span>🛠️</span> Work Tools
+                            </a>
+                        </li>
+                        <li class="nav-item {% if request.endpoint == 'excel_tool.excel_view' %}active{% endif %}">
+                            <a title="Excel Utility" href="{{ url_for('excel_tool.excel_view') }}">
+                                <span>🔓</span> Excel Utility
+                            </a>
+                        </li>
+                        <li class="nav-item {% if request.endpoint == 'system_builder.builder_view' %}active{% endif %}">
+                            <a title="System Builder" href="{{ url_for('system_builder.builder_view') }}">
+                                <span>🛠️</span> System Builder
                             </a>
                         </li>
                         {% endif %}
@@ -185,9 +195,7 @@
                 <div>
                     <h1 class="page-title" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
                         OEM & Distributor Directory
-                        <span onclick="openModal('changelogs-modal')" style="font-size: 0.75rem; background: linear-gradient(135deg, var(--primary), #a855f7); color: white; padding: 2px 8px; border-radius: 20px; cursor: pointer; font-weight: bold; margin-left: 0.25rem; box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.2); transition: transform 0.2s;" title="Click to view change log history" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                            {{ portal_settings.get('portal_version', 'v4.0') }}
-                        </span>
+                        
                     </h1>
                     <p style="color: var(--text-secondary); margin-top: 0.25rem;">Manage professional relationships and check vendor portfolio catalogs.</p>
                 </div>
@@ -235,7 +243,7 @@
             <!-- Statistical Cards -->
             <section class="stats-grid grid-stack">
                 <div class="stat-card grid-stack-item" gs-w="3" gs-h="1">
-                    <div class="grid-stack-item-content" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="grid-stack-item-content" style="display: flex; justify-content: space-between; align-items: center; width: 100%; height: 100%;">
                         <div>
                             <span class="stat-label">Total Partners</span>
                             <div id="stat-total-partners" class="stat-number">{{ stats['total'] }}</div>
@@ -244,7 +252,7 @@
                     </div>
                 </div>
                 <div class="stat-card grid-stack-item" gs-w="3" gs-h="1">
-                    <div class="grid-stack-item-content" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="grid-stack-item-content" style="display: flex; justify-content: space-between; align-items: center; width: 100%; height: 100%;">
                         <div>
                             <span class="stat-label">OEMs</span>
                             <div id="stat-oems" class="stat-number">{{ stats['oems'] }}</div>
@@ -253,7 +261,7 @@
                     </div>
                 </div>
                 <div class="stat-card grid-stack-item" gs-w="3" gs-h="1">
-                    <div class="grid-stack-item-content" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="grid-stack-item-content" style="display: flex; justify-content: space-between; align-items: center; width: 100%; height: 100%;">
                         <div>
                             <span class="stat-label">Distributors</span>
                             <div id="stat-distributors" class="stat-number">{{ stats['distributors'] }}</div>
@@ -262,7 +270,7 @@
                     </div>
                 </div>
                 <div class="stat-card grid-stack-item" gs-w="3" gs-h="1">
-                    <div class="grid-stack-item-content" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="grid-stack-item-content" style="display: flex; justify-content: space-between; align-items: center; width: 100%; height: 100%;">
                         <div>
                             <span class="stat-label">Interactions</span>
                             <div class="stat-number">{{ stats['interactions'] }}</div>

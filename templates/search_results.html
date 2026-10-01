@@ -60,7 +60,7 @@
                                 </li>
                                 <li class="nav-item {% if request.endpoint == 'timesheets.admin_timesheets' %}active{% endif %}">
                                     <a title="Master Timesheets" href="{{ url_for('timesheets.admin_timesheets') }}">
-                                        <span>📈</span> Master Timesheets
+                                        <span>⏱️</span> Master Timesheets
                                     </a>
                                 </li>
                             {% endif %}
@@ -76,6 +76,16 @@
                         <li class="nav-item {% if request.endpoint == 'work_tools' %}active{% endif %}">
                             <a title="Work Tools" href="{{ url_for('work_tools') }}">
                                 <span>🛠️</span> Work Tools
+                            </a>
+                        </li>
+                        <li class="nav-item {% if request.endpoint == 'excel_tool.excel_view' %}active{% endif %}">
+                            <a title="Excel Utility" href="{{ url_for('excel_tool.excel_view') }}">
+                                <span>🔓</span> Excel Utility
+                            </a>
+                        </li>
+                        <li class="nav-item {% if request.endpoint == 'system_builder.builder_view' %}active{% endif %}">
+                            <a title="System Builder" href="{{ url_for('system_builder.builder_view') }}">
+                                <span>🛠️</span> System Builder
                             </a>
                         </li>
                         {% endif %}

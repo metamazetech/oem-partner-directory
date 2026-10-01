@@ -181,9 +181,9 @@ def download_company_logo(website, contact_id, company_name=None):
     # List of public logo/favicon API services
     # We will prioritize Google since Clearbit often fails or returns placeholder blocks
     sources = [
-        f"https://www.google.com/s2/favicons?sz=128&domain={domain}",
         f"https://logo.clearbit.com/{domain}",
-        f"https://icons.duckduckgo.com/ip3/{domain}.ico"
+        f"https://icons.duckduckgo.com/ip3/{domain}.ico",
+        f"https://www.google.com/s2/favicons?sz=128&domain={domain}"
     ]
     
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
@@ -193,7 +193,10 @@ def download_company_logo(website, contact_id, company_name=None):
     for logo_url in sources:
         try:
             response = requests.get(logo_url, headers=headers, timeout=5, verify=False)
-            if response.status_code == 200 and len(response.content) > 500:
+            content_length = len(response.content)
+            # Skip Google's default 726-byte globe icon
+            is_google_globe = 'google.com' in logo_url and content_length == 726
+            if response.status_code == 200 and content_length > 150 and not is_google_globe:
                 with open(filepath, 'wb') as out_file:
                     out_file.write(response.content)
                 return filename
@@ -205,10 +208,12 @@ def download_company_logo(website, contact_id, company_name=None):
             context = ssl._create_unverified_context()
             req = urllib.request.Request(logo_url, headers=headers)
             with urllib.request.urlopen(req, timeout=4, context=context) as urllib_resp:
-                content = urllib_resp.read()
-                if urllib_resp.status == 200 and len(content) > 500:
+                urllib_content = urllib_resp.read()
+                c_len = len(urllib_content)
+                is_google_globe = 'google.com' in logo_url and c_len == 726
+                if urllib_resp.status == 200 and c_len > 150 and not is_google_globe:
                     with open(filepath, 'wb') as out_file:
-                        out_file.write(content)
+                        out_file.write(urllib_content)
                     return filename
         except Exception as e2:
             print(f"Urllib fallback failed to fetch logo from {logo_url}: {e2}")
@@ -2279,6 +2284,7 @@ def run_master_sync_thread(user_id, username):
         try:
             thread_conn = database.get_db_connection()
             contact = thread_conn.execute('SELECT * FROM contacts WHERE id = ?', (contact_id,)).fetchone()
+            thread_conn.close() # Close immediately after read
             
             cleaned_name = clean_junk_chars(contact['name'])
             cleaned_desig = clean_junk_chars(contact['designation'])
@@ -2342,6 +2348,7 @@ def run_master_sync_thread(user_id, username):
             final_products = final_products[:12]
             final_services = final_services[:12]
             
+            thread_conn = database.get_db_connection() # Reopen for writing
             thread_conn.execute('''
             UPDATE contacts
             SET company_name = ?, name = ?, designation = ?, email = ?, phone = ?, website = ?, address = ?, 

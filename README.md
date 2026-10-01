@@ -192,7 +192,8 @@ You can update your portal directly from the Admin Panel without manually deleti
   1. Generates a full system rollback backup (`uploads/pre_update_backup_[timestamp].zip`) containing all code, active database, and uploads.
   2. Extracts the new codebase to the root directory (supporting both flat and nested repository folders).
   3. Resolves and upgrades any new dependencies in `requirements.txt` via `pip`.
-  4. Touches `tmp/restart.txt` to trigger a Passenger WSGI application server reload.
+  4. Natively bypasses aggressive cPanel ModSecurity WAF rules (which typically block AJAX/XHR payloads) ensuring smooth large-file uploads.
+  5. Touches `tmp/restart.txt` to trigger a Passenger WSGI application server reload.
 
 ### 2. Master Backup & Safe Database Restore
 * The portal supports complete backups of active business configurations.

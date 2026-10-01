@@ -328,7 +328,8 @@ def inject_global_data():
             useful_websites=cached['useful_websites'],
             change_logs=cached['change_logs'],
             csrf_token=session.get('csrf_token', ''),
-            role=session.get('role')
+            role=session.get('role'),
+            enabled_tools=cached['settings'].get('enabled_work_tools', 'unit,currency,calculator,cctv,power,pdf').split(',')
         )
 
     conn = database.get_db_connection()
@@ -386,7 +387,8 @@ def inject_global_data():
         useful_websites=useful_websites,
         change_logs=change_logs,
         csrf_token=session.get('csrf_token', ''),
-        role=session.get('role')
+        role=session.get('role'),
+        enabled_tools=settings.get('enabled_work_tools', 'unit,currency,calculator,cctv,power,pdf').split(',')
     )
 
 

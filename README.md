@@ -1,4 +1,4 @@
-# OEM Partner Directory & RFP Tracker (v4.9)
+# OEM Partner Directory & RFP Tracker (v5.8)
 *Also known as the NextNode Yellow Pages*
 
 The OEM Partner Directory is a streamlined, self-hosted web portal designed to unify contact management, RFP/Tender tracking, automated news aggregation, and offline engineering calculation tools into a single, highly customizable platform.

@@ -31,11 +31,24 @@ def get_db():
 
 def init_db(conn):
     cursor = conn.cursor()
+    
+    # Run migration if table exists but lacks columns
+    try:
+        cursor.execute('ALTER TABLE timesheets ADD COLUMN start_time TEXT')
+    except sqlite3.OperationalError:
+        pass
+    try:
+        cursor.execute('ALTER TABLE timesheets ADD COLUMN end_time TEXT')
+    except sqlite3.OperationalError:
+        pass
+        
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS timesheets (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
             date TEXT NOT NULL,
+            start_time TEXT,
+            end_time TEXT,
             task TEXT NOT NULL,
             productivity TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

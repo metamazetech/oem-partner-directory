@@ -2,6 +2,7 @@ import csv
 import io
 import sqlite3
 from flask import Blueprint, render_template, request, flash, redirect, url_for, Response, current_app, session
+from datetime import datetime
 
 timesheets_bp = Blueprint('timesheets', __name__)
 
@@ -32,13 +33,17 @@ def get_db():
 def init_db(conn):
     cursor = conn.cursor()
     
-    # Run migration if table exists but lacks columns
+    # Run migrations if table exists but lacks columns
     try:
         cursor.execute('ALTER TABLE timesheets ADD COLUMN start_time TEXT')
     except sqlite3.OperationalError:
         pass
     try:
         cursor.execute('ALTER TABLE timesheets ADD COLUMN end_time TEXT')
+    except sqlite3.OperationalError:
+        pass
+    try:
+        cursor.execute('ALTER TABLE timesheets ADD COLUMN project_title TEXT')
     except sqlite3.OperationalError:
         pass
         
@@ -51,21 +56,95 @@ def init_db(conn):
             end_time TEXT,
             task TEXT NOT NULL,
             productivity TEXT,
+            project_title TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
     conn.commit()
 
+def calculate_hours(start, end):
+    try:
+        fmt = '%H:%M'
+        tdelta = datetime.strptime(end, fmt) - datetime.strptime(start, fmt)
+        hours = tdelta.total_seconds() / 3600
+        return round(hours, 2)
+    except:
+        return 0
+
 @timesheets_bp.route('/timesheets')
 @login_required
 def employee_timesheets():
-    user_id = session.get('user_id')  # Defaulting to 1 for demonstration
+    user_id = session.get('user_id')
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM timesheets WHERE user_id = ? ORDER BY date DESC', (user_id,))
-    timesheets = cursor.fetchall()
+    cursor.execute('SELECT * FROM timesheets WHERE user_id = ? ORDER BY date DESC, start_time ASC', (user_id,))
+    rows = cursor.fetchall()
+    
+    cursor.execute('SELECT DISTINCT project_title FROM timesheets WHERE user_id = ? AND project_title IS NOT NULL AND project_title != "" ORDER BY project_title ASC', (user_id,))
+    projects = [r['project_title'] for r in cursor.fetchall()]
     conn.close()
-    return render_template('timesheets.html', timesheets=timesheets)
+    
+    timesheets = []
+    daily_summary = {}
+    for r in rows:
+        d = dict(r)
+        d['hours_worked'] = calculate_hours(d['start_time'], d['end_time']) if d['start_time'] and d['end_time'] else 0
+        timesheets.append(d)
+        
+        date = d['date']
+        if date not in daily_summary:
+            daily_summary[date] = {'productive': 0.0, 'break': 0.0, 'last_end': None}
+        
+        daily_summary[date]['productive'] += d['hours_worked']
+        
+        # Calculate break time
+        if d['start_time'] and daily_summary[date]['last_end']:
+            try:
+                fmt = '%H:%M'
+                tdelta = datetime.strptime(d['start_time'], fmt) - datetime.strptime(daily_summary[date]['last_end'], fmt)
+                break_hours = tdelta.total_seconds() / 3600
+                if break_hours > 0:
+                    daily_summary[date]['break'] += break_hours
+            except:
+                pass
+        
+        if d['end_time']:
+            daily_summary[date]['last_end'] = d['end_time']
+            
+    # Round summaries
+    for d in daily_summary:
+        daily_summary[d]['productive'] = round(daily_summary[d]['productive'], 2)
+        daily_summary[d]['break'] = round(daily_summary[d]['break'], 2)
+
+        # Fetch HRMS data
+    conn = get_db()
+    cursor = conn.cursor()
+    today_str = datetime.now().date().isoformat()
+    
+    try:
+        cursor.execute("SELECT * FROM attendance WHERE user_id = ? AND date = ?", (user_id, today_str))
+        today_attendance = cursor.fetchone()
+        
+        cursor.execute("SELECT * FROM leaves WHERE user_id = ? ORDER BY created_at DESC", (user_id,))
+        my_leaves = cursor.fetchall()
+        
+        cursor.execute("SELECT value FROM portal_settings WHERE key = 'office_lat'")
+        lat_row = cursor.fetchone()
+        cursor.execute("SELECT value FROM portal_settings WHERE key = 'office_lng'")
+        lng_row = cursor.fetchone()
+        office_lat = float(lat_row['value']) if lat_row else 40.758896
+        office_lng = float(lng_row['value']) if lng_row else -73.985130
+    except Exception as e:
+        today_attendance = None
+        my_leaves = []
+        office_lat = 40.758896
+        office_lng = -73.985130
+        
+    conn.close()
+
+    return render_template('timesheets.html', timesheets=timesheets, projects=projects, daily_summary=daily_summary,
+                           today_attendance=today_attendance, my_leaves=my_leaves, 
+                           office_lat=office_lat, office_lng=office_lng, max_dist=100)
 
 @timesheets_bp.route('/timesheets/add', methods=['POST'])
 @login_required
@@ -73,15 +152,18 @@ def add_timesheet():
     user_id = session.get('user_id')
     date = request.form.get('date')
     task = request.form.get('task')
-    productivity = request.form.get('productivity')
     
+    project_title = request.form.get('project_title')
+    if project_title == '__NEW__':
+        project_title = request.form.get('new_project_title')
+        
     if date and task:
         conn = get_db()
         cursor = conn.cursor()
         start_time = request.form.get('start_time')
         end_time = request.form.get('end_time')
-        cursor.execute('INSERT INTO timesheets (user_id, date, start_time, end_time, task, productivity) VALUES (?, ?, ?, ?, ?, ?)',
-                       (user_id, date, start_time, end_time, task, productivity))
+        cursor.execute('INSERT INTO timesheets (user_id, date, start_time, end_time, task, project_title) VALUES (?, ?, ?, ?, ?, ?)',
+                       (user_id, date, start_time, end_time, task, project_title))
         conn.commit()
         conn.close()
         flash('Timesheet entry added successfully.', 'success')
@@ -93,23 +175,45 @@ def add_timesheet():
 @timesheets_bp.route('/timesheets/export')
 @login_required
 def export_timesheets():
+    is_admin_export = request.args.get('admin') == 'true'
     user_id = session.get('user_id')
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute('SELECT date, start_time, end_time, task, productivity, created_at FROM timesheets WHERE user_id = ? ORDER BY date DESC', (user_id,))
-    rows = cursor.fetchall()
-    conn.close()
     
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(['Date', 'Start Time', 'End Time', 'Task', 'Productivity', 'Created At'])
-    for row in rows:
-        writer.writerow(row)
+    if is_admin_export and session.get('role') == 'admin':
+        cursor.execute('''
+            SELECT t.date, t.start_time, t.end_time, t.project_title, t.task, u.username, t.created_at 
+            FROM timesheets t 
+            LEFT JOIN users u ON t.user_id = u.id 
+            ORDER BY t.date DESC
+        ''')
+        rows = cursor.fetchall()
+        conn.close()
+        
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(['User', 'Date', 'Start Time', 'End Time', 'Project Title', 'Task', 'Created At'])
+        for row in rows:
+            writer.writerow([row['username'], row['date'], row['start_time'], row['end_time'], row['project_title'], row['task'], row['created_at']])
+            
+        filename = "master_timesheets.csv"
+    else:
+        cursor.execute('SELECT date, start_time, end_time, project_title, task, created_at FROM timesheets WHERE user_id = ? ORDER BY date DESC', (user_id,))
+        rows = cursor.fetchall()
+        conn.close()
+        
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(['Date', 'Start Time', 'End Time', 'Project Title', 'Task', 'Created At'])
+        for row in rows:
+            writer.writerow(row)
+            
+        filename = "my_timesheets.csv"
         
     return Response(
         output.getvalue(),
         mimetype="text/csv",
-        headers={"Content-disposition": "attachment; filename=timesheets.csv"}
+        headers={"Content-disposition": f"attachment; filename={filename}"}
     )
 
 @timesheets_bp.route('/timesheets/import', methods=['POST'])
@@ -129,10 +233,12 @@ def import_timesheets():
         conn = get_db()
         cursor = conn.cursor()
         for row in csv_input:
-            if len(row) >= 5:
-                date, start_time, end_time, task, productivity = row[0], row[1], row[2], row[3], row[4]
-                cursor.execute('INSERT INTO timesheets (user_id, date, start_time, end_time, task, productivity) VALUES (?, ?, ?, ?, ?, ?)',
-                               (user_id, date, start_time, end_time, task, productivity))
+            if len(row) >= 5: # basic validation
+                date, start_time, end_time = row[0], row[1], row[2]
+                project_title = row[3] if len(row) > 5 else ''
+                task = row[4] if len(row) > 5 else row[3]
+                cursor.execute('INSERT INTO timesheets (user_id, date, start_time, end_time, project_title, task) VALUES (?, ?, ?, ?, ?, ?)',
+                               (user_id, date, start_time, end_time, project_title, task))
         conn.commit()
         conn.close()
         flash('Timesheets imported successfully.', 'success')
@@ -141,12 +247,36 @@ def import_timesheets():
         
     return redirect(url_for('timesheets.employee_timesheets'))
 
-@timesheets_bp.route('/admin/timesheets')
-@admin_required
-def admin_timesheets():
+
+
+@timesheets_bp.route('/timesheets/edit/<int:entry_id>', methods=['POST'])
+@login_required
+def edit_timesheet(entry_id):
+    user_id = session.get('user_id')
+    date = request.form.get('date')
+    task = request.form.get('task')
+    project_title = request.form.get('project_title')
+    start_time = request.form.get('start_time')
+    end_time = request.form.get('end_time')
+    
+    if date and task:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute('UPDATE timesheets SET date = ?, start_time = ?, end_time = ?, project_title = ?, task = ? WHERE id = ? AND user_id = ?',
+                       (date, start_time, end_time, project_title, task, entry_id, user_id))
+        conn.commit()
+        conn.close()
+        flash('Timesheet entry updated.', 'success')
+    return redirect(url_for('timesheets.employee_timesheets'))
+
+@timesheets_bp.route('/timesheets/delete/<int:entry_id>', methods=['POST'])
+@login_required
+def delete_timesheet(entry_id):
+    user_id = session.get('user_id')
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM timesheets ORDER BY date DESC, user_id ASC')
-    timesheets = cursor.fetchall()
+    cursor.execute('DELETE FROM timesheets WHERE id = ? AND user_id = ?', (entry_id, user_id))
+    conn.commit()
     conn.close()
-    return render_template('admin_timesheets.html', timesheets=timesheets)
+    flash('Timesheet entry deleted.', 'success')
+    return redirect(url_for('timesheets.employee_timesheets'))

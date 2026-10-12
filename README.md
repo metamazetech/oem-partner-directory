@@ -1,18 +1,21 @@
-# OEM Partner Directory & RFP Tracker (v5.8)
-*Also known as the NextNode Yellow Pages*
+# OEM Partner Directory & Enterprise Portal (v6.3)
+*Also known as the NextNode Yellow Pages & Enterprise Workspace*
 
-The OEM Partner Directory is a streamlined, self-hosted web portal designed to unify contact management, RFP/Tender tracking, automated news aggregation, and offline engineering calculation tools into a single, highly customizable platform.
+The OEM Partner Directory is a comprehensive, self-hosted enterprise portal unifying contact management, RFP/Tender tracking, automated news aggregation, team chat, timesheet & HRMS productivity, offline engineering calculations, and hardware system building into a single, beautifully responsive platform.
 
 ## 🚀 Key Features
 
 *   **📇 Smart Directory & OCR Scanning:** Manage OEMs and Distributors with dynamic categorization, automatic company logo fetching, and intelligent OCR Visiting Card scanning.
 *   **📑 RFP & Tender Tracking with Security:** Track project opportunities, BOQ matrix integrations, deadlines, and customer assignments. Protect the RFP workspace via **Session-Lock passwords** and **WAN IP / Country Whitelisting**.
+*   **⏱️ Unified Timesheets & HRMS Attendance:** Employee daily task logging, productivity scoring, CSV/Excel import & export, plus GPS geo-fenced Punch In/Out (100m radius check) and Leave Management.
+*   **💬 Team Chat, Video Calls & Screen Sharing:** Secure 1-on-1 private messaging and Global Team Room with file sharing, emoji support, Jitsi WebRTC video calling, live screen sharing, and CSV chat log export.
+*   **🔔 Ringtone & Mobile Vibration Alerts:** Browser-level audio synthesis ringtones and mobile vibration alerts for incoming calls and chat messages with interactive answer modals.
 *   **⏰ Task Reminders & Follow-ups:** Unified dedicated dashboard to track assigned follow-ups, interaction logs, and upcoming RFP deadlines.
 *   **🌐 Automated OEM News & Portfolio Scraping:** Live feed fetching the latest updates and offerings directly from partner domains using background scrapers, complete with Search and Sort functionality.
 *   **🔍 Universal Global Search:** Instantly find Contacts, RFPs, and News articles directly from the unified sidebar search.
-*   **📱 Modern UI (GridStack & Themes):** A responsive, drag-and-drop dashboard powered by GridStack.js with multiple UI themes (Cyberpunk, Ocean, Slate, etc.).
-*   **🛠️ Offline-First Engineering Tools:** Built-in Unit Converters, Currency Calculators, CCTV Bandwidth Calculators, Data Center Power Load tools, and PDF-to-CSV Extractors.
-*   **🔄 Built-in Auto-Updater:** Upgrade the entire portal codebase via a simple `.zip` upload directly from the Admin Panel, complete with live terminal progress streaming and auto-backup generation.
+*   **📱 Lovable-Inspired Mobile & Desktop UI:** Native app feel with safe-area notch padding (`viewport-fit=cover`), touch-friendly targets, mobile bottom navigation bar, and desktop glassmorphism styling.
+*   **🛠️ Enterprise Work Tools:** Built-in Unit Converters, Currency Calculators, CCTV Bandwidth Calculators, Data Center Power Load tools, Excel Password Removal Utility, System Hardware Builder, and PDF Extractors.
+*   **🔄 Resilient Two-Phase Auto-Updater:** Upgrade the entire portal codebase via a simple `.zip` upload directly from the Admin Panel with Passenger WSGI crash protection and automated database rollbacks.
 
 ---
 
@@ -27,13 +30,25 @@ The OEM Partner Directory is a streamlined, self-hosted web portal designed to u
   * Strict Content Security Policy (CSP) parameters.
   * Secure Session Cookies flags (`HttpOnly`, `SameSite=Lax`) protecting against XSS and CSRF attacks.
   * Frame-Options and Content-Type sniff protections.
-* **🛠️ Public Work Tools Dashboard**: A collection of offline-first engineering and transaction calculators:
+* **🛠️ Enterprise Work Tools & Engineering Utilities**:
   * **📐 Unit Converter**: Metric-to-imperial converters for length, area, weight, and volume.
   * **💱 Currency Calculator**: Global exchange rate conversions with daily automated syncing and manual real-time update triggers.
   * **🧮 Pocket Calculator**: Full mathematical calculator widget with keypad support (operators, decimals, backspace, clear).
   * **📹 CCTV Storage & Bandwidth Calculator**: Computes individual bitrates, network bandwidth (Mbps), and disk storage capacity requirements (TB) based on MP size, FPS, H.264/H.265 compression, scene activity, and recording schedules.
   * **⚡ Data Center Capacity & Power Load Calculator**: Sizing tool calculating active power (kW), apparent power (kVA), heat dissipation (BTU/h), current draw (supporting Single-Phase and balanced 3-Phase configurations), cabinet rack units (U) usage, and UPS battery backup runtime.
   * **📄 In-Memory PDF Converter**: Local text extractor exporting uploads directly to editable Word (`.doc`) or tabular CSV (`.csv`) formats.
+  * **🔓 Excel Security Removal Utility**: Fast background decryption and sheet protection removal for `.xlsx` and `.xlsm` workbooks with live SSE log streaming.
+  * **🖥️ System Hardware Builder**: Interactive PC, Server, Storage, and Networking compatibility builder with real-time SKU search and configuration exports.
+* **⏱️ Unified Timesheets & HRMS Suite**:
+  * Daily activity log with automated productive vs break hour computation.
+  * GPS Geo-fenced Punch In/Out with 100-meter office proximity check and Leaflet map pin setup in Admin.
+  * Employee leave requests and administrative leave approvals.
+  * Master team productivity monitor with CSV and Excel export/import support.
+* **💬 Real-Time Team Chat & WebRTC Video Calling**:
+  * Global Team Chat and 1-on-1 private messaging channels with file attachments and emoji picker.
+  * In-app Jitsi Meet integration for 1-click video calls and full-screen screen sharing.
+  * Web Audio synthetic ringtone generation, call answer modals, and mobile vibration notifications.
+  * Administrative chat log inspection with day-by-day grouped views and one-click CSV report export.
 
 ---
 

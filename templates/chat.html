@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Time Sheet - {{ portal_settings.get("portal_name", "OEM Portal") }}</title>
+    {% if portal_settings.get('favicon') %}
+        <link rel="icon" type="image/x-icon" href="{{ url_for('uploaded_file', filename=portal_settings.get('favicon')) }}">
+    {% else %}
+        <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.svg') }}">
+    {% endif %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap">
+    <style>
+        .bucket-tab-content {
+            display: none;
+        }
+        .bucket-tab-content.active {
+            display: block;
+        }
+        .bucket-tab-btn {
+            padding: 0.35rem 0.6rem;
+            font-size: 0.72rem;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            white-space: nowrap;
+            transition: var(--transition);
+        }
+        .bucket-tab-btn:hover {
+            background: rgba(255,255,255,0.08);
+            color: white;
+        }
+        .bucket-tab-btn.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+        .bucket-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 0.6rem 0.8rem;
+            margin-bottom: 0.5rem;
+            cursor: grab;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: white;
+            font-size: 0.82rem;
+            transition: var(--transition);
+        }
+        .bucket-item:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: var(--primary);
+            transform: translateY(-1px);
+        }
+        .drop-zone {
+            background: rgba(0, 0, 0, 0.15);
+            border: 2px dashed rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
+            min-height: 180px;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            transition: var(--transition);
+            margin-bottom: 1rem;
+        }
+        .drop-zone.dragover {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.05);
+        }
+        .drop-item {
+            background: rgba(99, 102, 241, 0.12);
+            border: 1px solid rgba(99, 102, 241, 0.25);
+            border-radius: 6px;
+            padding: 0.5rem 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: white;
+            font-size: 0.8rem;
+        }
+        .drop-item button {
+            background: none;
+            border: none;
+            color: #ef4444;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        .cloud-comparison-bar {
+            height: 24px;
+            border-radius: 6px;
+            overflow: hidden;
+            display: flex;
+            background: rgba(255, 255, 255, 0.05);
+            margin-bottom: 1rem;
+        }
+        .cloud-comparison-fill {
+            height: 100%;
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            padding-left: 0.5rem;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+        
+        /* Power Load Table styling */
+        .power-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1rem;
+        }
+        .power-table th, .power-table td {
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            color: white;
+            font-size: 0.82rem;
+        }
+        .power-table th {
+            text-align: left;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+    </style>
+    {% if theme == 'theme-custom' and custom_theme_colors %}
+    <style>
+        :root {
+            --background-primary: {{ custom_theme_colors.get('bg_color', '#0f172a') }} !important;
+            --background-card: {{ custom_theme_colors.get('card_color', '#1e293b') }} !important;
+            --text-primary: {{ custom_theme_colors.get('text_color', '#ffffff') }} !important;
+            --text-secondary: {{ custom_theme_colors.get('text_muted', '#94a3b8') }} !important;
+            --primary: {{ custom_theme_colors.get('accent_color', '#6366f1') }} !important;
+            --sidebar-background: {{ custom_theme_colors.get('sidebar_color', '#1e293b') }} !important;
+        }
+    </style>
+    {% endif %}
+</head>
+
+    
+    <!-- Mobile Hamburger Toggle -->
+    <div class="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+    <button id="global-mobile-toggle" class="mobile-toggle-btn" onclick="toggleMobileSidebar()" style="display: none;">☰</button>
+    
+    
+
+<body class="{{ theme }}">
+    
+{% set enabled_tools = portal_settings.get('enabled_work_tools', 'unit_converter,currency_calculator,pocket_calculator,cctv_calculator,power_calculator,pdf_converter,cloud_calculator,subnet_calculator').split(',') %}
+    <div class="app-container">
+
+    
+    <!-- Mobile Hamburger Toggle -->
+    <div class="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+    <button id="global-mobile-toggle" class="mobile-toggle-btn" onclick="toggleMobileSidebar()" style="display: none;">☰</button>
+    
+    
+
+
+        
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div style="display: flex; flex-direction: column; flex-grow: 1;">
+            <div class="sidebar-header">
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <div class="logo-container" style="display: flex; align-items: center; justify-content: center; max-width: 100%; padding: 6px 0; text-decoration: none; gap: 0.4rem;">
+                    <a href="{{ url_for('dashboard') }}" style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.25rem; color: var(--text-primary); letter-spacing: -0.03em; text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
+                        {% if portal_settings.get('portal_logo') %}
+                            <img src="{{ url_for('uploaded_file', filename=portal_settings.get('portal_logo')) }}" style="max-height: 40px; max-width: 100%; object-fit: contain;" alt="Logo">
+                        {% else %}
+                            <span>📂</span> {{ portal_settings.get('portal_name', 'OEM Portal') }}
+                        {% endif %}
+                    </a>
+                </div>
+                <button id="sidebar-collapse-btn" onclick="this.closest('.sidebar').style.display='none';var b=document.getElementById('show-sidebar-btn');if(b)b.style.display='flex';localStorage.setItem('sidebar-collapsed','true');" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:1.1rem;padding:4px 8px;border-radius:6px;transition:all 0.2s;" title="Hide Sidebar">&laquo;</button>
+                
+            </div>
+        </div>
+            
+            <div class="nav-container">
+                <form action="javascript:void(0);" onsubmit="window.location.href = getAppUrl('/search?q=' + encodeURIComponent(this.q.value));" method="GET" style="padding: 0.5rem 1rem;">
+                    <div style="display: flex; gap: 0.5rem; position: relative;">
+                        <input type="text" name="q" placeholder="Universal Search..." style="width: 100%; padding: 0.4rem 0.5rem 0.4rem 2rem; border-radius: 6px; border: 1px solid var(--border-glass); background: rgba(15,23,42,0.6); color: white; font-size: 0.85rem;" required>
+                        <span style="position: absolute; left: 0.5rem; top: 50%; transform: translateY(-50%); font-size: 0.9rem; pointer-events: none;">🔍</span>
+                    </div>
+                </form>
+                <nav>
+                    <ul class="nav-menu">
+                        {% if role %}
+                            <li class="nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
+                                <a title="Dashboard" href="{{ url_for('dashboard') }}">
+                                    <span>📊</span> Dashboard
+                                </a>
+                            </li>
+                            <li class="nav-item {% if request.endpoint == 'oem_news_page' %}active{% endif %}">
+                                <a title="OEM News" href="{{ url_for('oem_news_page') }}">
+                                    <span>📰</span> OEM News
+                                </a>
+                            </li>
+                            <li class="nav-item {% if request.endpoint == 'rfps_list' %}active{% endif %}">
+                                <a title="RFP Section" href="{{ url_for('rfps_list') }}">
+                                    <span>📋</span> RFP Section
+                                </a>
+                            </li>
+                            {% if role == 'admin' %}
+                                <li class="nav-item {% if request.endpoint == 'admin_panel' %}active{% endif %}">
+                                    <a title="Admin Panel" href="{{ url_for('admin_panel') }}">
+                                        <span>⚙️</span> Admin Panel
+                                    </a>
+                                </li>
+                            {% endif %}
+                        {% else %}
+                            <li class="nav-item {% if request.endpoint == 'login' %}active{% endif %}">
+                                <a title="Portal Login" href="{{ url_for('dashboard') }}">
+                                    <span>🚪</span> Portal Login
+                                </a>
+                            </li>
+                        {% endif %}
+                        
+                        {% if enabled_tools and enabled_tools[0] != '' %}
+                        <li class="nav-item {% if request.endpoint == 'work_tools' %}active{% endif %}">
+                            <a title="Work Tools" href="{{ url_for('work_tools') }}">
+                                <span>🛠️</span> Work Tools
+                            </a>
+                        </li>
+                        
+                        
+                        {% endif %}
+                        
+                        {% if role %}
+                        <li class="nav-item {% if request.endpoint == 'reminders' %}active{% endif %}">
+                            <a title="Reminders" href="{{ url_for('reminders') }}">
+                                <span>⏰</span> Reminders
+                            </a>
+                        </li>
+                        
+                        
+                        <li class="nav-item {% if request.endpoint == 'timesheets.employee_timesheets' %}active{% endif %}">
+                            <a title="Time Sheet" href="{{ url_for('timesheets.employee_timesheets') }}">
+                                <span>⏱️</span> Time Sheet
+                            </a>
+                        </li>
+                        
+                        <li class="nav-item {% if request.endpoint == 'chat.chat_ui' %}active{% endif %}">
+                            <a title="Team Chat" href="{{ url_for('chat.chat_ui') }}">
+                                <span>💬</span> Team Chat
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a title="Sign Out" href="{{ url_for('logout') }}" style="color: #fca5a5;">
+                                <span>🚪</span> Sign Out
+                            </a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            </div>
+        </aside>
+        
+        <!-- Main Content Area -->
+        <main class="main-content">
+
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div style="margin-bottom: 1.5rem;">
+                    {% for category, message in messages %}
+                        <div class="alert-message alert-{{ 'error' if category == 'danger' or category == 'error' else 'success' }}" style="padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem; background: rgba(0,0,0,0.4); border: 1px solid var(--border-glass);">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+<style>
+        body {
+            background-color: #121212;
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        .glass-container {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            height: 80vh;
+        }
+        #chat-box {
+            flex-grow: 1;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255,255,255,0.2);
+            padding: 10px;
+            border-radius: 10px;
+        }
+        .message {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.1);
+        }
+        .input-area {
+            display: flex;
+            gap: 10px;
+        }
+        input[type="text"] {
+            flex-grow: 1;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid rgba(255,255,255,0.3);
+            background: rgba(0,0,0,0.2);
+            color: white;
+        }
+        button {
+            padding: 10px 20px;
+            border-radius: 5px;
+            border: none;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+    </style>
+<div style='padding: 2rem;'>
+    
+    <div style="display: flex; gap: 1rem; height: 75vh;">
+        <!-- Left Sidebar: User List -->
+        <div class="glass-card" style="width: 250px; display: flex; flex-direction: column; overflow: hidden;">
+            <div style="padding: 1rem; border-bottom: 1px solid var(--border-glass);">
+                <h3 style="margin: 0; font-size: 1.1rem;">Channels</h3>
+            </div>
+            <div style="flex: 1; overflow-y: auto; padding: 0.5rem;">
+                <div class="user-channel active" data-userid="global" onclick="selectChannel('global', 'Global Team Room', this)" style="padding: 0.75rem; border-radius: 8px; cursor: pointer; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <span style="font-size: 1.2rem;">🌍</span>
+                    <span style="font-weight: bold;">Team Room</span>
+                </div>
+                
+                <h4 style="margin: 1rem 0.5rem 0.5rem 0.5rem; font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">Direct Messages</h4>
+                {% for u in users %}
+                <div class="user-channel" data-userid="{{ u.id }}" onclick="selectChannel('{{ u.id }}', '{{ u.username }}', this)" style="padding: 0.5rem 0.75rem; border-radius: 8px; cursor: pointer; margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <span style="background: rgba(255,255,255,0.1); border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem;">👤</span>
+                    <span>{{ u.username }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Right: Chat Area -->
+        <div class="glass-container" style="flex: 1; display: flex; flex-direction: column; max-width: none; margin: 0; padding: 0;">
+            <div style="padding: 1rem; border-bottom: 1px solid var(--border-glass); background: rgba(0,0,0,0.2);">
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <h2 id="current-chat-title" style="margin: 0; font-size: 1.2rem;">🌍 Global Team Room</h2>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button id="screen-share-btn" class="btn btn-info" style="padding: 0.4rem 0.8rem; font-size: 0.9rem; display: flex; align-items: center; gap: 0.4rem; background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.5);">
+                            <span style="font-size: 1.1rem;">💻</span> Screen Share
+                        </button>
+                        <button id="video-call-btn" class="btn btn-success" style="padding: 0.4rem 0.8rem; font-size: 0.9rem; display: flex; align-items: center; gap: 0.4rem;">
+                            <span style="font-size: 1.1rem;">📹</span> Start Video Call
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="chat-box" style="flex: 1; padding: 1.5rem; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem;">
+                <!-- Messages go here -->
+            </div>
+            
+            <div class="input-area" style="padding: 1rem; border-top: 1px solid var(--border-glass); background: rgba(0,0,0,0.2); border-radius: 0 0 12px 12px; display: flex; gap: 0.5rem; align-items: center;">
+                <button type="button" id="emoji-btn" class="btn btn-secondary" style="padding: 0.5rem;">😀</button>
+                <input type="text" id="message-input" class="form-control" placeholder="Type a message..." style="flex: 1; margin: 0;">
+                <input type="file" id="file-input" style="display:none">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('file-input').click()" style="padding: 0.5rem;" title="Attach File">📎</button>
+                <button id="send-btn" class="btn btn-primary">Send</button>
+            </div>
+        </div>
+    </div>
+
+
+    
+
+    
+    <script>
+        const chatBox = document.getElementById('chat-box');
+        const messageInput = document.getElementById('message-input');
+        const sendBtn = document.getElementById('send-btn');
+        const fileInput = document.getElementById('file-input');
+        const emojiBtn = document.getElementById('emoji-btn');
+        const chatTitle = document.getElementById('current-chat-title');
+        
+        let currentReceiver = 'global';
+        const currentUserId = {{ session.get('user_id', 0) }};
+        const currentUsername = "{{ session.get('username', 'User') }}";
+        let jitsiApi = null;
+        
+        function selectChannel(id, name, el) {
+            currentReceiver = id;
+            chatTitle.innerHTML = id === 'global' ? '🌍 Global Team Room' : '👤 Chat with ' + name;
+            
+            document.querySelectorAll('.user-channel').forEach(ch => {
+                ch.style.background = 'transparent';
+                ch.classList.remove('active');
+            });
+            el.style.background = 'rgba(99, 102, 241, 0.2)';
+            el.classList.add('active');
+            
+            fetchMessages();
+        }
+
+        emojiBtn.addEventListener('click', () => {
+            messageInput.value += '😀';
+            messageInput.focus();
+        });
+
+        async function fetchMessages() {
+            if (document.hidden && document.getElementById('chat-box').innerHTML !== '') return; // Save cPanel resources
+            const res = await fetch('/chat/messages?receiver_id=' + currentReceiver);
+            if (res.ok) {
+                const messages = await res.json();
+                chatBox.innerHTML = '';
+                messages.forEach(msg => {
+                    const div = document.createElement('div');
+                    div.style.padding = '0.8rem 1rem';
+                    div.style.borderRadius = '12px';
+                    div.style.maxWidth = '75%';
+                    div.style.background = 'rgba(255,255,255,0.05)';
+                    div.style.alignSelf = 'flex-start';
+                    div.style.border = '1px solid var(--border-glass)';
+                    
+                    if (msg.message === '[CALL_RING]') { return; } // Skip rendering ring pings
+                    let contentStr = `<div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;"><b>${msg.sender_name || 'User ' + msg.sender_id}</b> &bull; ${msg.timestamp}</div>`;
+                    contentStr += `<div>${msg.message}</div>`;
+                    
+                    if (msg.file_path) {
+                        const filename = msg.file_path.split('/').pop().split('\\').pop();
+                        contentStr += `<div style="margin-top: 0.5rem;"><a href="/chat/download/${filename}" target="_blank" style="color: var(--primary); text-decoration: underline;">📎 ${filename}</a></div>`;
+                    }
+                    div.innerHTML = contentStr;
+                    chatBox.appendChild(div);
+                });
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+        }
+
+        async function sendMessage() {
+            const message = messageInput.value.trim();
+            const file = fileInput.files[0];
+            
+            if (!message && !file) return;
+
+            const formData = new FormData();
+            formData.append('receiver_id', currentReceiver);
+            formData.append('message', message);
+            if (file) {
+                formData.append('file', file);
+            }
+
+            sendBtn.disabled = true;
+            const res = await fetch('/chat/send', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (res.ok) {
+                messageInput.value = '';
+                fileInput.value = '';
+                fetchMessages();
+            }
+            sendBtn.disabled = false;
+        }
+
+        sendBtn.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        function launchMeeting(withScreenShare = false) {
+            let roomName = 'OEMPortal_{{ portal_settings.get("portal_name", "App").replace(" ", "") }}_';
+            if (currentReceiver === 'global') {
+                roomName += 'Global_Team_Room';
+            } else {
+                const u1 = Math.min(currentUserId, parseInt(currentReceiver));
+                const u2 = Math.max(currentUserId, parseInt(currentReceiver));
+                roomName += 'DM_' + u1 + '_' + u2;
+            }
+            
+            if (currentReceiver !== 'global') {
+                const callData = new FormData();
+                callData.append('receiver_id', currentReceiver);
+                callData.append('message', '[CALL_RING]');
+                fetch('/chat/send', { method: 'POST', body: callData });
+            }
+            document.getElementById('jitsi-modal').style.display = 'flex';
+            
+            const domain = 'meet.jit.si';
+            const options = {
+                roomName: roomName,
+                width: '100%',
+                height: '100%',
+                parentNode: document.querySelector('#jitsi-container'),
+                userInfo: {
+                    displayName: currentUsername
+                },
+                configOverwrite: { 
+                    startWithAudioMuted: false, 
+                    startWithVideoMuted: false,
+                    startScreenSharing: withScreenShare
+                },
+                interfaceConfigOverwrite: { DISABLE_DOMINANT_SPEAKER_INDICATOR: true }
+            };
+            
+            document.querySelector('#jitsi-container').innerHTML = '';
+            jitsiApi = new JitsiMeetExternalAPI(domain, options);
+            
+            jitsiApi.addListener('videoConferenceLeft', () => {
+                closeVideoCall();
+            });
+            
+            if (withScreenShare) {
+                setTimeout(() => {
+                    jitsiApi.executeCommand('toggleShareScreen');
+                }, 3000);
+            }
+        }
+
+        if (document.getElementById('video-call-btn')) {
+            document.getElementById('video-call-btn').addEventListener('click', () => launchMeeting(false));
+        }
+        if (document.getElementById('screen-share-btn')) {
+            document.getElementById('screen-share-btn').addEventListener('click', () => launchMeeting(true));
+        }
+
+        function closeVideoCall() {
+            document.getElementById('jitsi-modal').style.display = 'none';
+            document.querySelector('#jitsi-container').innerHTML = '';
+            if (jitsiApi) { jitsiApi.dispose(); jitsiApi = null; }
+        }
+
+        document.querySelector('.user-channel[data-userid="global"]').style.background = 'rgba(99, 102, 241, 0.2)';
+        
+        setInterval(fetchMessages, 8000);
+        fetchMessages();
+    </script>
+
+
+    <!-- Jitsi Video Call Modal -->
+    <div id="jitsi-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 9999; flex-direction: column;">
+        <div style="padding: 1rem; display: flex; justify-content: space-between; align-items: center; background: #1a1a1a; border-bottom: 1px solid #333;">
+            <h3 style="margin: 0; color: white;">Secure Video Call</h3>
+            <button onclick="closeVideoCall()" class="btn btn-danger" style="padding: 0.4rem 1rem;">End Call / Close</button>
+        </div>
+        <div id="jitsi-container" style="flex: 1; width: 100%;"></div>
+    </div>
+    
+    <script src="https://meet.jit.si/external_api.js"></script>
+
+</div>
+</main>
+    </div>
+
+    <!-- Mobile App Bottom Navigation -->
+    <div class="mobile-bottom-nav">
+        <a href="{{ url_for('dashboard') }}" class="mobile-nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
+            <span class="icon">📊</span>
+            <span>Home</span>
+        </a>
+        <a href="{{ url_for('oem_news_page') }}" class="mobile-nav-item {% if request.endpoint == 'oem_news_page' %}active{% endif %}">
+            <span class="icon">📰</span>
+            <span>News</span>
+        </a>
+        <a href="{{ url_for('work_tools') }}" class="mobile-nav-item {% if request.endpoint == 'work_tools' %}active{% endif %}">
+            <span class="icon">🛠️</span>
+            <span>Tools</span>
+        </a>
+        <a href="javascript:void(0)" onclick="toggleMobileSidebar()" class="mobile-nav-item">
+            <span class="icon">☰</span>
+            <span>Menu</span>
+        </a>
+    </div>
+
+
+<!-- Global Notification System -->
+<div id="global-toast-container" style="position: fixed; bottom: 20px; right: 20px; z-index: 10000; display: flex; flex-direction: column; gap: 10px;"></div>
+
+<script>
+    (function() {
+        let lastNotifCheck = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        let audioCtx = null;
+        
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+        document.addEventListener('click', initAudio, { once: true });
+
+        function playAlert(isCall) {
+            if (!audioCtx) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            if (isCall) {
+                const playTone = (freq, startTime, duration) => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, audioCtx.currentTime + startTime);
+                    gain.gain.setValueAtTime(0.5, audioCtx.currentTime + startTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + startTime + duration);
+                    osc.start(audioCtx.currentTime + startTime);
+                    osc.stop(audioCtx.currentTime + startTime + duration);
+                };
+                playTone(600, 0, 0.4);
+                playTone(800, 0.2, 0.4);
+                playTone(600, 1.0, 0.4);
+                playTone(800, 1.2, 0.4);
+                if (navigator.vibrate) navigator.vibrate([200, 100, 200, 800, 200, 100, 200]);
+            } else {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.2);
+                if (navigator.vibrate) navigator.vibrate(100);
+            }
+        }
+
+        function showToast(sender, message, isCall) {
+            const container = document.getElementById('global-toast-container');
+            const toast = document.createElement('div');
+            toast.style.background = isCall ? 'rgba(16, 185, 129, 0.95)' : 'rgba(59, 130, 246, 0.95)';
+            toast.style.color = 'white';
+            toast.style.padding = '1rem 1.5rem';
+            toast.style.borderRadius = '12px';
+            toast.style.boxShadow = '0 10px 25px rgba(0,0,0,0.5)';
+            toast.style.border = '1px solid rgba(255,255,255,0.2)';
+            toast.style.cursor = 'pointer';
+            toast.style.minWidth = '250px';
+            toast.style.backdropFilter = 'blur(10px)';
+            toast.style.transform = 'translateY(50px)';
+            toast.style.opacity = '0';
+            toast.style.transition = 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+            
+            const title = isCall ? `🎥 Incoming Video Call from ${sender}` : `💬 New message from ${sender}`;
+            const body = isCall ? 'Click to answer' : message;
+            
+            toast.innerHTML = `<div style="font-weight: bold; margin-bottom: 0.25rem;">${title}</div>
+                               <div style="font-size: 0.9rem; opacity: 0.9;">${body}</div>`;
+            
+            toast.onclick = () => {
+                window.location.href = '/chat';
+            };
+            
+            container.appendChild(toast);
+            
+            // Animate in
+            setTimeout(() => {
+                toast.style.transform = 'translateY(0)';
+                toast.style.opacity = '1';
+            }, 50);
+            
+            playAlert(isCall);
+            
+            // Auto dismiss after 6 seconds (or 15 for call)
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(20px)';
+                setTimeout(() => toast.remove(), 300);
+            }, isCall ? 15000 : 6000);
+        }
+
+        setInterval(async () => {
+            if (document.hidden) return; // Save cPanel resources when tab is backgrounded
+            try {
+                const res = await fetch('/chat/notifications?since=' + encodeURIComponent(lastNotifCheck));
+                if (res.ok) {
+                    const newMsgs = await res.json();
+                    if (newMsgs.length > 0) {
+                        lastNotifCheck = new Date().toISOString().replace('T', ' ').substring(0, 19);
+                        newMsgs.forEach(msg => {
+                            if (msg.message === '[CALL_RING]') {
+                                showToast(msg.sender_name, '', true);
+                            } else {
+                                showToast(msg.sender_name, msg.message, false);
+                            }
+                        });
+                    }
+                }
+            } catch(e) {}
+        }, 20000);
+    })();
+</script>
+
+</body>
+</html>

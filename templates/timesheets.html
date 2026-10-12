@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Time Sheet - {{ portal_settings.get("portal_name", "OEM Portal") }}</title>
     {% if portal_settings.get('favicon') %}
         <link rel="icon" type="image/x-icon" href="{{ url_for('uploaded_file', filename=portal_settings.get('favicon')) }}">
     {% else %}
-        <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+        <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.svg') }}">
     {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap">
@@ -238,11 +238,6 @@
                                         <span>⚙️</span> Admin Panel
                                     </a>
                                 </li>
-                                <li class="nav-item {% if request.endpoint == 'timesheets.admin_timesheets' %}active{% endif %}">
-                                    <a title="Master Timesheets" href="{{ url_for('timesheets.admin_timesheets') }}">
-                                        <span>⏱️</span> Master Timesheets
-                                    </a>
-                                </li>
                             {% endif %}
                         {% else %}
                             <li class="nav-item {% if request.endpoint == 'login' %}active{% endif %}">
@@ -268,9 +263,17 @@
                                 <span>⏰</span> Reminders
                             </a>
                         </li>
+                        
+                        
                         <li class="nav-item {% if request.endpoint == 'timesheets.employee_timesheets' %}active{% endif %}">
                             <a title="Time Sheet" href="{{ url_for('timesheets.employee_timesheets') }}">
                                 <span>⏱️</span> Time Sheet
+                            </a>
+                        </li>
+                        
+                        <li class="nav-item {% if request.endpoint == 'chat.chat_ui' %}active{% endif %}">
+                            <a title="Team Chat" href="{{ url_for('chat.chat_ui') }}">
+                                <span>💬</span> Team Chat
                             </a>
                         </li>
                         <li class="nav-item">
@@ -304,9 +307,152 @@
         </form>
     </div>
 
+    
+    <!-- HRMS Attendance & Leave Section -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+        
+        <!-- Punch In/Out Card -->
+        <div class="glass-card" style="padding: 1.5rem;">
+            <h2 class="card-title">📍 Today's Attendance</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 1rem;">Office location check required to punch in.</p>
+            
+            <div style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                <p id="geo-status" style="margin: 0; font-weight: bold;">Checking location...</p>
+                <p id="dist-info" style="margin: 0; color: var(--text-secondary); font-size: 0.9em;"></p>
+            </div>
+            
+            <form method="POST" action="{{ url_for('hrms.attendance_dashboard') }}" id="punch-form">
+                <input type="hidden" name="action" value="punch">
+                <input type="hidden" name="lat" id="lat" value="">
+                <input type="hidden" name="lng" id="lng" value="">
+                
+                {% if not today_attendance %}
+                    <button type="submit" class="btn btn-primary" id="punch-btn" disabled style="width: 100%; font-size: 1.1em; padding: 0.8rem;">Punch In</button>
+                {% elif not today_attendance.punch_out %}
+                    <div style="margin-bottom: 1rem; padding: 0.5rem; border-left: 3px solid #34d399; background: rgba(52,211,153,0.1);">
+                        Punched In at: <strong>{{ today_attendance.punch_in }}</strong>
+                    </div>
+                    <button type="submit" class="btn btn-secondary" id="punch-btn" disabled style="width: 100%; border-color: #f59e0b; color: #fbbf24;">Punch Out</button>
+                {% else %}
+                    <div style="margin-bottom: 0.5rem; padding: 0.5rem; border-left: 3px solid #34d399; background: rgba(52,211,153,0.1);">
+                        Punched In at: <strong>{{ today_attendance.punch_in }}</strong>
+                    </div>
+                    <div style="margin-bottom: 1rem; padding: 0.5rem; border-left: 3px solid #f87171; background: rgba(248,113,113,0.1);">
+                        Punched Out at: <strong>{{ today_attendance.punch_out }}</strong>
+                    </div>
+                    <button type="button" class="btn btn-secondary" disabled style="width: 100%; opacity: 0.5;">Done for today</button>
+                {% endif %}
+            </form>
+        </div>
+
+        <!-- Leave Request Card -->
+        <div class="glass-card" style="padding: 1.5rem;">
+            <h2 class="card-title">🏖️ Request Leave</h2>
+            <form method="POST" action="{{ url_for('hrms.attendance_dashboard') }}">
+                <input type="hidden" name="action" value="leave">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label">Start Date</label>
+                        <input type="date" class="form-control" name="start_date" required>
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label">End Date</label>
+                        <input type="date" class="form-control" name="end_date" required>
+                    </div>
+                </div>
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label class="form-label">Reason</label>
+                    <textarea class="form-control" name="reason" rows="2" required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Submit Request</button>
+            </form>
+            
+            {% if my_leaves %}
+            <div style="margin-top: 1.5rem;">
+                <h4 style="font-size: 0.9em; color: var(--text-secondary); margin-bottom: 0.5rem;">Recent Requests</h4>
+                <div style="max-height: 100px; overflow-y: auto;">
+                    {% for leave in my_leaves[:3] %}
+                    <div style="display: flex; justify-content: space-between; font-size: 0.8rem; padding: 0.4rem; border-bottom: 1px solid var(--border-glass);">
+                        <span>{{ leave.start_date }}</span>
+                        <span class="badge" style="{% if leave.status == 'approved' %}background: rgba(52,211,153,0.2); color: #34d399;{% elif leave.status == 'denied' %}background: rgba(248,113,113,0.2); color: #f87171;{% else %}background: rgba(251,191,36,0.2); color: #fbbf24;{% endif %}">{{ leave.status|title }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <script>
+        const OFFICE_LAT = {{ office_lat|default(40.758896) }};
+        const OFFICE_LNG = {{ office_lng|default(-73.985130) }};
+        const MAX_DIST = {{ max_dist|default(100) }};
+        
+        function haversineDist(lat1, lon1, lat2, lon2) {
+            const R = 6371000;
+            const p1 = lat1 * Math.PI/180;
+            const p2 = lat2 * Math.PI/180;
+            const dp = (lat2-lat1) * Math.PI/180;
+            const dl = (lon2-lon1) * Math.PI/180;
+            
+            const a = Math.sin(dp/2) * Math.sin(dp/2) +
+                      Math.cos(p1) * Math.cos(p2) *
+                      Math.sin(dl/2) * Math.sin(dl/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+    
+        document.addEventListener("DOMContentLoaded", function() {
+            const statusEl = document.getElementById('geo-status');
+            const distInfo = document.getElementById('dist-info');
+            const punchBtn = document.getElementById('punch-btn');
+            
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(function(position) {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    
+                    document.getElementById('lat').value = lat;
+                    document.getElementById('lng').value = lng;
+                    
+                    const dist = haversineDist(OFFICE_LAT, OFFICE_LNG, lat, lng);
+                    distInfo.textContent = "Distance to office: " + Math.round(dist) + "m";
+                    
+                    if(dist <= MAX_DIST) {
+                        statusEl.textContent = "Location verified. You are within the office zone.";
+                        statusEl.style.color = "#34d399";
+                        if(punchBtn) punchBtn.disabled = false;
+                    } else {
+                        statusEl.textContent = "You are outside the office zone (" + MAX_DIST + "m limit).";
+                        statusEl.style.color = "#f87171";
+                    }
+                }, function(error) {
+                    statusEl.textContent = "Location access denied or unavailable.";
+                    statusEl.style.color = "#f87171";
+                }, {
+                    enableHighAccuracy: true
+                });
+            } else {
+                statusEl.textContent = "Geolocation is not supported by your browser.";
+                statusEl.style.color = "#f87171";
+            }
+        });
+    </script>
+
     <div class="glass-card" style="margin-bottom: 2rem; padding: 1.5rem;">
         <h2 class="card-title" style="margin-bottom: 1rem;">Log New Activity</h2>
-        <form action="{{ url_for('timesheets.add_timesheet') }}" method="POST" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; align-items: end;">
+                <form action="{{ url_for('timesheets.add_timesheet') }}" method="POST" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; align-items: end;">
+            <div class="form-group" style="margin: 0; grid-column: span 3;">
+                <label class="form-label">Project Title</label>
+                <select name="project_title" id="projectSelect" class="form-control" onchange="checkNewProject(this)" required>
+                    <option value="" disabled selected>Select a project...</option>
+                    {% for p in projects %}
+                        <option value="{{ p }}">{{ p }}</option>
+                    {% endfor %}
+                    <option value="__NEW__" style="font-weight: bold; color: var(--primary);">+ Add New Project Entry</option>
+                </select>
+                <input type="text" name="new_project_title" id="newProjectInput" class="form-control" placeholder="Enter new project title..." style="display: none; margin-top: 0.5rem;">
+            </div>
             
             <div class="form-group" style="margin: 0; grid-column: span 3;">
                 <label class="form-label">Task Description</label>
@@ -325,49 +471,130 @@
                 <label class="form-label">End Time</label>
                 <input type="time" name="end_time" class="form-control" required>
             </div>
-            <div class="form-group" style="margin: 0; grid-column: span 2;">
-                <label class="form-label">Productivity (%)</label>
-                <input type="number" name="productivity" class="form-control" min="0" max="100" placeholder="e.g. 85">
-            </div>
             
-            <button type="submit" class="btn btn-primary">Log Task</button>
+            <button type="submit" class="btn btn-primary" style="grid-column: span 3;">Log Task</button>
         </form>
+        <script>
+        function checkNewProject(sel) {
+            if (sel.value === '__NEW__') {
+                document.getElementById('newProjectInput').style.display = 'block';
+                document.getElementById('newProjectInput').required = true;
+            } else {
+                document.getElementById('newProjectInput').style.display = 'none';
+                document.getElementById('newProjectInput').required = false;
+            }
+        }
+        </script>
     </div>
 
     <div class="glass-card" style="padding: 1.5rem;">
-        <h2 class="card-title" style="margin-bottom: 1rem;">My Timesheet Log</h2>
-        <div class="table-responsive">
-            <table style="width: 100%; border-collapse: collapse;">
-                <thead>
-                    <tr style="border-bottom: 1px solid var(--border-glass); color: var(--text-secondary); text-align: left;">
-                        <th style="padding: 0.75rem;">Date</th>
-                        <th style="padding: 0.75rem;">Time</th>
-                        <th style="padding: 0.75rem;">Task</th>
-                        <th style="padding: 0.75rem;">Productivity</th>
-                        <th style="padding: 0.75rem;">Logged At</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for sheet in timesheets %}
-                    <tr style="border-bottom: 1px solid var(--border-glass);">
-                        <td style="padding: 0.75rem;">{{ sheet.date }}</td>
-                        <td style="padding: 0.75rem;">{{ sheet.start_time or '--' }} to {{ sheet.end_time or '--' }}</td>
-                        <td style="padding: 0.75rem;">{{ sheet.task }}</td>
-                        <td style="padding: 0.75rem;">
-                            <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; padding: 0.2rem 0.5rem; border-radius: 4px;">{{ sheet.productivity }}%</span>
-                        </td>
-                        <td style="padding: 0.75rem; color: var(--text-muted); font-size: 0.85rem;">{{ sheet.created_at }}</td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="5" style="padding: 1rem; text-align: center; color: var(--text-muted);">No entries logged yet.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h2 class="card-title" style="margin: 0;">My Timesheet Log</h2>
+            <button type="button" class="btn btn-secondary" onclick="document.querySelectorAll('details.date-group').forEach(d => d.open = true);" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">Expand All</button>
+        </div>
+        
+        <div class="accordion-container">
+            {% set grouped_sheets = {} %}
+            {% for sheet in timesheets %}
+                {% set _ = grouped_sheets.setdefault(sheet.date, []).append(sheet) %}
+            {% endfor %}
+            
+            {% for date, sheets in grouped_sheets.items() %}
+            <details class="date-group" style="margin-bottom: 0.5rem; background: rgba(0,0,0,0.2); border: 1px solid var(--border-glass); border-radius: 6px;">
+                <summary style="padding: 0.75rem 1rem; cursor: pointer; font-weight: bold; color: var(--primary); display: flex; justify-content: space-between; align-items: center;">
+                    <span>{{ date }}</span>
+                    <div style="font-size: 0.85em; color: var(--text-secondary); font-weight: normal; display: flex; gap: 1rem; align-items: center;">
+                        {% if date in daily_summary %}
+                        <span style="color: #34d399;" title="Productive Hours">⚙️ {{ daily_summary[date]['productive'] }}h</span>
+                        <span style="color: #f87171;" title="Break Time">☕ {{ daily_summary[date]['break'] }}h</span>
+                        {% endif %}
+                        <span style="background: rgba(255,255,255,0.1); padding: 0.1rem 0.5rem; border-radius: 12px;">{{ sheets|length }} entries</span>
+                    </div>
+                </summary>
+                <div class="table-responsive" style="padding: 0 1rem 1rem 1rem;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid var(--border-glass); color: var(--text-secondary); text-align: left; font-size: 0.85rem;">
+                                <th style="padding: 0.5rem;">Time</th>
+                                <th style="padding: 0.5rem;">Project</th>
+                                <th style="padding: 0.5rem;">Task</th>
+                                <th style="padding: 0.5rem; text-align: right;">Hours</th>
+                                <th style="padding: 0.5rem; text-align: center;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for sheet in sheets %}
+                            <tr style="border-bottom: 1px solid var(--border-glass);">
+                                <td style="padding: 0.5rem; font-size: 0.9rem; white-space: nowrap;">{{ sheet.start_time or '--' }} - {{ sheet.end_time or '--' }}</td>
+                                <td style="padding: 0.5rem; font-size: 0.9rem;"><span class="badge" style="background: rgba(99,102,241,0.2); color: #818cf8;">{{ sheet.project_title or 'N/A' }}</span></td>
+                                <td style="padding: 0.5rem; font-size: 0.9rem;">{{ sheet.task }}</td>
+                                <td style="padding: 0.5rem; font-size: 0.9rem; text-align: right; font-weight: bold;">{{ sheet.hours_worked }}</td>
+                                <td style="padding: 0.5rem; display: flex; gap: 0.5rem; justify-content: center;">
+                                    <button class="btn btn-sm btn-secondary" onclick="editTimesheet('{{ sheet.id }}', '{{ sheet.date }}', '{{ sheet.start_time }}', '{{ sheet.end_time }}', '{{ sheet.project_title|escape }}', '{{ sheet.task|escape }}')" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">Edit</button>
+                                    <form action="{{ url_for('timesheets.delete_timesheet', entry_id=sheet.id) }}" method="POST" onsubmit="return confirmMathPuzzle(event);" style="margin: 0;">
+                                        <button type="submit" class="btn btn-sm btn-danger" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; background: rgba(239, 68, 68, 0.25); border-color: rgba(239, 68, 68, 0.5);">Delete</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </details>
+            {% else %}
+            <div style="padding: 1rem; text-align: center; color: var(--text-muted);">No timesheets logged yet.</div>
+            {% endfor %}
         </div>
     </div>
 </div>
+
+<!-- Edit Timesheet Modal -->
+<div id="editModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center;">
+    <div class="glass-card" style="padding: 2rem; width: 90%; max-width: 500px;">
+        <h3 style="margin-top: 0; color: white;">Edit Timesheet Entry</h3>
+        <form id="editForm" method="POST" action="">
+            <div class="form-group" style="margin-bottom: 1rem;">
+                <label class="form-label">Date</label>
+                <input type="date" name="date" id="editDate" class="form-control" required>
+            </div>
+            <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                <div class="form-group" style="flex: 1; margin: 0;">
+                    <label class="form-label">Start Time</label>
+                    <input type="time" name="start_time" id="editStart" class="form-control" required>
+                </div>
+                <div class="form-group" style="flex: 1; margin: 0;">
+                    <label class="form-label">End Time</label>
+                    <input type="time" name="end_time" id="editEnd" class="form-control" required>
+                </div>
+            </div>
+            <div class="form-group" style="margin-bottom: 1rem;">
+                <label class="form-label">Project Title</label>
+                <input type="text" name="project_title" id="editProject" class="form-control" required>
+            </div>
+            <div class="form-group" style="margin-bottom: 1rem;">
+                <label class="form-label">Task Description</label>
+                <input type="text" name="task" id="editTask" class="form-control" required>
+            </div>
+            <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('editModal').style.display='none'">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function editTimesheet(id, date, start, end, project, task) {
+    document.getElementById('editModal').style.display = 'flex';
+    document.getElementById('editForm').action = "/timesheets/edit/" + id;
+    document.getElementById('editDate').value = date;
+    document.getElementById('editStart').value = start;
+    document.getElementById('editEnd').value = end;
+    document.getElementById('editProject').value = project;
+    document.getElementById('editTask').value = task;
+}
+</script>
+
 <script>
     document.querySelector('input[type="date"]').valueAsDate = new Date();
 </script>
@@ -394,6 +621,125 @@
             <span>Menu</span>
         </a>
     </div>
+
+
+<!-- Global Notification System -->
+<div id="global-toast-container" style="position: fixed; bottom: 20px; right: 20px; z-index: 10000; display: flex; flex-direction: column; gap: 10px;"></div>
+
+<script>
+    (function() {
+        let lastNotifCheck = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        let audioCtx = null;
+        
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+        document.addEventListener('click', initAudio, { once: true });
+
+        function playAlert(isCall) {
+            if (!audioCtx) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            if (isCall) {
+                const playTone = (freq, startTime, duration) => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, audioCtx.currentTime + startTime);
+                    gain.gain.setValueAtTime(0.5, audioCtx.currentTime + startTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + startTime + duration);
+                    osc.start(audioCtx.currentTime + startTime);
+                    osc.stop(audioCtx.currentTime + startTime + duration);
+                };
+                playTone(600, 0, 0.4);
+                playTone(800, 0.2, 0.4);
+                playTone(600, 1.0, 0.4);
+                playTone(800, 1.2, 0.4);
+                if (navigator.vibrate) navigator.vibrate([200, 100, 200, 800, 200, 100, 200]);
+            } else {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.2);
+                if (navigator.vibrate) navigator.vibrate(100);
+            }
+        }
+
+        function showToast(sender, message, isCall) {
+            const container = document.getElementById('global-toast-container');
+            const toast = document.createElement('div');
+            toast.style.background = isCall ? 'rgba(16, 185, 129, 0.95)' : 'rgba(59, 130, 246, 0.95)';
+            toast.style.color = 'white';
+            toast.style.padding = '1rem 1.5rem';
+            toast.style.borderRadius = '12px';
+            toast.style.boxShadow = '0 10px 25px rgba(0,0,0,0.5)';
+            toast.style.border = '1px solid rgba(255,255,255,0.2)';
+            toast.style.cursor = 'pointer';
+            toast.style.minWidth = '250px';
+            toast.style.backdropFilter = 'blur(10px)';
+            toast.style.transform = 'translateY(50px)';
+            toast.style.opacity = '0';
+            toast.style.transition = 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+            
+            const title = isCall ? `🎥 Incoming Video Call from ${sender}` : `💬 New message from ${sender}`;
+            const body = isCall ? 'Click to answer' : message;
+            
+            toast.innerHTML = `<div style="font-weight: bold; margin-bottom: 0.25rem;">${title}</div>
+                               <div style="font-size: 0.9rem; opacity: 0.9;">${body}</div>`;
+            
+            toast.onclick = () => {
+                window.location.href = '/chat';
+            };
+            
+            container.appendChild(toast);
+            
+            // Animate in
+            setTimeout(() => {
+                toast.style.transform = 'translateY(0)';
+                toast.style.opacity = '1';
+            }, 50);
+            
+            playAlert(isCall);
+            
+            // Auto dismiss after 6 seconds (or 15 for call)
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(20px)';
+                setTimeout(() => toast.remove(), 300);
+            }, isCall ? 15000 : 6000);
+        }
+
+        setInterval(async () => {
+            if (document.hidden) return; // Save cPanel resources when tab is backgrounded
+            try {
+                const res = await fetch('/chat/notifications?since=' + encodeURIComponent(lastNotifCheck));
+                if (res.ok) {
+                    const newMsgs = await res.json();
+                    if (newMsgs.length > 0) {
+                        lastNotifCheck = new Date().toISOString().replace('T', ' ').substring(0, 19);
+                        newMsgs.forEach(msg => {
+                            if (msg.message === '[CALL_RING]') {
+                                showToast(msg.sender_name, '', true);
+                            } else {
+                                showToast(msg.sender_name, msg.message, false);
+                            }
+                        });
+                    }
+                }
+            } catch(e) {}
+        }, 20000);
+    })();
+</script>
 
 </body>
 </html>

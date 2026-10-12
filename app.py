@@ -12,18 +12,26 @@ from scraper import scrape_oem_website
 app = Flask(__name__)
 
 # Register Blueprints
+
 try:
     from timesheets import timesheets_bp, init_db as init_timesheets_db
-    app.register_blueprint(timesheets_bp)
+    from hrms import hrms, init_db as init_hrms_db
+    from chat import chat_bp, init_db as init_chat_db
     
-    # Initialize timesheets DB
+    app.register_blueprint(timesheets_bp)
+    app.register_blueprint(hrms)
+    app.register_blueprint(chat_bp)
+    
+    # Initialize blueprint databases
     import database
     conn = database.get_db_connection()
     init_timesheets_db(conn)
+    init_hrms_db(conn)
+    init_chat_db(conn)
     conn.close()
-except ImportError as e:
-    print(f"Failed to load timesheets: {e}")
-
+    
+except Exception as e:
+    print('Error loading blueprints:', e)
 try:
     from excel_tool import excel_bp
     app.register_blueprint(excel_bp)
@@ -1433,8 +1441,65 @@ def admin_panel():
         ORDER BY a.created_at DESC, a.id DESC
         LIMIT 100
     ''').fetchall()
+    
+    # Fetch Master Timesheets - Order by User, Date DESC, start_time ASC
+    ts_rows = conn.execute('''
+        SELECT t.*, u.username 
+        FROM timesheets t 
+        LEFT JOIN users u ON t.user_id = u.id 
+        ORDER BY u.username ASC, t.date DESC, t.start_time ASC
+    ''').fetchall()
+    
     conn.close()
-    return render_template('admin.html', users=users, audit_logs=audit_logs)
+    
+    timesheets = []
+    admin_ts_summary = {}
+    from datetime import datetime
+    
+    for r in ts_rows:
+        d = dict(r)
+        try:
+            if d['start_time'] and d['end_time']:
+                tdelta = datetime.strptime(d['end_time'], '%H:%M') - datetime.strptime(d['start_time'], '%H:%M')
+                d['hours_worked'] = round(tdelta.total_seconds() / 3600, 2)
+            else:
+                d['hours_worked'] = 0
+        except:
+            d['hours_worked'] = 0
+        timesheets.append(d)
+        
+        user = d['username'] or 'Unknown'
+        date = d['date']
+        
+        if user not in admin_ts_summary:
+            admin_ts_summary[user] = {}
+            
+        if date not in admin_ts_summary[user]:
+            admin_ts_summary[user][date] = {'productive': 0.0, 'break': 0.0, 'last_end': None}
+            
+        admin_ts_summary[user][date]['productive'] += d['hours_worked']
+        
+        # Calculate break time
+        if d['start_time'] and admin_ts_summary[user][date]['last_end']:
+            try:
+                fmt = '%H:%M'
+                tdelta = datetime.strptime(d['start_time'], fmt) - datetime.strptime(admin_ts_summary[user][date]['last_end'], fmt)
+                break_hours = tdelta.total_seconds() / 3600
+                if break_hours > 0:
+                    admin_ts_summary[user][date]['break'] += break_hours
+            except:
+                pass
+                
+        if d['end_time']:
+            admin_ts_summary[user][date]['last_end'] = d['end_time']
+            
+    # Round summaries
+    for u in admin_ts_summary:
+        for d in admin_ts_summary[u]:
+            admin_ts_summary[u][d]['productive'] = round(admin_ts_summary[u][d]['productive'], 2)
+            admin_ts_summary[u][d]['break'] = round(admin_ts_summary[u][d]['break'], 2)
+            
+    return render_template('admin.html', users=users, audit_logs=audit_logs, timesheets=timesheets, admin_ts_summary=admin_ts_summary)
 
 @app.route('/admin/approve/<int:user_id>', methods=['POST'])
 @admin_required
@@ -2674,10 +2739,43 @@ def admin_auto_update():
         log_audit('PORTAL_UPDATE_BACKUP', f"Created automatic pre-update backup: {backup_filename}")
         logs.append(f"Backup created successfully: {backup_filename}")
     except Exception as backup_err:
-        flash(f"Failed to create backup: {backup_err}. Aborted.", "error")
-        return redirect(url_for('admin_panel'))
-        
-    # 2. Extract Uploaded Codebase ZIP
+      flash(f"Failed to create backup: {backup_err}. Aborted.", "error")
+      return redirect(url_for('admin_panel'))
+      
+
+    # 2. Pre-Update Operations (Version Bump & Dependencies)
+    # We do this BEFORE extraction because overwriting app.py on cPanel Passenger instantly kills the worker process!
+    try:
+        conn = database.get_db_connection()
+        ver_row = conn.execute("SELECT value FROM portal_settings WHERE key = 'portal_version'").fetchone()
+        current_ver = ver_row['value'] if ver_row else 'v4.0'
+        import re as regex
+        m = regex.match(r'v(\d+)\.(\d+)', current_ver)
+        if m:
+            major, minor = int(m.group(1)), int(m.group(2))
+            new_ver = f"v{major}.{minor + 1}"
+        else:
+            new_ver = 'v4.1'
+        conn.execute("UPDATE portal_settings SET value = ? WHERE key = 'portal_version'", (new_ver,))
+        import datetime as dt
+        conn.execute("INSERT INTO change_logs (version, release_date, features, improvements) VALUES (?, ?, ?, ?)",
+                     (new_ver, dt.date.today().strftime('%Y-%m-%d'), 'Auto-update applied', 'Minor patch update from codebase push'))
+        conn.commit()
+        conn.close()
+        logs.append(f"Version bumped to {new_ver}.")
+    except Exception as e:
+        logs.append(f"Notice: Failed to bump version: {e}")
+
+    req_path = os.path.join(app.root_path, 'requirements.txt')
+    if os.path.exists(req_path):
+        logs.append("Found requirements.txt, checking dependencies...")
+        try:
+            subprocess.run([sys.executable, '-m', 'pip', 'install', '-r', req_path], check=True)
+            logs.append("Python dependencies verified and updated.")
+        except Exception as pip_err:
+            logs.append(f"Warning: Dependency check returned error: {pip_err}")
+
+    # 3. Extract Uploaded Codebase ZIP
     logs.append("Extracting uploaded update archive...")
     temp_zip_path = os.path.join(app.config['UPLOAD_FOLDER'], 'temp_update.zip')
     try:
@@ -2695,6 +2793,9 @@ def admin_auto_update():
                         common_prefix = first + '/'
             
             extracted_files = 0
+            app_py_data = None
+            
+            # Phase 1: Extract everything EXCEPT app.py
             for name in namelist:
                 if name == common_prefix or name.endswith('/'):
                     continue
@@ -2702,6 +2803,11 @@ def admin_auto_update():
                 rel_path = name[len(common_prefix):] if common_prefix else name
                 
                 if 'venv/' in name or '.git/' in name or '__pycache__/' in name or name.endswith('.zip') or name.endswith('.db'):
+                    continue
+                    
+                # Save app.py for the absolute final step to prevent premature WSGI worker termination
+                if rel_path == 'app.py':
+                    app_py_data = zipf.read(name)
                     continue
                     
                 target_path = os.path.join(app.root_path, rel_path)
@@ -2715,56 +2821,31 @@ def admin_auto_update():
                     f_out.write(file_data)
                 extracted_files += 1
                 
-        logs.append(f"Successfully extracted and overwritten {extracted_files} core files.")
-                
-        # 3. Automatically Install Dependencies
-        req_path = os.path.join(app.root_path, 'requirements.txt')
-        if os.path.exists(req_path):
-            logs.append("Found requirements.txt, checking dependencies...")
-            try:
-                subprocess.run([sys.executable, '-m', 'pip', 'install', '-r', req_path], check=True)
-                logs.append("Python dependencies verified and updated.")
-            except Exception as pip_err:
-                logs.append(f"Warning: Dependency check returned error: {pip_err}")
-                
-        # Read current version, increment and update
-        try:
-            conn = database.get_db_connection()
-            ver_row = conn.execute("SELECT value FROM portal_settings WHERE key = 'portal_version'").fetchone()
-            current_ver = ver_row['value'] if ver_row else 'v4.0'
-            import re
-            m = re.match(r'v(\d+)\.(\d+)', current_ver)
-            if m:
-                major, minor = int(m.group(1)), int(m.group(2))
-                new_ver = f"v{major}.{minor + 1}"
-            else:
-                new_ver = 'v4.1'
-            conn.execute("UPDATE portal_settings SET value = ? WHERE key = 'portal_version'", (new_ver,))
-            import datetime
-            conn.execute("INSERT INTO change_logs (version, release_date, features, improvements) VALUES (?, ?, ?, ?)",
-                         (new_ver, datetime.date.today().strftime('%Y-%m-%d'), 'Auto-update applied', 'Minor patch update from codebase push'))
-            conn.commit()
-            conn.close()
-            logs.append(f"Version bumped to {new_ver}.")
-        except Exception as e:
-            logs.append(f"Notice: Failed to bump version: {e}")
-            
+        logs.append(f"Successfully extracted {extracted_files} core files.")
+
         # 4. Trigger WSGI restart for Passenger/cPanel
         try:
-            logs.append("Triggering application server reload (WSGI Restart)...")
             tmp_dir = os.path.join(os.getcwd(), 'tmp')
             os.makedirs(tmp_dir, exist_ok=True)
             with open(os.path.join(tmp_dir, 'restart.txt'), 'w') as f_restart:
                 f_restart.write(f'restart_{timestamp}')
-        except Exception as restart_err:
-            logs.append(f"Warning: WSGI Restart trigger error: {restart_err}")
+        except Exception:
+            pass
             
-        log_audit('PORTAL_UPDATE_APPLIED', f"Application auto-update applied: {extracted_files} files.")
+        log_audit('PORTAL_UPDATE_APPLIED', f"Application auto-update applied to version {new_ver}")
+        
+        # Phase 2: Overwrite app.py (This may instantly kill the Passenger process)
+        if app_py_data:
+            target_path = os.path.join(app.root_path, 'app.py')
+            with open(target_path, 'wb') as f_out:
+                f_out.write(app_py_data)
+
         logs.append("Update complete! The portal will now restart automatically.")
         
+
         flash("Update complete!", "success")
         return redirect(url_for('admin_panel'))
-        
+      
     except Exception as update_err:
         flash(f"Update failed: {update_err}", "error")
         return redirect(url_for('admin_panel'))
@@ -2780,25 +2861,25 @@ def admin_update_rfp_ip():
     ip_whitelist = request.form.get('rfp_ip_whitelist', '').strip()
     conn = database.get_db_connection()
     try:
-        country_whitelist = request.form.get('rfp_country_whitelist', '').strip().upper()
-        
-        if ip_whitelist:
-            conn.execute("INSERT OR REPLACE INTO portal_settings (key, value) VALUES ('rfp_ip_whitelist', ?)", (ip_whitelist,))
-        else:
-            conn.execute("DELETE FROM portal_settings WHERE key = 'rfp_ip_whitelist'")
-            
-        if country_whitelist:
-            conn.execute("INSERT OR REPLACE INTO portal_settings (key, value) VALUES ('rfp_country_whitelist', ?)", (country_whitelist,))
-        else:
-            conn.execute("DELETE FROM portal_settings WHERE key = 'rfp_country_whitelist'")
-            
-        conn.commit()
-        log_audit('SETTINGS_RFP_ACCESS', "Updated RFP IP & Country Whitelists")
-        flash("RFP Access Whitelists successfully updated.", "success")
+      country_whitelist = request.form.get('rfp_country_whitelist', '').strip().upper()
+      
+      if ip_whitelist:
+          conn.execute("INSERT OR REPLACE INTO portal_settings (key, value) VALUES ('rfp_ip_whitelist', ?)", (ip_whitelist,))
+      else:
+          conn.execute("DELETE FROM portal_settings WHERE key = 'rfp_ip_whitelist'")
+          
+      if country_whitelist:
+          conn.execute("INSERT OR REPLACE INTO portal_settings (key, value) VALUES ('rfp_country_whitelist', ?)", (country_whitelist,))
+      else:
+          conn.execute("DELETE FROM portal_settings WHERE key = 'rfp_country_whitelist'")
+          
+      conn.commit()
+      log_audit('SETTINGS_RFP_ACCESS', "Updated RFP IP & Country Whitelists")
+      flash("RFP Access Whitelists successfully updated.", "success")
     except Exception as e:
-        flash(f"Error updating RFP IP Whitelist: {e}", "error")
+      flash(f"Error updating RFP IP Whitelist: {e}", "error")
     finally:
-        conn.close()
+      conn.close()
     return redirect(url_for('admin'))
 
 @app.route('/admin/rfp-password/update', methods=['POST'])
@@ -2807,17 +2888,17 @@ def admin_update_rfp_password():
     password = request.form.get('rfp_access_password', '').strip()
     conn = database.get_db_connection()
     try:
-        if password:
-            conn.execute("INSERT OR REPLACE INTO portal_settings (key, value) VALUES ('rfp_access_password', ?)", (password,))
-        else:
-            conn.execute("DELETE FROM portal_settings WHERE key = 'rfp_access_password'")
-        conn.commit()
-        log_audit('SETTINGS_RFP_PASSWORD', "Updated RFP section access password")
-        flash("RFP access password successfully updated.", "success")
+      if password:
+          conn.execute("INSERT OR REPLACE INTO portal_settings (key, value) VALUES ('rfp_access_password', ?)", (password,))
+      else:
+          conn.execute("DELETE FROM portal_settings WHERE key = 'rfp_access_password'")
+      conn.commit()
+      log_audit('SETTINGS_RFP_PASSWORD', "Updated RFP section access password")
+      flash("RFP access password successfully updated.", "success")
     except Exception as e:
-        flash(f"Error updating RFP access password: {e}", "error")
+      flash(f"Error updating RFP access password: {e}", "error")
     finally:
-        conn.close()
+      conn.close()
     return redirect(url_for('admin_panel'))
 
 @app.route('/admin/settings/update', methods=['POST'])

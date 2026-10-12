@@ -30,3 +30,9 @@ uploads/*
 *.njsproj
 *.sln
 *.sw?
+
+# Temporary patch and fix scripts
+patch_*.py
+fix_*.py
+check_*.py
+clean_*.py

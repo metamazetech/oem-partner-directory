@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Admin Panel - {{ portal_settings['portal_name'] }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ portal_settings.get('portal_version', '4.0') }}">
-    <link rel="icon" type="image/x-icon" href="{% if portal_settings['favicon'] %}{{ url_for('uploaded_file', filename=portal_settings['favicon']) }}{% else %}{{ url_for('static', filename='favicon.ico') }}{% endif %}">
+    <link rel="icon" type="image/x-icon" href="{% if portal_settings['favicon'] %}{{ url_for('uploaded_file', filename=portal_settings['favicon']) }}{% else %}{{ url_for('static', filename='favicon.svg') }}{% endif %}">
     <script>
         window.BASE_URL = "{{ url_for('dashboard') }}";
     </script>
@@ -115,11 +115,6 @@
                                         <span>⚙️</span> Admin Panel
                                     </a>
                                 </li>
-                                <li class="nav-item {% if request.endpoint == 'timesheets.admin_timesheets' %}active{% endif %}">
-                                    <a title="Master Timesheets" href="{{ url_for('timesheets.admin_timesheets') }}">
-                                        <span>⏱️</span> Master Timesheets
-                                    </a>
-                                </li>
                             {% endif %}
                         {% else %}
                             <li class="nav-item {% if request.endpoint == 'login' %}active{% endif %}">
@@ -145,9 +140,17 @@
                                 <span>⏰</span> Reminders
                             </a>
                         </li>
+                        
+                        
                         <li class="nav-item {% if request.endpoint == 'timesheets.employee_timesheets' %}active{% endif %}">
                             <a title="Time Sheet" href="{{ url_for('timesheets.employee_timesheets') }}">
                                 <span>⏱️</span> Time Sheet
+                            </a>
+                        </li>
+                        
+                        <li class="nav-item {% if request.endpoint == 'chat.chat_ui' %}active{% endif %}">
+                            <a title="Team Chat" href="{{ url_for('chat.chat_ui') }}">
+                                <span>💬</span> Team Chat
                             </a>
                         </li>
                         <li class="nav-item">
@@ -177,10 +180,14 @@
         <!-- Main Content Area -->
         <main class="main-content">
             
-            <div class="header-bar">
+            <div class="header-bar" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
                 <div>
                     <h1 class="page-title">Admin Operations Panel</h1>
                     <p style="color: var(--text-secondary); margin-top: 0.25rem;">Approve team members, edit roles, and view security audit trails.</p>
+                </div>
+                <div class="admin-search-wrapper" style="position: relative;">
+                    <input type="text" id="adminSearchInput" placeholder="Search operations..." class="form-control" style="background: rgba(15,23,42,0.6); border: 1px solid var(--border-glass); color: white; padding-left: 2.5rem; border-radius: 20px; width: 250px; transition: all 0.3s ease;" onfocus="this.style.boxShadow='0 0 0 3px rgba(99,102,241,0.2)'" onblur="this.style.boxShadow='none'">
+                    <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-secondary);">🔍</span>
                 </div>
             </div>
             
@@ -885,8 +892,93 @@
                     {% endif %}
                 </div>
             </div>
+            <!-- Master Timesheets Card -->
+            <div class="glass-card no-border-top" style="border: 1px solid rgba(16, 185, 129, 0.25); margin-top: 2rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                    <div>
+                        <h2 class="card-title" style="color: #34d399; margin-bottom: 0.25rem;">⏱️ Master Timesheets</h2>
+                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">
+                            View detailed timesheets and task logs for all users across the organization.
+                        </p>
+                    </div>
+                    <a href="{{ url_for('timesheets.export_timesheets', admin='true') }}" class="btn btn-secondary btn-sm" style="border-color: rgba(16,185,129,0.5); color: #34d399;">
+                        Export All (CSV)
+                    </a>
+                </div>
+                
+                                  <div class="accordion-container">
+                      {% set user_sheets = {} %}
+                      {% for sheet in timesheets %}
+                          {% set uname = sheet.username or 'Unknown' %}
+                          {% set _ = user_sheets.setdefault(uname, {}).setdefault(sheet.date, []).append(sheet) %}
+                      {% endfor %}
+                      
+                      {% for user, dates in user_sheets.items() %}
+                      <div style="margin-bottom: 1rem;">
+                          <h3 style="color: white; margin-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.25rem;">👤 {{ user }}</h3>
+                          {% for date, sheets in dates.items() %}
+                          <details class="date-group" style="margin-bottom: 0.5rem; background: rgba(0,0,0,0.2); border: 1px solid var(--border-glass); border-radius: 6px;">
+                              <summary style="padding: 0.75rem 1rem; cursor: pointer; font-weight: bold; color: var(--primary); display: flex; justify-content: space-between; align-items: center;">
+                                  <span>{{ date }}</span>
+                                  <div style="font-size: 0.85em; color: var(--text-secondary); font-weight: normal; display: flex; gap: 1rem; align-items: center;">
+                                      {% if user in admin_ts_summary and date in admin_ts_summary[user] %}
+                                      <span style="color: #34d399;" title="Productive Hours">⚙️ {{ admin_ts_summary[user][date]['productive'] }}h</span>
+                                      <span style="color: #f87171;" title="Break Time">☕ {{ admin_ts_summary[user][date]['break'] }}h</span>
+                                      {% endif %}
+                                      <span style="background: rgba(255,255,255,0.1); padding: 0.1rem 0.5rem; border-radius: 12px;">{{ sheets|length }} entries</span>
+                                  </div>
+                              </summary>
+                              <div class="table-responsive" style="padding: 0 1rem 1rem 1rem;">
+                                  <table style="width: 100%; border-collapse: collapse;">
+                                      <thead>
+                                          <tr style="border-bottom: 1px solid var(--border-glass); color: var(--text-secondary); text-align: left; font-size: 0.85rem;">
+                                              <th style="padding: 0.5rem;">Time</th>
+                                              <th style="padding: 0.5rem;">Project</th>
+                                              <th style="padding: 0.5rem;">Task</th>
+                                              <th style="padding: 0.5rem; text-align: right;">Hours</th>
+                                          </tr>
+                                      </thead>
+                                      <tbody>
+                                          {% for sheet in sheets %}
+                                          <tr style="border-bottom: 1px solid var(--border-glass);">
+                                              <td style="padding: 0.5rem; font-size: 0.9rem; white-space: nowrap;">{{ sheet.start_time or '--' }} - {{ sheet.end_time or '--' }}</td>
+                                              <td style="padding: 0.5rem; font-size: 0.9rem;"><span class="badge" style="background: rgba(99,102,241,0.2); color: #818cf8;">{{ sheet.project_title or 'N/A' }}</span></td>
+                                              <td style="padding: 0.5rem; font-size: 0.9rem;">{{ sheet.task }}</td>
+                                              <td style="padding: 0.5rem; font-size: 0.9rem; text-align: right; font-weight: bold;">{{ sheet.hours_worked }}</td>
+                                          </tr>
+                                          {% endfor %}
+                                      </tbody>
+                                  </table>
+                              </div>
+                          </details>
+                          {% endfor %}
+                      </div>
+                      {% else %}
+                      <div style="padding: 1rem; text-align: center; color: var(--text-muted);">No entries logged across the organization.</div>
+                      {% endfor %}
+                  </div>
+              </div>
+              
 
-            <!-- ⚠️ Danger Zone / Reset Portal Card -->
+              <!-- HRMS Admin Card -->
+              <div class="glass-card no-border-top" style="border: 1px solid rgba(59, 130, 246, 0.25); margin-top: 2rem;">
+                  <h2 class="card-title" style="color: #60a5fa; margin-bottom: 0.25rem;">📍 HRMS & Leave Management</h2>
+                  <div style="padding: 1.5rem; text-align: center;">
+                      <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Review employee punch-ins, manage leave requests, and download attendance reports.</p>
+                      <a href="{{ url_for('hrms.admin_attendance') }}" class="btn btn-primary">Open HRMS Admin</a>
+                  </div>
+              </div>
+              
+              <!-- Chat Admin Card -->
+              <div class="glass-card no-border-top" style="border: 1px solid rgba(139, 92, 246, 0.25); margin-top: 2rem;">
+                  <h2 class="card-title" style="color: #a78bfa; margin-bottom: 0.25rem;">💬 Internal Team Chat Logs</h2>
+                  <div style="padding: 1.5rem; text-align: center;">
+                      <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Review all internal communications and file shares securely.</p>
+                      <a href="{{ url_for('chat.admin_chat') }}" class="btn btn-primary">Open Chat Logs</a>
+                  </div>
+              </div>
+              
+<!-- ⚠️ Danger Zone / Reset Portal Card -->
             <div class="glass-card no-border-top" style="border: 1px solid rgba(239, 68, 68, 0.25); background: rgba(239, 68, 68, 0.02); margin-top: 2rem;">
                 <h2 class="card-title" style="color: #fca5a5; margin-bottom: 0.5rem;">⚠️ Danger Zone - Reset Database</h2>
                 <p style="font-size: 0.85rem; color: #fca5a5; margin-bottom: 1.5rem;">
@@ -953,6 +1045,309 @@
             <span>Menu</span>
         </a>
     </div>
+
+
+    <!-- Admin Accordion UI Scripts & Styles -->
+    <style>
+    .admin-accordion-btn {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        padding: 1.25rem 1.5rem;
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid var(--border-glass);
+        border-radius: 12px;
+        color: white;
+        font-size: 1.1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        text-align: left;
+        margin-bottom: 1rem;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        backdrop-filter: blur(10px);
+    }
+    .admin-accordion-btn:hover {
+        background: rgba(30, 41, 59, 0.8);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 15px rgba(0,0,0,0.2);
+        border-color: rgba(99, 102, 241, 0.5);
+    }
+    .admin-accordion-btn.active {
+        background: linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.2));
+        border-color: var(--primary);
+        border-radius: 12px 12px 0 0;
+        margin-bottom: 0;
+        border-bottom: none;
+    }
+    .admin-accordion-btn.danger-btn {
+        border-color: rgba(239, 68, 68, 0.3);
+    }
+    .admin-accordion-btn.danger-btn:hover {
+        background: rgba(239, 68, 68, 0.1);
+        border-color: rgba(239, 68, 68, 0.6);
+    }
+    .admin-accordion-btn.danger-btn.active {
+        background: rgba(239, 68, 68, 0.15);
+        border-color: rgba(239, 68, 68, 0.6);
+    }
+    .admin-accordion-content {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease, padding 0.5s ease;
+        opacity: 0;
+        background: rgba(15,23,42,0.4);
+        border: 1px solid var(--border-glass);
+        border-top: none;
+        border-radius: 0 0 12px 12px;
+        margin-bottom: 1.5rem;
+        backdrop-filter: blur(10px);
+    }
+    .admin-accordion-content.expanded {
+        opacity: 1;
+    }
+    .admin-accordion-inner {
+        padding: 1.5rem;
+    }
+    /* Hide the original cards initially to prevent flash of unstyled content */
+    main .glass-card:not(.header-card) {
+        opacity: 0;
+        animation: fadeIn 0.5s forwards 0.2s;
+    }
+    @keyframes fadeIn {
+        to { opacity: 1; }
+    }
+    </style>
+    <script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const main = document.querySelector('main');
+        const cards = main.querySelectorAll('.glass-card');
+        
+        cards.forEach((card, index) => {
+            const titleEl = card.querySelector('h2.card-title');
+            if (!titleEl) return; // Skip cards without titles (like the top stats cards)
+            
+            // Mark the first top cards as header-card so they don't get hidden if they have no title
+            card.classList.add('header-card');
+            
+            const isDanger = titleEl.innerText.includes('Danger Zone');
+            
+            // Create the button
+            const btn = document.createElement('button');
+            btn.className = 'admin-accordion-btn' + (isDanger ? ' danger-btn' : '');
+            
+            // Extract the title HTML to preserve icons/colors
+            const titleHtml = titleEl.innerHTML;
+            const titleColor = titleEl.style.color || 'white';
+            
+            btn.innerHTML = `<span style="color: ${titleColor}; display: flex; align-items: center; gap: 0.5rem;">${titleHtml}</span> 
+                             <span class="icon-arrow" style="transition: transform 0.3s ease; color: var(--text-secondary);">▼</span>`;
+            
+            // Create content wrapper
+            const content = document.createElement('div');
+            content.className = 'admin-accordion-content';
+            if (isDanger) content.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+            
+            const inner = document.createElement('div');
+            inner.className = 'admin-accordion-inner';
+            
+            // Remove title from DOM tree before moving children to avoid duplication
+            titleEl.remove();
+            
+            // Move remaining children
+            while(card.childNodes.length > 0) {
+                inner.appendChild(card.childNodes[0]);
+            }
+            
+            content.appendChild(inner);
+            
+            // Reset original card styles so it just acts as a container
+            card.style.background = 'transparent';
+            card.style.border = 'none';
+            card.style.padding = '0';
+            card.style.boxShadow = 'none';
+            card.style.marginTop = '0';
+            card.style.backdropFilter = 'none';
+            
+            card.appendChild(btn);
+            card.appendChild(content);
+            
+            
+            // Toggle logic
+            btn.addEventListener('click', function(e) {
+                e.preventDefault(); // Prevent form submits if any
+                const isExpanded = content.classList.contains('expanded');
+                
+                if (!isExpanded) {
+                    btn.classList.add('active');
+                    content.classList.add('expanded');
+                    btn.querySelector('.icon-arrow').style.transform = 'rotate(180deg)';
+                    
+                    // Animate max-height
+                    content.style.maxHeight = content.scrollHeight + 800 + 'px';
+                    setTimeout(() => {
+                        if (content.classList.contains('expanded')) {
+                            content.style.maxHeight = 'none'; // allow for dynamic growth
+                            content.style.overflow = 'visible';
+                        }
+                    }, 500);
+                } else {
+                    content.style.maxHeight = content.scrollHeight + 'px';
+                    content.style.overflow = 'hidden';
+                    
+                    // Force reflow
+                    void content.offsetWidth;
+                    
+                    btn.classList.remove('active');
+                    content.classList.remove('expanded');
+                    btn.querySelector('.icon-arrow').style.transform = 'rotate(0deg)';
+                    content.style.maxHeight = '0';
+                }
+            });
+        });
+
+        // Filter logic for search bar
+        const searchInput = document.getElementById('adminSearchInput');
+        if (searchInput) {
+            searchInput.addEventListener('input', function(e) {
+                const query = e.target.value.toLowerCase();
+                const buttons = document.querySelectorAll('.admin-accordion-btn');
+                buttons.forEach(btn => {
+                    const text = btn.innerText.toLowerCase();
+                    if (text.includes(query)) {
+                        btn.parentElement.style.display = 'block';
+                    } else {
+                        btn.parentElement.style.display = 'none';
+                        if (btn.classList.contains('active')) {
+                            btn.click(); // auto close when filtering out
+                        }
+                    }
+                });
+            });
+        }
+
+    });
+    </script>
+
+
+<!-- Global Notification System -->
+<div id="global-toast-container" style="position: fixed; bottom: 20px; right: 20px; z-index: 10000; display: flex; flex-direction: column; gap: 10px;"></div>
+
+<script>
+    (function() {
+        let lastNotifCheck = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        let audioCtx = null;
+        
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+        document.addEventListener('click', initAudio, { once: true });
+
+        function playAlert(isCall) {
+            if (!audioCtx) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            if (isCall) {
+                const playTone = (freq, startTime, duration) => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, audioCtx.currentTime + startTime);
+                    gain.gain.setValueAtTime(0.5, audioCtx.currentTime + startTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + startTime + duration);
+                    osc.start(audioCtx.currentTime + startTime);
+                    osc.stop(audioCtx.currentTime + startTime + duration);
+                };
+                playTone(600, 0, 0.4);
+                playTone(800, 0.2, 0.4);
+                playTone(600, 1.0, 0.4);
+                playTone(800, 1.2, 0.4);
+                if (navigator.vibrate) navigator.vibrate([200, 100, 200, 800, 200, 100, 200]);
+            } else {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.2);
+                if (navigator.vibrate) navigator.vibrate(100);
+            }
+        }
+
+        function showToast(sender, message, isCall) {
+            const container = document.getElementById('global-toast-container');
+            const toast = document.createElement('div');
+            toast.style.background = isCall ? 'rgba(16, 185, 129, 0.95)' : 'rgba(59, 130, 246, 0.95)';
+            toast.style.color = 'white';
+            toast.style.padding = '1rem 1.5rem';
+            toast.style.borderRadius = '12px';
+            toast.style.boxShadow = '0 10px 25px rgba(0,0,0,0.5)';
+            toast.style.border = '1px solid rgba(255,255,255,0.2)';
+            toast.style.cursor = 'pointer';
+            toast.style.minWidth = '250px';
+            toast.style.backdropFilter = 'blur(10px)';
+            toast.style.transform = 'translateY(50px)';
+            toast.style.opacity = '0';
+            toast.style.transition = 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+            
+            const title = isCall ? `🎥 Incoming Video Call from ${sender}` : `💬 New message from ${sender}`;
+            const body = isCall ? 'Click to answer' : message;
+            
+            toast.innerHTML = `<div style="font-weight: bold; margin-bottom: 0.25rem;">${title}</div>
+                               <div style="font-size: 0.9rem; opacity: 0.9;">${body}</div>`;
+            
+            toast.onclick = () => {
+                window.location.href = '/chat';
+            };
+            
+            container.appendChild(toast);
+            
+            // Animate in
+            setTimeout(() => {
+                toast.style.transform = 'translateY(0)';
+                toast.style.opacity = '1';
+            }, 50);
+            
+            playAlert(isCall);
+            
+            // Auto dismiss after 6 seconds (or 15 for call)
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(20px)';
+                setTimeout(() => toast.remove(), 300);
+            }, isCall ? 15000 : 6000);
+        }
+
+        setInterval(async () => {
+            if (document.hidden) return; // Save cPanel resources when tab is backgrounded
+            try {
+                const res = await fetch('/chat/notifications?since=' + encodeURIComponent(lastNotifCheck));
+                if (res.ok) {
+                    const newMsgs = await res.json();
+                    if (newMsgs.length > 0) {
+                        lastNotifCheck = new Date().toISOString().replace('T', ' ').substring(0, 19);
+                        newMsgs.forEach(msg => {
+                            if (msg.message === '[CALL_RING]') {
+                                showToast(msg.sender_name, '', true);
+                            } else {
+                                showToast(msg.sender_name, msg.message, false);
+                            }
+                        });
+                    }
+                }
+            } catch(e) {}
+        }, 20000);
+    })();
+</script>
 
 </body>
 </html>

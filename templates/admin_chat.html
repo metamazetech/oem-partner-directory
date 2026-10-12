@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Timesheets - {{ portal_settings.get("portal_name", "OEM Portal") }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Time Sheet - {{ portal_settings.get("portal_name", "OEM Portal") }}</title>
     {% if portal_settings.get('favicon') %}
         <link rel="icon" type="image/x-icon" href="{{ url_for('uploaded_file', filename=portal_settings.get('favicon')) }}">
     {% else %}
-        <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+        <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.svg') }}">
     {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap">
@@ -238,11 +238,6 @@
                                         <span>⚙️</span> Admin Panel
                                     </a>
                                 </li>
-                                <li class="nav-item {% if request.endpoint == 'timesheets.admin_timesheets' %}active{% endif %}">
-                                    <a title="Master Timesheets" href="{{ url_for('timesheets.admin_timesheets') }}">
-                                        <span>⏱️</span> Master Timesheets
-                                    </a>
-                                </li>
                             {% endif %}
                         {% else %}
                             <li class="nav-item {% if request.endpoint == 'login' %}active{% endif %}">
@@ -268,9 +263,17 @@
                                 <span>⏰</span> Reminders
                             </a>
                         </li>
+                        
+                        
                         <li class="nav-item {% if request.endpoint == 'timesheets.employee_timesheets' %}active{% endif %}">
                             <a title="Time Sheet" href="{{ url_for('timesheets.employee_timesheets') }}">
                                 <span>⏱️</span> Time Sheet
+                            </a>
+                        </li>
+                        
+                        <li class="nav-item {% if request.endpoint == 'chat.chat_ui' %}active{% endif %}">
+                            <a title="Team Chat" href="{{ url_for('chat.chat_ui') }}">
+                                <span>💬</span> Team Chat
                             </a>
                         </li>
                         <li class="nav-item">
@@ -287,46 +290,70 @@
         <!-- Main Content Area -->
         <main class="main-content">
 
-<div class="header-bar">
-    <div>
-        <h1 class="page-title">Master Timesheet Dashboard</h1>
-        <p style="color: var(--text-secondary); margin-top: 0.25rem;">Monitor organization-wide productivity.</p>
-    </div>
-</div>
 
-<div class="content-wrapper">
-    <div class="glass-card" style="padding: 1.5rem;">
-        <div class="table-responsive">
-            <table style="width: 100%; border-collapse: collapse;">
-                <thead>
-                    <tr style="border-bottom: 1px solid var(--border-glass); color: var(--text-secondary); text-align: left;">
-                        <th style="padding: 0.75rem;">User ID</th>
-                        <th style="padding: 0.75rem;">Date</th>
-                        <th style="padding: 0.75rem;">Task</th>
-                        <th style="padding: 0.75rem;">Productivity</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for sheet in timesheets %}
-                    <tr style="border-bottom: 1px solid var(--border-glass);">
-                        <td style="padding: 0.75rem; font-weight: bold; color: var(--primary);">User #{{ sheet.user_id }}</td>
-                        <td style="padding: 0.75rem;">{{ sheet.date }}</td>
-                        <td style="padding: 0.75rem;">{{ sheet.task }}</td>
-                        <td style="padding: 0.75rem;">
-                            <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; padding: 0.2rem 0.5rem; border-radius: 4px;">{{ sheet.productivity }}%</span>
-                        </td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="4" style="padding: 1rem; text-align: center; color: var(--text-muted);">No entries logged across the organization.</td>
-                    </tr>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div style="margin-bottom: 1.5rem;">
+                    {% for category, message in messages %}
+                        <div class="alert-message alert-{{ 'error' if category == 'danger' or category == 'error' else 'success' }}" style="padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem; background: rgba(0,0,0,0.4); border: 1px solid var(--border-glass);">
+                            {{ message }}
+                        </div>
                     {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
+                </div>
+            {% endif %}
+        {% endwith %}
+<style>
+        body {
+            background-color: #121212;
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            text-align: left;
+        }
+        th {
+            background: rgba(255,255,255,0.1);
+        }
+    </style>
+<div style='padding: 2rem;'>
+    <h2>Admin Chat Logs</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Sender</th>
+                <th>Receiver</th>
+                <th>Message</th>
+                <th>File</th>
+                <th>Time</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for msg in messages %}
+            <tr>
+                <td>{{ msg.id }}</td>
+                <td>{{ msg.sender_id }}</td>
+                <td>{{ msg.receiver_id or 'Global' }}</td>
+                <td>{{ msg.message }}</td>
+                <td>{{ msg.file_path }}</td>
+                <td>{{ msg.timestamp }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
 </div>
-
 </main>
     </div>
 
@@ -349,6 +376,125 @@
             <span>Menu</span>
         </a>
     </div>
+
+
+<!-- Global Notification System -->
+<div id="global-toast-container" style="position: fixed; bottom: 20px; right: 20px; z-index: 10000; display: flex; flex-direction: column; gap: 10px;"></div>
+
+<script>
+    (function() {
+        let lastNotifCheck = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        let audioCtx = null;
+        
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+        document.addEventListener('click', initAudio, { once: true });
+
+        function playAlert(isCall) {
+            if (!audioCtx) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            if (isCall) {
+                const playTone = (freq, startTime, duration) => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, audioCtx.currentTime + startTime);
+                    gain.gain.setValueAtTime(0.5, audioCtx.currentTime + startTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + startTime + duration);
+                    osc.start(audioCtx.currentTime + startTime);
+                    osc.stop(audioCtx.currentTime + startTime + duration);
+                };
+                playTone(600, 0, 0.4);
+                playTone(800, 0.2, 0.4);
+                playTone(600, 1.0, 0.4);
+                playTone(800, 1.2, 0.4);
+                if (navigator.vibrate) navigator.vibrate([200, 100, 200, 800, 200, 100, 200]);
+            } else {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.2);
+                if (navigator.vibrate) navigator.vibrate(100);
+            }
+        }
+
+        function showToast(sender, message, isCall) {
+            const container = document.getElementById('global-toast-container');
+            const toast = document.createElement('div');
+            toast.style.background = isCall ? 'rgba(16, 185, 129, 0.95)' : 'rgba(59, 130, 246, 0.95)';
+            toast.style.color = 'white';
+            toast.style.padding = '1rem 1.5rem';
+            toast.style.borderRadius = '12px';
+            toast.style.boxShadow = '0 10px 25px rgba(0,0,0,0.5)';
+            toast.style.border = '1px solid rgba(255,255,255,0.2)';
+            toast.style.cursor = 'pointer';
+            toast.style.minWidth = '250px';
+            toast.style.backdropFilter = 'blur(10px)';
+            toast.style.transform = 'translateY(50px)';
+            toast.style.opacity = '0';
+            toast.style.transition = 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+            
+            const title = isCall ? `🎥 Incoming Video Call from ${sender}` : `💬 New message from ${sender}`;
+            const body = isCall ? 'Click to answer' : message;
+            
+            toast.innerHTML = `<div style="font-weight: bold; margin-bottom: 0.25rem;">${title}</div>
+                               <div style="font-size: 0.9rem; opacity: 0.9;">${body}</div>`;
+            
+            toast.onclick = () => {
+                window.location.href = '/chat';
+            };
+            
+            container.appendChild(toast);
+            
+            // Animate in
+            setTimeout(() => {
+                toast.style.transform = 'translateY(0)';
+                toast.style.opacity = '1';
+            }, 50);
+            
+            playAlert(isCall);
+            
+            // Auto dismiss after 6 seconds (or 15 for call)
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(20px)';
+                setTimeout(() => toast.remove(), 300);
+            }, isCall ? 15000 : 6000);
+        }
+
+        setInterval(async () => {
+            if (document.hidden) return; // Save cPanel resources when tab is backgrounded
+            try {
+                const res = await fetch('/chat/notifications?since=' + encodeURIComponent(lastNotifCheck));
+                if (res.ok) {
+                    const newMsgs = await res.json();
+                    if (newMsgs.length > 0) {
+                        lastNotifCheck = new Date().toISOString().replace('T', ' ').substring(0, 19);
+                        newMsgs.forEach(msg => {
+                            if (msg.message === '[CALL_RING]') {
+                                showToast(msg.sender_name, '', true);
+                            } else {
+                                showToast(msg.sender_name, msg.message, false);
+                            }
+                        });
+                    }
+                }
+            } catch(e) {}
+        }, 20000);
+    })();
+</script>
 
 </body>
 </html>

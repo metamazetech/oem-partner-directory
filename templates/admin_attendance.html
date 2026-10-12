@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Time Sheet - {{ portal_settings.get("portal_name", "OEM Portal") }}</title>
+    {% if portal_settings.get('favicon') %}
+        <link rel="icon" type="image/x-icon" href="{{ url_for('uploaded_file', filename=portal_settings.get('favicon')) }}">
+    {% else %}
+        <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.svg') }}">
+    {% endif %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap">
+    <style>
+        .bucket-tab-content {
+            display: none;
+        }
+        .bucket-tab-content.active {
+            display: block;
+        }
+        .bucket-tab-btn {
+            padding: 0.35rem 0.6rem;
+            font-size: 0.72rem;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            white-space: nowrap;
+            transition: var(--transition);
+        }
+        .bucket-tab-btn:hover {
+            background: rgba(255,255,255,0.08);
+            color: white;
+        }
+        .bucket-tab-btn.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+        .bucket-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 0.6rem 0.8rem;
+            margin-bottom: 0.5rem;
+            cursor: grab;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: white;
+            font-size: 0.82rem;
+            transition: var(--transition);
+        }
+        .bucket-item:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: var(--primary);
+            transform: translateY(-1px);
+        }
+        .drop-zone {
+            background: rgba(0, 0, 0, 0.15);
+            border: 2px dashed rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
+            min-height: 180px;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            transition: var(--transition);
+            margin-bottom: 1rem;
+        }
+        .drop-zone.dragover {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.05);
+        }
+        .drop-item {
+            background: rgba(99, 102, 241, 0.12);
+            border: 1px solid rgba(99, 102, 241, 0.25);
+            border-radius: 6px;
+            padding: 0.5rem 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: white;
+            font-size: 0.8rem;
+        }
+        .drop-item button {
+            background: none;
+            border: none;
+            color: #ef4444;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        .cloud-comparison-bar {
+            height: 24px;
+            border-radius: 6px;
+            overflow: hidden;
+            display: flex;
+            background: rgba(255, 255, 255, 0.05);
+            margin-bottom: 1rem;
+        }
+        .cloud-comparison-fill {
+            height: 100%;
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            padding-left: 0.5rem;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+        
+        /* Power Load Table styling */
+        .power-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1rem;
+        }
+        .power-table th, .power-table td {
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            color: white;
+            font-size: 0.82rem;
+        }
+        .power-table th {
+            text-align: left;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+    </style>
+    {% if theme == 'theme-custom' and custom_theme_colors %}
+    <style>
+        :root {
+            --background-primary: {{ custom_theme_colors.get('bg_color', '#0f172a') }} !important;
+            --background-card: {{ custom_theme_colors.get('card_color', '#1e293b') }} !important;
+            --text-primary: {{ custom_theme_colors.get('text_color', '#ffffff') }} !important;
+            --text-secondary: {{ custom_theme_colors.get('text_muted', '#94a3b8') }} !important;
+            --primary: {{ custom_theme_colors.get('accent_color', '#6366f1') }} !important;
+            --sidebar-background: {{ custom_theme_colors.get('sidebar_color', '#1e293b') }} !important;
+        }
+    </style>
+    {% endif %}
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+</head>
+
+    
+    <!-- Mobile Hamburger Toggle -->
+    <div class="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+    <button id="global-mobile-toggle" class="mobile-toggle-btn" onclick="toggleMobileSidebar()" style="display: none;">☰</button>
+    
+    <script>
+    function toggleMobileSidebar() {
+        const sidebar = document.querySelector('.sidebar');
+        const overlay = document.querySelector('.sidebar-overlay');
+        if (sidebar.classList.contains('menu-open')) {
+            sidebar.classList.remove('menu-open');
+            if(overlay) overlay.classList.remove('active');
+        } else {
+            sidebar.classList.add('menu-open');
+            if(overlay) overlay.classList.add('active');
+        }
+    }
+    </script>
+
+<body class="{{ theme }}">
+    
+{% set enabled_tools = portal_settings.get('enabled_work_tools', 'unit_converter,currency_calculator,pocket_calculator,cctv_calculator,power_calculator,pdf_converter,cloud_calculator,subnet_calculator').split(',') %}
+    <div class="app-container">
+
+    
+    <!-- Mobile Hamburger Toggle -->
+    <div class="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+    <button id="global-mobile-toggle" class="mobile-toggle-btn" onclick="toggleMobileSidebar()" style="display: none;">☰</button>
+    
+    <script>
+    function toggleMobileSidebar() {
+        const sidebar = document.querySelector('.sidebar');
+        const overlay = document.querySelector('.sidebar-overlay');
+        if (sidebar.classList.contains('menu-open')) {
+            sidebar.classList.remove('menu-open');
+            if(overlay) overlay.classList.remove('active');
+        } else {
+            sidebar.classList.add('menu-open');
+            if(overlay) overlay.classList.add('active');
+        }
+    }
+    </script>
+
+
+        
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div style="display: flex; flex-direction: column; flex-grow: 1;">
+            <div class="sidebar-header">
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <div class="logo-container" style="display: flex; align-items: center; justify-content: center; max-width: 100%; padding: 6px 0; text-decoration: none; gap: 0.4rem;">
+                    <a href="{{ url_for('dashboard') }}" style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.25rem; color: var(--text-primary); letter-spacing: -0.03em; text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
+                        {% if portal_settings.get('portal_logo') %}
+                            <img src="{{ url_for('uploaded_file', filename=portal_settings.get('portal_logo')) }}" style="max-height: 40px; max-width: 100%; object-fit: contain;" alt="Logo">
+                        {% else %}
+                            <span>📂</span> {{ portal_settings.get('portal_name', 'OEM Portal') }}
+                        {% endif %}
+                    </a>
+                </div>
+                <button id="sidebar-collapse-btn" onclick="this.closest('.sidebar').style.display='none';var b=document.getElementById('show-sidebar-btn');if(b)b.style.display='flex';localStorage.setItem('sidebar-collapsed','true');" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:1.1rem;padding:4px 8px;border-radius:6px;transition:all 0.2s;" title="Hide Sidebar">&laquo;</button>
+                
+            </div>
+        </div>
+            
+            <div class="nav-container">
+                <form action="javascript:void(0);" onsubmit="window.location.href = getAppUrl('/search?q=' + encodeURIComponent(this.q.value));" method="GET" style="padding: 0.5rem 1rem;">
+                    <div style="display: flex; gap: 0.5rem; position: relative;">
+                        <input type="text" name="q" placeholder="Universal Search..." style="width: 100%; padding: 0.4rem 0.5rem 0.4rem 2rem; border-radius: 6px; border: 1px solid var(--border-glass); background: rgba(15,23,42,0.6); color: white; font-size: 0.85rem;" required>
+                        <span style="position: absolute; left: 0.5rem; top: 50%; transform: translateY(-50%); font-size: 0.9rem; pointer-events: none;">🔍</span>
+                    </div>
+                </form>
+                <nav>
+                    <ul class="nav-menu">
+                        {% if role %}
+                            <li class="nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
+                                <a title="Dashboard" href="{{ url_for('dashboard') }}">
+                                    <span>📊</span> Dashboard
+                                </a>
+                            </li>
+                            <li class="nav-item {% if request.endpoint == 'oem_news_page' %}active{% endif %}">
+                                <a title="OEM News" href="{{ url_for('oem_news_page') }}">
+                                    <span>📰</span> OEM News
+                                </a>
+                            </li>
+                            <li class="nav-item {% if request.endpoint == 'rfps_list' %}active{% endif %}">
+                                <a title="RFP Section" href="{{ url_for('rfps_list') }}">
+                                    <span>📋</span> RFP Section
+                                </a>
+                            </li>
+                            {% if role == 'admin' %}
+                                <li class="nav-item {% if request.endpoint == 'admin_panel' %}active{% endif %}">
+                                    <a title="Admin Panel" href="{{ url_for('admin_panel') }}">
+                                        <span>⚙️</span> Admin Panel
+                                    </a>
+                                </li>
+                            {% endif %}
+                        {% else %}
+                            <li class="nav-item {% if request.endpoint == 'login' %}active{% endif %}">
+                                <a title="Portal Login" href="{{ url_for('dashboard') }}">
+                                    <span>🚪</span> Portal Login
+                                </a>
+                            </li>
+                        {% endif %}
+                        
+                        {% if enabled_tools and enabled_tools[0] != '' %}
+                        <li class="nav-item {% if request.endpoint == 'work_tools' %}active{% endif %}">
+                            <a title="Work Tools" href="{{ url_for('work_tools') }}">
+                                <span>🛠️</span> Work Tools
+                            </a>
+                        </li>
+                        
+                        
+                        {% endif %}
+                        
+                        {% if role %}
+                        <li class="nav-item {% if request.endpoint == 'reminders' %}active{% endif %}">
+                            <a title="Reminders" href="{{ url_for('reminders') }}">
+                                <span>⏰</span> Reminders
+                            </a>
+                        </li>
+                        
+                        
+                        <li class="nav-item {% if request.endpoint == 'timesheets.employee_timesheets' %}active{% endif %}">
+                            <a title="Time Sheet" href="{{ url_for('timesheets.employee_timesheets') }}">
+                                <span>⏱️</span> Time Sheet
+                            </a>
+                        </li>
+                        
+                        <li class="nav-item {% if request.endpoint == 'chat.chat_ui' %}active{% endif %}">
+                            <a title="Team Chat" href="{{ url_for('chat.chat_ui') }}">
+                                <span>💬</span> Team Chat
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a title="Sign Out" href="{{ url_for('logout') }}" style="color: #fca5a5;">
+                                <span>🚪</span> Sign Out
+                            </a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            </div>
+        </aside>
+        
+        <!-- Main Content Area -->
+        <main class="main-content">
+
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div style="margin-bottom: 1.5rem;">
+                    {% for category, message in messages %}
+                        <div class="alert-message alert-{{ 'error' if category == 'danger' or category == 'error' else 'success' }}" style="padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem; background: rgba(0,0,0,0.4); border: 1px solid var(--border-glass);">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Admin - Attendance & Leaves</h2>
+        <form method="POST" class="d-inline">
+            <input type="hidden" name="action" value="download_csv">
+            <button type="submit" class="btn btn-outline-info">Download CSV Report</button>
+        </form>
+    </div>
+
+    
+    <!-- Office Location Setup -->
+    <div class="row mb-5">
+        <div class="col-md-12">
+            <div class="card glass-card" style="padding: 1.5rem; background: rgba(0,0,0,0.2); border: 1px solid var(--border-glass);">
+                <div class="card-body">
+                    <h4 class="card-title" style="color: var(--primary); margin-bottom: 1rem;">📍 Setup Office Location (Geo-Fencing)</h4>
+                    <p class="text-muted" style="margin-bottom: 1rem; color: var(--text-secondary);">Drag the pin on the map or click to set the official office coordinates. Employees must be within 100 meters of this pin to punch in.</p>
+                    
+                    <div style="display: flex; gap: 2rem; flex-wrap: wrap;">
+                        <div id="office-map" style="flex: 1; min-width: 300px; height: 350px; border-radius: 12px; border: 1px solid var(--border-glass); z-index: 1;"></div>
+                        
+                        <div style="flex: 1; min-width: 300px;">
+                            <form method="POST">
+                                <input type="hidden" name="action" value="update_location">
+                                
+                                <div class="form-group" style="margin-bottom: 1rem;">
+                                    <label class="form-label">Latitude</label>
+                                    <input type="number" step="any" class="form-control" name="office_lat" id="office_lat" value="{{ office_lat }}" required>
+                                </div>
+                                
+                                <div class="form-group" style="margin-bottom: 1.5rem;">
+                                    <label class="form-label">Longitude</label>
+                                    <input type="number" step="any" class="form-control" name="office_lng" id="office_lng" value="{{ office_lng }}" required>
+                                </div>
+                                
+                                <button type="submit" class="btn btn-primary" style="width: 100%;">Save Office Location</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var lat = parseFloat(document.getElementById('office_lat').value) || 40.758896;
+        var lng = parseFloat(document.getElementById('office_lng').value) || -73.985130;
+        
+        var map = L.map('office-map').setView([lat, lng], 16);
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+        
+        var marker = L.marker([lat, lng], {draggable: true}).addTo(map);
+        
+        // Draw 100m radius circle
+        var circle = L.circle([lat, lng], {
+            color: 'green',
+            fillColor: '#34d399',
+            fillOpacity: 0.2,
+            radius: 100
+        }).addTo(map);
+
+        function updateInputs(lat, lng) {
+            document.getElementById('office_lat').value = lat.toFixed(6);
+            document.getElementById('office_lng').value = lng.toFixed(6);
+            circle.setLatLng([lat, lng]);
+        }
+
+        marker.on('dragend', function(event) {
+            var position = marker.getLatLng();
+            updateInputs(position.lat, position.lng);
+        });
+
+        map.on('click', function(e) {
+            marker.setLatLng(e.latlng);
+            updateInputs(e.latlng.lat, e.latlng.lng);
+        });
+    });
+    </script>
+
+    <div class="row">
+        <!-- Leave Requests Management -->
+        <div class="col-md-12 mb-5">
+            <div class="card glass-card">
+                <div class="card-body">
+                    <h4 class="card-title">Leave Requests</h4>
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover">
+                            <thead>
+                                <tr>
+                                    <th>User</th>
+                                    <th>Dates</th>
+                                    <th>Reason</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for leave in all_leaves %}
+                                <tr>
+                                    <td>{{ leave.username or 'ID:'~leave.user_id }}</td>
+                                    <td>{{ leave.start_date }} to {{ leave.end_date }}</td>
+                                    <td>{{ leave.reason }}</td>
+                                    <td>
+                                        {% if leave.status == 'approved' %}
+                                            <span class="badge bg-success">Approved</span>
+                                        {% elif leave.status == 'denied' %}
+                                            <span class="badge bg-danger">Denied</span>
+                                        {% else %}
+                                            <span class="badge bg-warning text-dark">Pending</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if leave.status == 'pending' %}
+                                        <form method="POST" class="d-inline">
+                                            <input type="hidden" name="action" value="approve">
+                                            <input type="hidden" name="leave_id" value="{{ leave.id }}">
+                                            <button type="submit" class="btn btn-sm btn-success">Approve</button>
+                                        </form>
+                                        <form method="POST" class="d-inline">
+                                            <input type="hidden" name="action" value="deny">
+                                            <input type="hidden" name="leave_id" value="{{ leave.id }}">
+                                            <button type="submit" class="btn btn-sm btn-danger">Deny</button>
+                                        </form>
+                                        {% else %}
+                                            --
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Attendance Logs -->
+        <div class="col-md-12">
+            <div class="card glass-card">
+                <div class="card-body">
+                    <h4 class="card-title">Recent Attendance Logs</h4>
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover">
+                            <thead>
+                                <tr>
+                                    <th>User</th>
+                                    <th>Date</th>
+                                    <th>Punch In</th>
+                                    <th>Punch Out</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for log in all_attendance %}
+                                <tr>
+                                    <td>{{ log.username or 'ID:'~log.user_id }}</td>
+                                    <td>{{ log.date }}</td>
+                                    <td>{{ log.punch_in }}</td>
+                                    <td>{{ log.punch_out or '--' }}</td>
+                                    <td>{{ log.status }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+</main>
+    </div>
+
+    <!-- Mobile App Bottom Navigation -->
+    <div class="mobile-bottom-nav">
+        <a href="{{ url_for('dashboard') }}" class="mobile-nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
+            <span class="icon">📊</span>
+            <span>Home</span>
+        </a>
+        <a href="{{ url_for('oem_news_page') }}" class="mobile-nav-item {% if request.endpoint == 'oem_news_page' %}active{% endif %}">
+            <span class="icon">📰</span>
+            <span>News</span>
+        </a>
+        <a href="{{ url_for('work_tools') }}" class="mobile-nav-item {% if request.endpoint == 'work_tools' %}active{% endif %}">
+            <span class="icon">🛠️</span>
+            <span>Tools</span>
+        </a>
+        <a href="javascript:void(0)" onclick="toggleMobileSidebar()" class="mobile-nav-item">
+            <span class="icon">☰</span>
+            <span>Menu</span>
+        </a>
+    </div>
+
+
+<!-- Global Notification System -->
+<div id="global-toast-container" style="position: fixed; bottom: 20px; right: 20px; z-index: 10000; display: flex; flex-direction: column; gap: 10px;"></div>
+
+<script>
+    (function() {
+        let lastNotifCheck = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        let audioCtx = null;
+        
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+        document.addEventListener('click', initAudio, { once: true });
+
+        function playAlert(isCall) {
+            if (!audioCtx) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            if (isCall) {
+                const playTone = (freq, startTime, duration) => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, audioCtx.currentTime + startTime);
+                    gain.gain.setValueAtTime(0.5, audioCtx.currentTime + startTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + startTime + duration);
+                    osc.start(audioCtx.currentTime + startTime);
+                    osc.stop(audioCtx.currentTime + startTime + duration);
+                };
+                playTone(600, 0, 0.4);
+                playTone(800, 0.2, 0.4);
+                playTone(600, 1.0, 0.4);
+                playTone(800, 1.2, 0.4);
+                if (navigator.vibrate) navigator.vibrate([200, 100, 200, 800, 200, 100, 200]);
+            } else {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.2);
+                if (navigator.vibrate) navigator.vibrate(100);
+            }
+        }
+
+        function showToast(sender, message, isCall) {
+            const container = document.getElementById('global-toast-container');
+            const toast = document.createElement('div');
+            toast.style.background = isCall ? 'rgba(16, 185, 129, 0.95)' : 'rgba(59, 130, 246, 0.95)';
+            toast.style.color = 'white';
+            toast.style.padding = '1rem 1.5rem';
+            toast.style.borderRadius = '12px';
+            toast.style.boxShadow = '0 10px 25px rgba(0,0,0,0.5)';
+            toast.style.border = '1px solid rgba(255,255,255,0.2)';
+            toast.style.cursor = 'pointer';
+            toast.style.minWidth = '250px';
+            toast.style.backdropFilter = 'blur(10px)';
+            toast.style.transform = 'translateY(50px)';
+            toast.style.opacity = '0';
+            toast.style.transition = 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+            
+            const title = isCall ? `🎥 Incoming Video Call from ${sender}` : `💬 New message from ${sender}`;
+            const body = isCall ? 'Click to answer' : message;
+            
+            toast.innerHTML = `<div style="font-weight: bold; margin-bottom: 0.25rem;">${title}</div>
+                               <div style="font-size: 0.9rem; opacity: 0.9;">${body}</div>`;
+            
+            toast.onclick = () => {
+                window.location.href = '/chat';
+            };
+            
+            container.appendChild(toast);
+            
+            // Animate in
+            setTimeout(() => {
+                toast.style.transform = 'translateY(0)';
+                toast.style.opacity = '1';
+            }, 50);
+            
+            playAlert(isCall);
+            
+            // Auto dismiss after 6 seconds (or 15 for call)
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(20px)';
+                setTimeout(() => toast.remove(), 300);
+            }, isCall ? 15000 : 6000);
+        }
+
+        setInterval(async () => {
+            if (document.hidden) return; // Save cPanel resources when tab is backgrounded
+            try {
+                const res = await fetch('/chat/notifications?since=' + encodeURIComponent(lastNotifCheck));
+                if (res.ok) {
+                    const newMsgs = await res.json();
+                    if (newMsgs.length > 0) {
+                        lastNotifCheck = new Date().toISOString().replace('T', ' ').substring(0, 19);
+                        newMsgs.forEach(msg => {
+                            if (msg.message === '[CALL_RING]') {
+                                showToast(msg.sender_name, '', true);
+                            } else {
+                                showToast(msg.sender_name, msg.message, false);
+                            }
+                        });
+                    }
+                }
+            } catch(e) {}
+        }, 20000);
+    })();
+</script>
+
+</body>
+</html>

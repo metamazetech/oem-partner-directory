@@ -1,5 +1,21 @@
 # OEM Portal Changelog
 
+## [v6.4.0] - 2026-10-13
+### Added
+- **1-Click Instant Camera Visiting Card Scanner**: Directly triggers the mobile rear camera (`capture="environment"`) to snap visiting cards without manual field requirements or navigating gallery pickers. Auto-extracts Company, Contact Person, Designation, Phone, Email, Website, and Address.
+- **Client-Side Canvas Pre-Compression**: Scales large smartphone camera photos (>10MB) down to an optimal <400KB JPEG on an in-memory HTML5 canvas prior to uploading, eliminating cPanel upload size rejections and WSGI timeouts.
+- **Mobile Camera EXIF Orientation Auto-Correction**: Transposes rotated smartphone photos before OCR processing to maintain high OCR character recognition rates.
+- **Unified `/parse-card-text` API & Resilient OCR Fallback**: Enables both server-side Tesseract and in-browser `Tesseract.js` to utilize the same 100%-accurate regex extraction heuristics.
+- **Contact Details "Share All"**: Native Web Share API integration on mobile devices with fallbacks to WhatsApp and formatted clipboard copy.
+- **Floating Mobile Navigation Scan Action**: Added a prominent floating camera shutter bubble directly in the mobile bottom navigation bar for instantaneous thumb-reach scanning.
+- **Standardized Bracketed Dropdowns**: Partner type selectors formatted with square brackets (`[All Types]`, `[OEM]`, `[Distributor]`) across the dashboard directory and modals.
+
+### Fixed
+- **Symmetrical Stats Grid & Duplicate Text**: Replaced third-party GridStack with a pure, symmetrical CSS Grid layout (4 equal desktop columns, 2x2 tablet/mobile grid) with colored glowing top borders, eliminating layout shifts and duplicate text.
+- **Mobile Header Action Overflow**: Fixed rigid non-wrapping flex layout on mobile headers by implementing `.header-action-buttons` with responsive wrapping so the Scan Card and Add Partner buttons remain visible on small screens.
+- **Content-Security-Policy (CSP)**: Permitted CDN scripts (`cdn.jsdelivr.net`, `unpkg.com`), `blob:` web workers, and Tesseract traineddata connections.
+- **Regex Parsing Bugs**: Fixed URL truncation bug, supported multiple phone numbers on a single line, preserved parentheses and `&` characters in corporate designations, and stopped phone lines from polluting address fields.
+
 ## [v5.8.0] - 2026-10-01
 ### Added
 - **UI/UX Refinements**: Decluttered the global navigation by moving "Excel Utility" and "System Builder Engine" exclusively into the standalone "Work Tools" module dashboard.

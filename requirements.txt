@@ -1,9 +1,9 @@
 Flask
 requests
 beautifulsoup4
+Pillow
 pytesseract
 opencv-python-headless
 pypdf
-
 msoffcrypto-tool
 openpyxl

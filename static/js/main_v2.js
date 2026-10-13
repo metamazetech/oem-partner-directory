@@ -493,6 +493,59 @@ function shareOnWhatsApp(company, name, designation, phone, email, website) {
     window.open(url, '_blank');
 }
 
+// Share all team contacts for a company
+function shareAllContacts() {
+    if (typeof window.companyContactsData !== 'undefined' && typeof window.companyInfoData !== 'undefined') {
+        const company = window.companyInfoData.company_name;
+        let text = `*Team Contacts: ${company}*\n`;
+        if (window.companyInfoData.website) text += `🌐 Website: ${window.companyInfoData.website}\n`;
+        if (window.companyInfoData.address) text += `📍 Address: ${window.companyInfoData.address}\n`;
+        text += `\n`;
+
+        if (window.companyContactsData && window.companyContactsData.length > 0) {
+            window.companyContactsData.forEach((p, idx) => {
+                text += `*${idx + 1}. ${p.name || 'Contact'}*\n`;
+                if (p.designation) text += `💼 Designation: ${p.designation}\n`;
+                if (p.phone) text += `📞 Phone: ${p.phone}\n`;
+                if (p.email) text += `✉️ Email: ${p.email}\n`;
+                text += `\n`;
+            });
+        }
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(() => {
+                if (typeof showToast === 'function') showToast("📋 Contacts copied to clipboard!");
+            }).catch(() => {});
+        }
+
+        if (navigator.share) {
+            navigator.share({
+                title: `Contacts - ${company}`,
+                text: text
+            }).catch(err => {
+                if (err.name !== 'AbortError') {
+                    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+                }
+            });
+        } else {
+            window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+        }
+        return;
+    }
+    
+    // Fallback DOM extraction
+    const titleEl = document.querySelector('.card-title') || document.querySelector('h1');
+    const compName = titleEl ? titleEl.innerText.replace('👥', '').trim() : 'Vendor';
+    let text = `*Team Contacts: ${compName}*\n\n`;
+    const cards = document.querySelectorAll('.visiting-card-container ~ div, .glass-card [style*="border-radius:12px"]');
+    cards.forEach((c, i) => {
+        const name = c.querySelector('[style*="font-weight:700"]')?.innerText || '';
+        if (name) text += `*${i+1}. ${name}*\n`;
+    });
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+}
+window.shareAllContacts = shareAllContacts;
+
 // Open Edit Interaction Modal for Admins
 function openEditInteractionModal(contactId, id, date, typeStr, summary, nextSteps, followupDate) {
     const modal = document.getElementById('edit-interaction-modal');
@@ -550,30 +603,128 @@ function switchAddMode(mode) {
     }
 }
 
-// Trigger QR Scan File Upload
-function handleCardScanFile(input) {
-    const file = input.files[0];
-    if (!file) return;
+// One-click Camera Card Capture Trigger
+function startCardCameraCapture() {
+    const cameraInput = document.getElementById('card-scan-camera-input');
+    if (cameraInput) {
+        cameraInput.value = '';
+        cameraInput.click();
+    } else {
+        const baseUrl = window.BASE_URL || '/';
+        const sep = baseUrl.includes('?') ? '&' : '?';
+        window.location.href = baseUrl + sep + 'action=scan_card';
+    }
+}
+window.startCardCameraCapture = startCardCameraCapture;
+window.quickScanCardDirectly = startCardCameraCapture;
+
+// Auto-trigger camera scan if navigated with ?action=scan_card
+document.addEventListener('DOMContentLoaded', () => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('action') === 'scan_card') {
+        const cleanSearch = window.location.search.replace(/[?&]action=scan_card/, '');
+        const cleanUrl = window.location.pathname + (cleanSearch ? ('?' + cleanSearch.replace(/^&/, '')) : '');
+        try {
+            history.replaceState(null, '', cleanUrl || window.location.pathname);
+        } catch (e) {}
+        setTimeout(() => {
+            startCardCameraCapture();
+        }, 450);
+    }
+});
+
+// Pre-compress high-resolution camera photos (e.g. 12MP-48MP from phones) to optimal OCR resolution (< 800KB)
+function compressImageForUpload(file, maxDimension = 1800, quality = 0.85) {
+    return new Promise((resolve) => {
+        if (file.size < 600 * 1024 && (file.type === 'image/jpeg' || file.type === 'image/png')) {
+            return resolve(file);
+        }
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const img = new Image();
+            img.onload = function() {
+                let width = img.width;
+                let height = img.height;
+
+                if (width > maxDimension || height > maxDimension) {
+                    if (width > height) {
+                        height = Math.round((height * maxDimension) / width);
+                        width = maxDimension;
+                    } else {
+                        width = Math.round((width * maxDimension) / height);
+                        height = maxDimension;
+                    }
+                }
+
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+
+                canvas.toBlob((blob) => {
+                    if (blob) {
+                        const compressedFile = new File([blob], "visiting_card.jpg", {
+                            type: 'image/jpeg',
+                            lastModified: Date.now()
+                        });
+                        resolve(compressedFile);
+                    } else {
+                        resolve(file);
+                    }
+                }, 'image/jpeg', quality);
+            };
+            img.onerror = () => resolve(file);
+            img.src = e.target.result;
+        };
+        reader.onerror = () => resolve(file);
+        reader.readAsDataURL(file);
+    });
+}
+
+// Trigger QR/OCR Scan File Upload
+async function handleCardScanFile(input) {
+    const rawFile = input.files[0];
+    if (!rawFile) return;
     
-    // Auto-bind front card file
-    const addCardFrontInput = document.getElementById('add_visiting_card_front');
-    if (addCardFrontInput) {
-        // Use DataTransfer to programmatically bind file to form upload
-        const container = new DataTransfer();
-        container.items.add(file);
-        addCardFrontInput.files = container.files;
-        showToast("📸 Card file auto-bound to Front Visiting Card field.");
+    // Automatically open the Add Contact modal if not already visible
+    if (typeof openModal === 'function') {
+        openModal('add-contact-modal');
+    }
+    
+    // Show image preview thumbnail immediately
+    const previewContainer = document.getElementById('scanned-card-preview-container');
+    const previewImg = document.getElementById('scanned-card-preview-img');
+    if (previewContainer && previewImg) {
+        try {
+            previewImg.src = URL.createObjectURL(rawFile);
+            previewContainer.style.display = 'flex';
+        } catch(e) {}
     }
     
     // Show status indicator
     const statusIndicator = document.getElementById('ocr-scan-status-indicator');
     const statusText = document.getElementById('ocr-scan-status-text');
     if (statusIndicator) statusIndicator.style.display = 'block';
-    if (statusText) statusText.innerText = "Uploading & analyzing card...";
+    if (statusText) statusText.innerText = "📸 Optimizing & analyzing visiting card...";
+    
+    // Pre-compress large mobile camera photos for ultra-fast upload & reliable OCR
+    const file = await compressImageForUpload(rawFile);
+
+    // Auto-bind front card file input
+    const addCardFrontInput = document.getElementById('add_visiting_card_front');
+    if (addCardFrontInput) {
+        try {
+            const container = new DataTransfer();
+            container.items.add(file);
+            addCardFrontInput.files = container.files;
+        } catch(e) {}
+    }
     
     // Send to backend /scan-card route
     const formData = new FormData();
-    formData.append('card_image', file);
+    formData.append('card_image', file, 'visiting_card.jpg');
     
     fetch(getAppUrl('/scan-card'), {
         method: 'POST',
@@ -582,36 +733,22 @@ function handleCardScanFile(input) {
     .then(res => res.json())
     .then(resJson => {
         if (resJson.status === 'success') {
-            const data = resJson.data;
-            
-            // Auto populate form
-            if (data.company_name) document.getElementById('company_name').value = data.company_name;
-            if (data.website) {
-                document.getElementById('website').value = data.website;
-                // Trigger auto-fetch logo preview
-                const logoContainer = document.getElementById('company-logo-container');
-                const domain = getDomainFromUrl(data.website);
-                if (domain && logoContainer) {
-                    logoContainer.innerHTML = `<img src="https://logo.clearbit.com/${domain}" alt="Logo" style="width: 100%; height: 100%; object-fit: contain; background: white;" onerror="this.parentElement.innerHTML='🌐';">`;
-                }
+            // Auto-bind backend uploaded filename
+            const scannedFilenameInput = document.getElementById('scanned_card_filename');
+            if (scannedFilenameInput && resJson.temp_card_filename) {
+                scannedFilenameInput.value = resJson.temp_card_filename;
             }
-            if (data.address) document.getElementById('address').value = data.address;
+            populatePartnerFormWithData(resJson.data);
             
-            // For contacts list (the first one)
-            const nameInputs = document.getElementsByName('contact_name[]');
-            const desigInputs = document.getElementsByName('contact_designation[]');
-            const emailInputs = document.getElementsByName('contact_email[]');
-            const phoneInputs = document.getElementsByName('contact_phone[]');
-            
-            if (nameInputs.length > 0 && data.name) nameInputs[0].value = data.name;
-            if (desigInputs.length > 0 && data.designation) desigInputs[0].value = data.designation;
-            if (emailInputs.length > 0 && data.email) emailInputs[0].value = data.email;
-            if (phoneInputs.length > 0 && data.phone) phoneInputs[0].value = data.phone;
-            
-            showToast("✅ Card successfully analyzed and fields populated!");
         } else if (resJson.status === 'fallback') {
+            const scannedFilenameInput = document.getElementById('scanned_card_filename');
+            if (scannedFilenameInput && resJson.temp_card_filename) {
+                scannedFilenameInput.value = resJson.temp_card_filename;
+            }
+            if (resJson.data && (resJson.data.company_name || resJson.data.website)) {
+                populatePartnerFormWithData(resJson.data, false);
+            }
             if (statusText) statusText.innerText = "Running local client-side OCR...";
-            // Fallback: Run Tesseract.js client side
             const reader = new FileReader();
             reader.onload = function(event) {
                 runOCROnImage(event.target.result);
@@ -619,35 +756,112 @@ function handleCardScanFile(input) {
             reader.readAsDataURL(file);
             return;
         } else {
-            alert("Error parsing card: " + resJson.message);
+            if (statusIndicator) statusIndicator.style.display = 'none';
+            showToast("⚠️ Could not parse card automatically. Please enter details manually.", "warning");
         }
         if (statusIndicator) statusIndicator.style.display = 'none';
     })
     .catch(err => {
-        console.error("Card scan error:", err);
-        // Fallback: Run Tesseract.js client side
-        if (statusText) statusText.innerText = "Running local client-side OCR (Fallback)...";
+        console.error("Card scan server error, trying client OCR:", err);
+        if (statusText) statusText.innerText = "Running local client-side OCR...";
         const reader = new FileReader();
         reader.onload = function(event) {
             runOCROnImage(event.target.result);
+        };
+        reader.onerror = function() {
+            if (statusIndicator) statusIndicator.style.display = 'none';
+            showToast("⚠️ Could not process card image. Please fill details manually.", "warning");
         };
         reader.readAsDataURL(file);
     });
 }
 
+// Populate partner form fields and auto-select matching category
+function populatePartnerFormWithData(data, showNotification = true) {
+    if (!data) return;
+
+    if (data.company_name) {
+        const compEl = document.getElementById('company_name');
+        if (compEl) compEl.value = data.company_name;
+    }
+    if (data.website) {
+        const webEl = document.getElementById('website');
+        if (webEl) {
+            webEl.value = data.website;
+            const logoContainer = document.getElementById('company-logo-container');
+            const domain = getDomainFromUrl(data.website);
+            if (domain && logoContainer) {
+                logoContainer.innerHTML = `<img src="https://logo.clearbit.com/${domain}" alt="Logo" style="width: 100%; height: 100%; object-fit: contain; background: white;" onerror="this.parentElement.innerHTML='🌐';">`;
+            }
+        }
+    }
+    if (data.address) {
+        const addrEl = document.getElementById('address');
+        if (addrEl) addrEl.value = data.address;
+    }
+    
+    // Primary contact person inputs
+    const nameInputs = document.getElementsByName('contact_name[]');
+    const desigInputs = document.getElementsByName('contact_designation[]');
+    const emailInputs = document.getElementsByName('contact_email[]');
+    const phoneInputs = document.getElementsByName('contact_phone[]');
+    
+    if (nameInputs.length > 0 && data.name) nameInputs[0].value = data.name;
+    if (desigInputs.length > 0 && data.designation) desigInputs[0].value = data.designation;
+    if (emailInputs.length > 0 && data.email) emailInputs[0].value = data.email;
+    if (phoneInputs.length > 0 && data.phone) phoneInputs[0].value = data.phone;
+    
+    // Auto-select category if not selected
+    const groupInput = document.getElementById('group_name');
+    if (groupInput && !groupInput.value) {
+        const categoryItems = document.querySelectorAll('#group-search-select .custom-select-option-item');
+        let matched = false;
+        const fullText = ((data.company_name || '') + ' ' + (data.designation || '') + ' ' + (data.address || '')).toLowerCase();
+        categoryItems.forEach(item => {
+            const catName = item.getAttribute('data-value');
+            if (catName && fullText.includes(catName.toLowerCase()) && !matched) {
+                item.click();
+                matched = true;
+            }
+        });
+        if (!matched && categoryItems.length > 0) {
+            categoryItems[0].click();
+        }
+    }
+    
+    const statusIndicator = document.getElementById('ocr-scan-status-indicator');
+    if (statusIndicator) statusIndicator.style.display = 'none';
+
+    if (showNotification) {
+        const hasAnyField = data.company_name || data.name || data.phone || data.email;
+        if (hasAnyField) {
+            showToast("✅ Visiting card scanned! Fields auto-filled below.");
+        } else {
+            showToast("ℹ️ Card photo captured. Please review or enter missing fields below.", "info");
+        }
+    }
+    
+    // Smoothly scroll modal down slightly to let user review
+    const modal = document.querySelector('#add-contact-modal .modal-content');
+    if (modal) {
+        modal.scrollTo({ top: 120, behavior: 'smooth' });
+    }
+}
+
 // Execute OCR processing via Tesseract.js loaded from CDN
 function runOCROnImage(imageSrc) {
+    const statusText = document.getElementById('ocr-scan-status-text');
+    const statusIndicator = document.getElementById('ocr-scan-status-indicator');
+    
     if (typeof Tesseract === 'undefined') {
-        alert("OCR Engine is loading from CDN. Please wait a few seconds and try again.");
+        if (statusIndicator) statusIndicator.style.display = 'none';
+        showToast("ℹ️ Card photo attached! Please enter details in the form.", "info");
         return;
     }
     
-    const statusText = document.getElementById('ocr-scan-status-text');
-    const statusIndicator = document.getElementById('ocr-scan-status-indicator');
     if (statusIndicator) statusIndicator.style.display = 'block';
-    if (statusText) statusText.innerText = "Initializing OCR Engine...";
+    if (statusText) statusText.innerText = "Analyzing card with browser OCR...";
     
-    // Dynamically query selected OCR language(s)
     const langSelect = document.getElementById('ocr-lang-select');
     const selectedLang = langSelect ? langSelect.value : 'eng';
     
@@ -656,78 +870,97 @@ function runOCROnImage(imageSrc) {
         selectedLang,
         { logger: m => {
             if (statusText && m.status === 'recognizing') {
-                statusText.innerText = `Recognizing text (${selectedLang}): ${Math.round(m.progress * 100)}%`;
+                statusText.innerText = `Recognizing text: ${Math.round((m.progress || 0) * 100)}%`;
             }
         }}
     ).then(({ data: { text } }) => {
         if (statusIndicator) statusIndicator.style.display = 'none';
-        parseOCRVendorInfo(text);
+        
+        // Post raw text to server parser for identical high-accuracy regex extraction
+        fetch(getAppUrl('/parse-card-text'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text })
+        })
+        .then(r => r.json())
+        .then(res => {
+            if (res.status === 'success' && res.data) {
+                populatePartnerFormWithData(res.data);
+            } else {
+                parseOCRVendorInfo(text);
+            }
+        })
+        .catch(() => {
+            parseOCRVendorInfo(text);
+        });
     }).catch(err => {
         console.error("Tesseract OCR Error:", err);
         if (statusIndicator) statusIndicator.style.display = 'none';
-        alert("❌ OCR Scan Failed: Could not parse business card text.");
+        showToast("ℹ️ Card photo attached! Please enter details in the form.", "info");
     });
 }
 
-// Heuristics parser to map raw OCR text into vendor contact fields
+// Heuristics parser to map raw OCR text into vendor contact fields (Local Fallback)
 function parseOCRVendorInfo(text) {
     if (!text) return;
     
-    console.log("Raw business card text:", text);
+    // Clean up lines and drop non-alphanumeric noise lines
+    const rawLines = text.split('\n').map(l => l.trim()).filter(l => l.length >= 2);
+    const lines = rawLines.map(l => {
+        return l.replace(/[\|\[\]\{\}\<\>\#\$\%\^\°¢€¥©®™•■□▲▼♦♥♣♠~`—]+/g, ' ').trim();
+    }).filter(l => l.length >= 2);
     
-    // Clean up lines and drop non-alphanumeric noise lines (junk characters)
-    const lines = text.split('\n').map(l => {
-        // Remove noise/shapes characters but keep text, standard punctuation, and symbols for email/url
-        return l.replace(/[\|\[\]\{\}\(\)\<\>\#\$\%\^\&\*\_\\\/°¢€¥©®™•■□▲▼♦♥♣♠~`—\-–—]+/g, '').trim();
-    }).filter(l => {
-        if (l.length < 3) return false;
-        // Count letters and digits to test character density
-        const cleanAlphanumeric = l.replace(/[^a-zA-Z0-9]/g, '');
-        const density = cleanAlphanumeric.length / l.length;
-        // Keep lines that have at least 3 letters/digits and an alphanumeric density > 40%
-        return cleanAlphanumeric.length >= 3 && density > 0.4;
-    });
-    
-    let name = '';
-    let designation = '';
-    let email = '';
-    let phone = '';
-    let website = '';
-    let company = '';
-    let address = '';
-    let addressLines = [];
+    const data = {
+        company_name: '',
+        name: '',
+        designation: '',
+        email: '',
+        phone: '',
+        website: '',
+        address: ''
+    };
     
     // 1. Email Extraction
     const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/i;
     const emailMatch = text.match(emailRegex);
     if (emailMatch) {
-        email = emailMatch[0];
+        data.email = emailMatch[0].toLowerCase();
     }
     
     // 2. Phone Extraction
-    const phoneRegex = /(?:mob|tel|phone|ph|contact|call)?\s*(?:[+:\s]*\d{1,4}[-\s]*)?(?:\d{3,5}[-\s]*)?\d{3,4}[-\s]*\d{3,4}/gi;
-    const phoneMatches = text.match(phoneRegex);
-    if (phoneMatches) {
-        for (let match of phoneMatches) {
-            const digits = match.replace(/\D/g, '');
-            if (digits.length >= 8 && digits.length <= 15) {
-                phone = match.replace(/^(?:mob|tel|phone|ph|contact|call)[\s:]*/i, '').trim();
-                break;
+    const phoneRegex = /(?:\+?\d|\(\d)[\d\s\-\(\)\.]{6,}\d/gi;
+    const phoneCandidates = [];
+    for (let line of lines) {
+        const lineLower = line.toLowerCase();
+        if (lineLower.includes('pin') && !lineLower.includes('mob') && !lineLower.includes('tel')) continue;
+        const segments = line.split(/[/,|;]|\s{2,}|\b(?:mob|cell|tel|phone|ph|m|t|p|fax|direct|office)[:.\s-]+/i);
+        for (let seg of segments) {
+            const match = seg.match(phoneRegex);
+            if (match) {
+                const num = match[0].trim();
+                const cleanDigits = num.replace(/\D/g, '');
+                if (cleanDigits.length === 6) continue; // Skip postal PINs
+                if (cleanDigits.length >= 8 && cleanDigits.length <= 15) {
+                    phoneCandidates.push(num);
+                }
             }
         }
     }
+    if (phoneCandidates.length > 0) {
+        data.phone = phoneCandidates[0];
+    }
     
     // 3. Website Extraction
-    const urlRegex = /(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9-]+\.[a-zA-Z]{2,})(\/[a-zA-Z0-9-_./]*)?/i;
+    const urlRegex = /(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9-]+\.[a-zA-Z]{2,})(?:\/[a-zA-Z0-9-_./]*)?/gi;
     const urlMatches = text.match(urlRegex);
     if (urlMatches) {
-        for (let match of urlMatches) {
-            const matchStr = match[0];
+        for (let matchStr of urlMatches) {
             if (matchStr.includes('@')) continue;
-            website = matchStr;
-            if (!website.startsWith('http://') && !website.startsWith('https://')) {
-                website = 'https://' + website;
+            let cleanUrl = matchStr.trim().replace(/[.,;:]+$/, '');
+            if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
+                cleanUrl = 'https://' + cleanUrl;
             }
+            data.website = cleanUrl;
             break;
         }
     }
@@ -735,105 +968,81 @@ function parseOCRVendorInfo(text) {
     // 4. Designation & Name Heuristics
     const designKeywords = [
         'manager', 'director', 'engineer', 'head', 'lead', 'executive', 'officer', 'consultant',
-        'sales', 'marketing', 'founder', 'ceo', 'cto', 'coo', 'vp', 'president', 'partner', 'specialist',
-        'architect', 'developer', 'representative'
+        'sales', 'marketing', 'founder', 'ceo', 'cto', 'coo', 'cfo', 'vp', 'president', 'partner',
+        'specialist', 'architect', 'developer', 'representative', 'proprietor'
     ];
     
+    let desigIdx = -1;
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-        if (line.includes('@') || line.toLowerCase().includes('.com') || line.toLowerCase().includes('.org') || line.toLowerCase().includes('.net')) {
-            continue;
-        }
-        
+        if (line === data.email || line === data.website) continue;
         const lowercaseLine = line.toLowerCase();
-        let isDesignation = false;
-        for (let keyword of designKeywords) {
-            if (lowercaseLine.includes(keyword)) {
-                designation = line;
-                isDesignation = true;
-                break;
-            }
-        }
+        let isDesignation = designKeywords.some(kw => lowercaseLine.includes(kw)) || /\b(ceo|cto|cfo|coo|md|vp|gm)\b/i.test(lowercaseLine);
         
         if (isDesignation) {
-            if (i > 0 && !name) {
-                const prevLine = lines[i-1];
-                if (!prevLine.match(/\d{5,}/) && prevLine.length < 40) {
-                    name = prevLine;
-                }
-            }
-            continue;
-        }
-        
-        // Address heuristics keywords
-        const addrKeywords = ['road', 'rd', 'street', 'st', 'bldg', 'building', 'floor', 'flr', 'office', 'suite', 'block', 'city', 'nagar', 'colony', 'industrial', 'phase', 'sector', 'pin', 'postal', 'india', 'state'];
-        let isAddress = false;
-        for (let kw of addrKeywords) {
-            if (lowercaseLine.includes(kw)) {
-                isAddress = true;
-                break;
-            }
-        }
-        if (isAddress) {
-            addressLines.push(line);
+            data.designation = line;
+            desigIdx = i;
+            break;
         }
     }
     
-    // Fallback for contact person name
-    if (!name && lines.length > 0) {
+    if (desigIdx > 0) {
+        const prevLine = lines[desigIdx - 1];
+        if (!/[@\d]/.test(prevLine) && prevLine.length < 40) {
+            data.name = prevLine;
+        }
+    }
+    
+    if (!data.name && lines.length > 0) {
         for (let line of lines) {
             if (!line.match(/\d/) && !line.includes('@') && line.length < 35 && line.length > 3) {
-                name = line;
-                break;
+                if (!line.toLowerCase().includes('ltd') && !line.toLowerCase().includes('pvt')) {
+                    data.name = line;
+                    break;
+                }
             }
         }
     }
     
-    // Company Name heuristics from email domain
-    if (email) {
-        const domainParts = email.split('@')[1].split('.');
+    // 5. Company Name Heuristics
+    const compKeywords = ['pvt ltd', 'ltd', 'limited', 'inc', 'corp', 'technologies', 'solutions', 'systems', 'services', 'enterprises', 'llp', 'llc'];
+    for (let line of lines) {
+        if (line === data.name || line === data.designation) continue;
+        const lineLower = line.toLowerCase();
+        if (compKeywords.some(kw => lineLower.includes(kw))) {
+            data.company_name = line;
+            break;
+        }
+    }
+    
+    if (!data.company_name && data.email) {
+        const domainParts = data.email.split('@')[1].split('.');
         if (domainParts.length > 1) {
             const domainName = domainParts[0].toLowerCase();
-            const commonProviders = ['gmail', 'yahoo', 'hotmail', 'outlook', 'protonmail', 'icloud', 'aol'];
-            if (!commonProviders.includes(domainName)) {
-                company = domainName.charAt(0).toUpperCase() + domainName.slice(1);
+            const common = ['gmail', 'yahoo', 'hotmail', 'outlook', 'protonmail', 'icloud', 'zoho'];
+            if (!common.includes(domainName)) {
+                data.company_name = domainName.charAt(0).toUpperCase() + domainName.slice(1);
             }
         }
     }
     
-    if (!company && lines.length > 0) {
-        const firstLine = lines[0];
-        if (firstLine !== name && firstLine.length < 40) {
-            company = firstLine;
+    // 6. Address Heuristics
+    const addrKeywords = ['road', 'rd', 'street', 'st', 'bldg', 'building', 'floor', 'flr', 'plot', 'sector', 'block', 'city', 'nagar', 'colony', 'industrial', 'phase', 'tower', 'pin', 'postal', 'india', 'state'];
+    const addressLines = [];
+    for (let line of lines) {
+        if (line === data.name || line === data.designation || line === data.company_name) continue;
+        if (line === data.email || line === data.website) continue;
+        if (data.phone && line.includes(data.phone)) continue;
+        const lineLower = line.toLowerCase();
+        if (addrKeywords.some(kw => lineLower.includes(kw)) || /\b\d{5,6}\b/.test(line)) {
+            addressLines.push(line.replace(/,+$/, ''));
         }
     }
-    
     if (addressLines.length > 0) {
-        address = addressLines.join(', ');
+        data.address = addressLines.slice(0, 3).join(', ');
     }
     
-    // Populate manual entry inputs
-    const compInput = document.getElementById('company_name');
-    const webInput = document.getElementById('website');
-    const addrInput = document.getElementById('address');
-    
-    if (compInput && company) compInput.value = company;
-    if (webInput && website) webInput.value = website;
-    if (addrInput && address) addrInput.value = address;
-    
-    const nameInput = document.querySelector('#add-contact-persons-container input[name="contact_name[]"]');
-    const desigInput = document.querySelector('#add-contact-persons-container input[name="contact_designation[]"]');
-    const emailInput = document.querySelector('#add-contact-persons-container input[name="contact_email[]"]');
-    const phoneInput = document.querySelector('#add-contact-persons-container input[name="contact_phone[]"]');
-    
-    if (nameInput && name) nameInput.value = name;
-    if (desigInput && designation) desigInput.value = designation;
-    if (emailInput && email) emailInput.value = email;
-    if (phoneInput && phone) phoneInput.value = phone;
-    
-    // Switch to manual mode and display warning alerts to check
-    switchAddMode('manual');
-    showToast("🎉 Business card parsed! Check fields below.");
+    populatePartnerFormWithData(data);
 }
 
 // Hook up Front card image upload QR/OCR scanning
@@ -2244,7 +2453,7 @@ if ('serviceWorker' in navigator) {
 // Inject Mobile bottom nav & top header & responsive table tags
 (function injectMobileLayout() {
     document.addEventListener('DOMContentLoaded', () => {
-        if (document.getElementById('pwa-mobile-bottom-nav')) return;
+        if (document.querySelector('.mobile-bottom-nav') || document.getElementById('pwa-mobile-bottom-nav')) return;
         
         // 1. Mobile Bottom Navigation
         const bottomNav = document.createElement('div');
@@ -2260,19 +2469,25 @@ if ('serviceWorker' in navigator) {
         bottomNav.innerHTML = `
             <a href="/" class="mobile-nav-item ${isDashboard ? 'active' : ''}">
                 <span class="icon">📊</span>
-                <span class="label">Dashboard</span>
+                <span class="label">Home</span>
             </a>
             <a href="/news" class="mobile-nav-item ${isNews ? 'active' : ''}">
                 <span class="icon">📰</span>
-                <span class="label">OEM News</span>
+                <span class="label">News</span>
             </a>
-            <a href="/rfps" class="mobile-nav-item ${isRfps ? 'active' : ''}">
-                <span class="icon">📋</span>
-                <span class="label">RFPs</span>
+            <a href="javascript:void(0)" onclick="startCardCameraCapture()" class="mobile-nav-item mobile-scan-action-btn" title="Scan Visiting Card">
+                <div class="mobile-scan-bubble">
+                    <span class="icon">📸</span>
+                </div>
+                <span class="label">Scan</span>
             </a>
-            <a href="/admin" class="mobile-nav-item ${isAdmin ? 'active' : ''}">
-                <span class="icon">🛡️</span>
-                <span class="label">Admin</span>
+            <a href="/tools" class="mobile-nav-item">
+                <span class="icon">🛠️</span>
+                <span class="label">Tools</span>
+            </a>
+            <a href="javascript:void(0)" onclick="toggleMobileSidebar()" class="mobile-nav-item">
+                <span class="icon">☰</span>
+                <span class="label">Menu</span>
             </a>
         `;
         document.body.appendChild(bottomNav);

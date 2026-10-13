@@ -435,7 +435,7 @@ def init_db():
     
 
     # Version Auto-Migration Block
-    CURRENT_VERSION = 'v5.8'
+    CURRENT_VERSION = 'v6.4'
     try:
         db_ver_row = cursor.execute("SELECT value FROM portal_settings WHERE key = 'portal_version'").fetchone()
         db_ver = db_ver_row['value'] if db_ver_row else 'v4.0'
@@ -444,7 +444,7 @@ def init_db():
             # Update the DB version
             cursor.execute("UPDATE portal_settings SET value = ? WHERE key = 'portal_version'", (CURRENT_VERSION,))
             
-            # Insert change log for v5.7 if not exists
+            # Insert change log for v6.4 if not exists
             check_cl = cursor.execute("SELECT id FROM change_logs WHERE version = ?", (CURRENT_VERSION,)).fetchone()
             if not check_cl:
                 import datetime
@@ -454,8 +454,8 @@ def init_db():
                 ''', (
                     CURRENT_VERSION, 
                     datetime.date.today().strftime('%Y-%m-%d'),
-                    'Timesheet & Productivity Tracker, System Builder Engine, Excel Password Remover Utility',
-                    'Fixed CSV dual-format parser logic, removed cPanel WAF tarpitting via native forms, enhanced mobile responsive UI routing.'
+                    '1-Click Instant Camera Visiting Card Scanner & Contact Share All',
+                    'Direct mobile camera auto-capture with client-side canvas pre-compression, EXIF rotation fix, 100% regex OCR heuristics, CSP updates, and native Web Share integration.'
                 ))
     except Exception as e:
         print(f"Migration error: {e}")

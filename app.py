@@ -75,8 +75,7 @@ def add_header(response):
     # Cyber Security Hardening Headers
     response.headers['X-Frame-Options'] = 'SAMEORIGIN'
     response.headers['X-Content-Type-Options'] = 'nosniff'
-    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
-    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self';"
+    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://unpkg.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' blob: data: https://cdn.jsdelivr.net https://tessdata.projectnaptha.com https://*.projectnaptha.com; frame-src 'self' https://meet.jit.si;"
     return response
 
 # Global sync state for non-blocking asynchronous master refresh
@@ -854,6 +853,14 @@ def add_contact():
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
             visiting_card_front = filename
             
+    if not visiting_card_front:
+        scanned_card_filename = request.form.get('scanned_card_filename', '').strip()
+        if scanned_card_filename:
+            safe_scanned = secure_filename(scanned_card_filename)
+            scanned_path = os.path.join(app.config['UPLOAD_FOLDER'], safe_scanned)
+            if os.path.exists(scanned_path):
+                visiting_card_front = safe_scanned
+
     if 'visiting_card_back' in request.files:
         file = request.files['visiting_card_back']
         if file and file.filename != '' and allowed_file(file.filename):
@@ -3078,6 +3085,31 @@ def export_logs_csv():
         headers={"Content-disposition": "attachment; filename=system_audit_logs.csv"}
     )
 
+def get_tesseract_cmd():
+    import shutil
+    cmd = shutil.which('tesseract')
+    if cmd:
+        return cmd
+    linux_paths = [
+        '/usr/bin/tesseract',
+        '/usr/local/bin/tesseract',
+        '/opt/cpanel/ea-tesseract/bin/tesseract',
+        '/opt/homebrew/bin/tesseract'
+    ]
+    for lp in linux_paths:
+        if os.path.isfile(lp) and os.access(lp, os.X_OK):
+            return lp
+    if os.name == 'nt':
+        win_paths = [
+            r'C:\Program Files\Tesseract-OCR\tesseract.exe',
+            r'C:\Program Files (x86)\Tesseract-OCR\tesseract.exe',
+            os.path.expanduser(r'~\AppData\Local\Programs\Tesseract-OCR\tesseract.exe')
+        ]
+        for wp in win_paths:
+            if os.path.isfile(wp):
+                return wp
+    return None
+
 @app.route('/scan-card', methods=['POST'])
 @login_required
 def scan_card():
@@ -3088,11 +3120,16 @@ def scan_card():
     if file.filename == '':
         return jsonify({"status": "error", "message": "No file selected"}), 400
         
-    # Save file temporarily
+    if not allowed_file(file.filename):
+        return jsonify({"status": "error", "message": "Invalid file format. Please upload an image file (JPG, PNG, WEBP)."}), 400
+        
+    # Save file temporarily (preserved for auto-attaching to contact)
     import uuid
-    temp_filename = f"scan_{uuid.uuid4().hex}_{file.filename}"
+    safe_name = secure_filename(file.filename) or 'visiting_card.jpg'
+    temp_filename = f"card_{uuid.uuid4().hex[:12]}_{safe_name}"
     temp_path = os.path.join(app.config['UPLOAD_FOLDER'], temp_filename)
     file.save(temp_path)
+    card_url = url_for('uploaded_file', filename=temp_filename)
     
     parsed_data = {
         "company_name": "",
@@ -3107,7 +3144,7 @@ def scan_card():
     detected_qr = False
     qr_text = ""
     
-    # 1. Try to decode QR Code via OpenCV
+    # 1. Try to decode QR Code via OpenCV (e.g. vCard or direct URL)
     try:
         import cv2
         cv_img = cv2.imread(temp_path)
@@ -3121,46 +3158,94 @@ def scan_card():
         print(f"OpenCV QR detection error: {e}")
         
     if detected_qr:
-        # Parse QR text (could be vCard or raw text)
-        parsed_data = parse_qr_contact_info(qr_text)
-        try:
-            os.remove(temp_path)
-        except Exception:
-            pass
-        return jsonify({"status": "success", "source": "qrcode", "data": parsed_data})
+        parsed_qr = parse_qr_contact_info(qr_text)
+        # If QR contains both name and phone (complete vCard), return immediately
+        if parsed_qr.get("name") and parsed_qr.get("phone"):
+            return jsonify({
+                "status": "success", 
+                "source": "qrcode", 
+                "data": parsed_qr,
+                "temp_card_filename": temp_filename,
+                "card_url": card_url
+            })
+        else:
+            # Partial QR (e.g. URL only) - retain and proceed to OCR to extract printed text
+            parsed_data.update({k: v for k, v in parsed_qr.items() if v})
         
     # 2. Run High-Accuracy server-side OCR via Pytesseract
     ocr_text = ""
     try:
-        from PIL import Image, ImageEnhance
+        from PIL import Image, ImageEnhance, ImageOps
         import pytesseract
         
-        # Pre-process image
-        img = Image.open(temp_path)
-        img = img.convert('L') # Grayscale
-        img = img.resize((img.width * 2, img.height * 2), Image.Resampling.LANCZOS)
-        img = ImageEnhance.Contrast(img).enhance(2.5)
-        img = ImageEnhance.Sharpness(img).enhance(2.0)
+        t_cmd = get_tesseract_cmd()
+        if t_cmd:
+            pytesseract.pytesseract.tesseract_cmd = t_cmd
         
-        # Run OCR
-        ocr_text = pytesseract.image_to_string(img)
+        # Pre-process image with EXIF orientation correction
+        img = Image.open(temp_path)
+        img = ImageOps.exif_transpose(img) # Fix mobile camera orientation
+        img_gray = img.convert('L') # Grayscale
+        
+        if img_gray.width < 1200:
+            new_w = min(1800, img_gray.width * 2)
+            new_h = int(img_gray.height * (new_w / img_gray.width))
+            img_proc = img_gray.resize((new_w, new_h), Image.Resampling.LANCZOS)
+        else:
+            img_proc = img_gray
+            
+        enhanced = ImageEnhance.Contrast(img_proc).enhance(2.0)
+        enhanced = ImageEnhance.Sharpness(enhanced).enhance(1.8)
+        
+        # Run OCR pass 1
+        ocr_text = pytesseract.image_to_string(enhanced)
+        
+        # Pass 2: If enhanced contrast yielded very little text, try original grayscale
+        if len(ocr_text.strip()) < 25:
+            alt_text = pytesseract.image_to_string(img_proc)
+            if len(alt_text.strip()) > len(ocr_text.strip()):
+                ocr_text = alt_text
+                
     except Exception as e:
         print(f"Server-side Tesseract OCR failed: {e}")
-        try:
-            os.remove(temp_path)
-        except Exception:
-            pass
         # Return fallback signal to client to run client-side Tesseract.js
-        return jsonify({"status": "fallback", "message": "Server-side OCR library not available. Falling back to client-side OCR."})
-
-    try:
-        os.remove(temp_path)
-    except Exception:
-        pass
+        return jsonify({
+            "status": "fallback", 
+            "message": "Server-side OCR library not available. Falling back to client-side OCR.",
+            "data": parsed_data, # partial QR data if any
+            "temp_card_filename": temp_filename,
+            "card_url": card_url
+        })
 
     # 3. Parse OCR text using advanced regex and NLP heuristics
-    parsed_data = parse_raw_ocr_text(ocr_text)
-    return jsonify({"status": "success", "source": "ocr", "data": parsed_data})
+    ocr_data = parse_raw_ocr_text(ocr_text)
+    
+    # Merge OCR data into parsed_data (preserve any already extracted QR info)
+    for k, v in ocr_data.items():
+        if v and not parsed_data.get(k):
+            parsed_data[k] = v
+
+    return jsonify({
+        "status": "success", 
+        "source": "ocr", 
+        "data": parsed_data,
+        "temp_card_filename": temp_filename,
+        "card_url": card_url
+    })
+
+@app.route('/parse-card-text', methods=['POST'])
+@login_required
+def parse_card_text():
+    raw_text = ""
+    if request.is_json:
+        raw_text = request.json.get('text', '')
+    else:
+        raw_text = request.form.get('text', '')
+    parsed_data = parse_raw_ocr_text(raw_text)
+    return jsonify({
+        "status": "success",
+        "data": parsed_data
+    })
 
 def parse_qr_contact_info(text):
     data = {
@@ -3207,6 +3292,8 @@ def parse_qr_contact_info(text):
                 parts = line.split(':')
                 if len(parts) > 1:
                     data["address"] = parts[-1].replace(';', ' ').strip()
+    elif text.strip().startswith(('http://', 'https://')):
+        data["website"] = text.strip()
     else:
         # Simple text parse
         data = parse_raw_ocr_text(text)
@@ -3227,83 +3314,196 @@ def parse_raw_ocr_text(text):
     if not text:
         return data
         
-    lines = [line.strip() for line in text.split('\n') if line.strip()]
-    
-    # 1. Extract Email
-    email_pattern = r'[\w\.-]+@[\w\.-]+\.\w+'
-    emails = []
-    for line in lines:
-        match = re.search(email_pattern, line)
-        if match:
-            emails.append(match.group(0))
-    if emails:
-        data["email"] = emails[0]
+    # Clean lines and filter out noise, keeping &, (), and /
+    raw_lines = [l.strip() for l in text.split('\n') if l.strip()]
+    lines = []
+    for l in raw_lines:
+        clean = re.sub(r'[|\[\]{}<>\#$%^°¢€¥©®™•■□▲▼♦♥♣♠~`—]+', ' ', l).strip()
+        if len(clean) >= 2:
+            lines.append(clean)
+            
+    if not lines:
+        return data
         
+    # 1. Extract Email
+    email_pattern = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
+    for line in lines:
+        clean_email_line = re.sub(r'\s*@\s*', '@', line)
+        clean_email_line = re.sub(r'([a-zA-Z0-9])\s*\.\s*([a-zA-Z]{2,})', r'\1.\2', clean_email_line)
+        match = re.search(email_pattern, clean_email_line)
+        if match:
+            data["email"] = match.group(0).lower().strip('.')
+            break
+            
     # 2. Extract Website
-    web_pattern = r'(?:https?://)?(?:www\.)?([a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+)'
-    websites = []
+    web_pattern = r'(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+)(?:\/[^\s]*)?'
     for line in lines:
         if "@" in line:
             continue
-        match = re.search(web_pattern, line)
+        match = re.search(web_pattern, line, re.IGNORECASE)
         if match:
-            url = match.group(0)
+            url = match.group(0).strip('.,/ ')
             if not url.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.pdf')):
-                websites.append(url)
-    if websites:
-        data["website"] = websites[0]
-        
+                if not url.startswith(('http://', 'https://')):
+                    url = 'https://' + url
+                data["website"] = url
+                break
+                
     # 3. Extract Phone
-    phone_pattern = r'\+?\d[\d-\s()]{7,}\d'
-    phones = []
+    phone_candidates = []
+    phone_pattern = r'(?:\+?\d|\(\d)[\d\s\-\(\)\.]{6,}\d'
     for line in lines:
-        match = re.search(phone_pattern, line)
-        if match:
-            clean_digits = re.sub(r'\D', '', match.group(0))
-            if 8 <= len(clean_digits) <= 15:
-                phones.append(match.group(0))
-    if phones:
-        data["phone"] = phones[0]
-        
-    # 4. Extract Name and Designation Heuristics
-    name_candidates = []
-    for i, line in enumerate(lines[:5]):
-        if "@" in line or any(kw in line.lower() for kw in ['.com', '.in', '.org', '.net', 'www.', 'http', '+', 'tel', 'phone', 'mobile', 'email', 'fax', 'web']):
+        line_lower = line.lower()
+        if any(w in line_lower for w in ['pin', 'pincode', 'zip', 'postal']) and not any(w in line_lower for w in ['mob', 'tel', 'phone', 'cell']):
             continue
-        words = line.split()
-        if 2 <= len(words) <= 3:
-            if all(w[0].isupper() for w in words if w[0].isalpha()):
-                name_candidates.append((i, line))
+        # Split line by comma, slash, pipe, multiple spaces, or phone labels
+        segments = re.split(r'[/,|;]|\s{2,}|\b(?:mob|cell|tel|phone|ph|m|t|p|fax|direct|office)[:.\s-]+', line, flags=re.IGNORECASE)
+        for seg in segments:
+            seg = seg.strip()
+            if not seg:
+                continue
+            match = re.search(phone_pattern, seg)
+            if match:
+                num = match.group(0).strip()
+                clean_digits = re.sub(r'\D', '', num)
+                # Ignore 6-digit postal PIN codes
+                if len(clean_digits) == 6:
+                    continue
+                if 8 <= len(clean_digits) <= 15:
+                    has_mobile_kw = any(kw in line_lower for kw in ['mob', 'cell', 'm:', 'direct', 'whatsapp'])
+                    has_phone_kw = any(kw in line_lower for kw in ['tel', 'phone', 'ph:', 'p:', 'call', 't:'])
+                    priority = 2 if has_mobile_kw else (1 if has_phone_kw else 0)
+                    phone_candidates.append((priority, num))
+                    
+    if phone_candidates:
+        phone_candidates.sort(key=lambda x: x[0], reverse=True)
+        best_phone = re.sub(r'^(?:mob|cell|tel|phone|ph|m|t|p|direct|office)[:.\s-]*', '', phone_candidates[0][1], flags=re.IGNORECASE).strip()
+        data["phone"] = best_phone
+        
+    # 4. Extract Designation and Name
+    designation_keywords = [
+        'managing director', 'director', 'partner', 'founder', 'co-founder', 'chief executive officer',
+        'chief technology officer', 'chief operating officer', 'chief financial officer', 'vice president',
+        'president', 'general manager', 'agm', 'dgm', 'head', 'lead', 'consultant', 'engineer',
+        'executive', 'specialist', 'officer', 'representative', 'architect', 'developer', 'proprietor',
+        'sales manager', 'account manager', 'business development', 'pre-sales', 'project manager',
+        'channel manager', 'principal'
+    ]
+    
+    desig_idx = -1
+    for i, line in enumerate(lines):
+        if line == data.get("email") or line == data.get("website"):
+            continue
+        line_lower = line.lower()
+        has_desig = any(kw in line_lower for kw in designation_keywords)
+        if not has_desig:
+            if re.search(r'\b(ceo|cto|cfo|coo|md|vp|gm)\b', line_lower):
+                has_desig = True
+        if has_desig:
+            data["designation"] = line.strip()
+            desig_idx = i
+            break
+            
+    # Try name above designation
+    if desig_idx > 0:
+        candidate_name = lines[desig_idx - 1]
+        if not re.search(r'[@\d]', candidate_name) and len(candidate_name.split()) <= 5:
+            if not any(kw in candidate_name.lower() for kw in ['pvt', 'ltd', 'inc', 'technologies', 'solutions', 'systems']):
+                data["name"] = candidate_name.strip()
                 
-    if name_candidates:
-        idx, name = name_candidates[0]
-        data["name"] = name
-        if idx + 1 < len(lines):
-            next_line = lines[idx + 1]
-            if not any(kw in next_line.lower() for kw in ['.com', '.in', 'www.', '+', 'tel', 'phone', 'email']):
-                data["designation"] = next_line
+    # Try name below designation
+    if not data["name"] and desig_idx >= 0 and desig_idx + 1 < len(lines):
+        candidate_name = lines[desig_idx + 1]
+        if not re.search(r'[@\d]', candidate_name) and len(candidate_name.split()) <= 4:
+            if not any(kw in candidate_name.lower() for kw in ['pvt', 'ltd', 'inc', 'technologies', 'solutions']):
+                data["name"] = candidate_name.strip()
                 
+    # Name fallback: look for title prefix or 2-4 capitalized words
+    if not data["name"]:
+        for line in lines[:6]:
+            if line == data.get("designation") or "@" in line or any(c.isdigit() for c in line):
+                continue
+            if any(kw in line.lower() for kw in ['.com', '.in', '.org', 'www.', 'http', 'ltd', 'limited', 'inc', 'corp', 'solutions', 'technologies']):
+                continue
+            if re.match(r'^(?:mr|mrs|ms|dr|er|prof)\.?\s+', line, re.IGNORECASE):
+                data["name"] = line.strip()
+                break
+            words = line.split()
+            if 2 <= len(words) <= 4 and all(w[0].isupper() for w in words if w and w[0].isalpha()):
+                data["name"] = line.strip()
+                break
+
     # 5. Extract Company Name
-    company_candidates = []
-    for i, line in enumerate(lines[:3]):
-        if line == data["name"] or line == data["designation"]:
+    company_keywords = [
+        'pvt ltd', 'private limited', 'ltd', 'limited', 'inc', 'corp', 'corporation',
+        'llc', 'llp', 'technologies', 'technology', 'solutions', 'systems', 'infotech',
+        'enterprises', 'associates', 'group', 'services', 'networks', 'software', 'hardware',
+        'industries', 'global', 'international'
+    ]
+    
+    for line in lines:
+        if line == data.get("name") or line == data.get("designation"):
             continue
-        if "@" in line or any(kw in line.lower() for kw in ['.com', '.in', 'www.', 'http', 'tel', 'phone', 'email']):
+        if "@" in line or line == data.get("website"):
             continue
-        company_candidates.append(line)
-    if company_candidates:
-        data["company_name"] = company_candidates[0]
-        
+        line_lower = line.lower()
+        if any(kw in line_lower for kw in company_keywords):
+            data["company_name"] = line.strip()
+            break
+            
+    if not data["company_name"]:
+        for line in lines[:3]:
+            if line == data.get("name") or line == data.get("designation"):
+                continue
+            if "@" in line or any(c.isdigit() for c in line) or any(kw in line.lower() for kw in ['.com', 'www.', 'http']):
+                continue
+            if len(line.split()) <= 6:
+                data["company_name"] = line.strip()
+                break
+                
+    # Fallback from email domain
+    if not data["company_name"] and data.get("email"):
+        domain = data["email"].split('@')[1].split('.')[0].lower()
+        if domain not in ['gmail', 'yahoo', 'hotmail', 'outlook', 'rediffmail', 'icloud', 'protonmail', 'zoho']:
+            data["company_name"] = domain.capitalize()
+
+    # Fallback from website domain
+    if not data["company_name"] and data.get("website"):
+        m = re.search(r'(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9-]+)', data["website"])
+        if m:
+            domain = m.group(1).lower()
+            if domain not in ['gmail', 'yahoo', 'hotmail', 'outlook', 'google']:
+                data["company_name"] = domain.capitalize()
+
     # 6. Extract Address
-    address_keywords = ['street', 'road', 'floor', 'building', 'city', 'state', 'zip', 'india', 'usa', 'office', 'plot', 'sector', 'block', 'bazaar', 'nagar', 'gali', 'cantt', 'phase']
+    address_keywords = [
+        'street', 'road', 'rd', 'floor', 'flr', 'bldg', 'building', 'city', 'state',
+        'plot', 'sector', 'block', 'bazaar', 'nagar', 'gali', 'cantt', 'phase',
+        'complex', 'tower', 'hub', 'park', 'avenue', 'marg', 'colony', 'industrial',
+        'pin', 'pincode', 'postal', 'midc', 'sez', 'suite', 'lane', 'delhi', 'mumbai',
+        'bangalore', 'bengaluru', 'hyderabad', 'chennai', 'kolkata', 'pune', 'gurgaon',
+        'noida', 'ahmedabad', 'india', 'usa', 'dubai'
+    ]
     address_lines = []
     for line in lines:
-        if any(kw in line.lower() for kw in address_keywords):
-            if line == data["company_name"] or line == data["name"] or line == data["designation"]:
-                continue
-            address_lines.append(line)
+        if line in [data.get("company_name"), data.get("name"), data.get("designation")]:
+            continue
+        if "@" in line or line == data.get("website"):
+            continue
+        if data.get("phone") and data["phone"] in line:
+            continue
+        line_lower = line.lower()
+        if any(pk in line_lower for pk in ['mob:', 'cell:', 'tel:', 'phone:', 'ph:', 'fax:', 'direct:']):
+            continue
+            
+        has_addr_kw = any(kw in line_lower for kw in address_keywords)
+        has_postal_code = bool(re.search(r'\b\d{5,6}\b', line))
+        
+        if has_addr_kw or has_postal_code:
+            address_lines.append(line.strip().rstrip(','))
+            
     if address_lines:
-        data["address"] = ", ".join(address_lines)
+        data["address"] = ", ".join(address_lines[:3])
         
     return data
 

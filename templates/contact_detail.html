@@ -388,7 +388,7 @@
                                     </form>
                                     <div class="card-upload-overlay">
                                         <form action="{{ url_for('upload_card', contact_id=contact['id'], side='front') }}" method="POST" enctype="multipart/form-data">
-                                            <input type="file" name="card_image" accept="image/*" style="display:none;" id="front-file-input" onchange="this.form.submit()">
+                                            <input type="file" name="card_image" accept="image/*" capture="environment" style="display:none;" id="front-file-input" onchange="this.form.submit()">
                                             <button title="Replace Front Card" type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('front-file-input').click()">Replace Front Card</button>
                                         </form>
                                     </div>
@@ -399,7 +399,7 @@
                                         <span>No Front Card Uploaded</span>
                                         {% if session['role'] != 'viewer' %}
                                         <form action="{{ url_for('upload_card', contact_id=contact['id'], side='front') }}" method="POST" enctype="multipart/form-data" style="margin-top:0.5rem;">
-                                            <input type="file" name="card_image" accept="image/*" style="display:none;" id="front-file-input-new" onchange="this.form.submit()">
+                                            <input type="file" name="card_image" accept="image/*" capture="environment" style="display:none;" id="front-file-input-new" onchange="this.form.submit()">
                                             <button title="Upload Front" type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('front-file-input-new').click()">Upload Front</button>
                                         </form>
                                         {% endif %}
@@ -419,7 +419,7 @@
                                     </form>
                                     <div class="card-upload-overlay">
                                         <form action="{{ url_for('upload_card', contact_id=contact['id'], side='back') }}" method="POST" enctype="multipart/form-data">
-                                            <input type="file" name="card_image" accept="image/*" style="display:none;" id="back-file-input" onchange="this.form.submit()">
+                                            <input type="file" name="card_image" accept="image/*" capture="environment" style="display:none;" id="back-file-input" onchange="this.form.submit()">
                                             <button title="Replace Back Card" type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('back-file-input').click()">Replace Back Card</button>
                                         </form>
                                     </div>
@@ -430,7 +430,7 @@
                                         <span>No Back Card Uploaded</span>
                                         {% if session['role'] != 'viewer' %}
                                         <form action="{{ url_for('upload_card', contact_id=contact['id'], side='back') }}" method="POST" enctype="multipart/form-data" style="margin-top:0.5rem;">
-                                            <input type="file" name="card_image" accept="image/*" style="display:none;" id="back-file-input-new" onchange="this.form.submit()">
+                                            <input type="file" name="card_image" accept="image/*" capture="environment" style="display:none;" id="back-file-input-new" onchange="this.form.submit()">
                                             <button title="Upload Back" type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('back-file-input-new').click()">Upload Back</button>
                                         </form>
                                         {% endif %}
@@ -654,8 +654,8 @@
                     <div class="form-group">
                         <label class="form-label" for="edit_type">Partner Type*</label>
                         <select id="edit_type" name="type" class="form-control">
-                            <option value="OEM" {{ 'selected' if contact['type'] == 'OEM' }}>OEM</option>
-                            <option value="Distributor" {{ 'selected' if contact['type'] == 'Distributor' }}>Distributor</option>
+                            <option value="OEM" {{ 'selected' if contact['type'] == 'OEM' }}>[OEM]</option>
+                            <option value="Distributor" {{ 'selected' if contact['type'] == 'Distributor' }}>[Distributor]</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -891,6 +891,55 @@
     
     <script src="{{ url_for('static', filename='js/main_v2.js') }}?v={{ portal_settings.get('portal_version', '4.0') }}"></script>
     <script>
+        const companyContactsData = {{ contact_persons | tojson }};
+        const companyInfoData = {
+            company_name: {{ contact['company_name'] | tojson }},
+            website: {{ (contact['website'] or '') | tojson }},
+            address: {{ (contact['address'] or '') | tojson }}
+        };
+
+        function shareAllContacts() {
+            let text = `*Team Contacts: ${companyInfoData.company_name}*\n`;
+            if (companyInfoData.website) text += `🌐 Website: ${companyInfoData.website}\n`;
+            if (companyInfoData.address) text += `📍 Address: ${companyInfoData.address}\n`;
+            text += `\n`;
+
+            if (companyContactsData && companyContactsData.length > 0) {
+                companyContactsData.forEach((p, idx) => {
+                    text += `*${idx + 1}. ${p.name || 'Contact'}*\n`;
+                    if (p.designation) text += `💼 Designation: ${p.designation}\n`;
+                    if (p.phone) text += `📞 Phone: ${p.phone}\n`;
+                    if (p.email) text += `✉️ Email: ${p.email}\n`;
+                    text += `\n`;
+                });
+            }
+
+            // Copy to clipboard
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => {
+                    if (typeof showToast === 'function') {
+                        showToast("📋 All contacts copied to clipboard!");
+                    }
+                }).catch(() => {});
+            }
+
+            // Use Web Share API if available (native share on mobile)
+            if (navigator.share) {
+                navigator.share({
+                    title: `Team Contacts - ${companyInfoData.company_name}`,
+                    text: text
+                }).catch(err => {
+                    if (err.name !== 'AbortError') {
+                        const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+                        window.open(url, '_blank');
+                    }
+                });
+            } else {
+                const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+                window.open(url, '_blank');
+            }
+        }
+
         function fetchLogoFromInternet(contactId) {
             const btn = document.getElementById('btn-fetch-logo');
             if (btn) {
@@ -1009,6 +1058,14 @@
             <span class="icon">📰</span>
             <span>News</span>
         </a>
+        {% if user_role != 'viewer' %}
+        <a href="javascript:void(0)" onclick="startCardCameraCapture()" class="mobile-nav-item mobile-scan-action-btn" title="Scan Visiting Card">
+            <div class="mobile-scan-bubble">
+                <span class="icon">📸</span>
+            </div>
+            <span>Scan</span>
+        </a>
+        {% endif %}
         <a href="{{ url_for('work_tools') }}" class="mobile-nav-item {% if request.endpoint == 'work_tools' %}active{% endif %}">
             <span class="icon">🛠️</span>
             <span>Tools</span>
@@ -1072,7 +1129,7 @@
             }
         }
 
-        function showToast(sender, message, isCall) {
+        function showChatNotificationToast(sender, message, isCall) {
             const container = document.getElementById('global-toast-container');
             const toast = document.createElement('div');
             toast.style.background = isCall ? 'rgba(16, 185, 129, 0.95)' : 'rgba(59, 130, 246, 0.95)';
@@ -1126,9 +1183,9 @@
                         lastNotifCheck = new Date().toISOString().replace('T', ' ').substring(0, 19);
                         newMsgs.forEach(msg => {
                             if (msg.message === '[CALL_RING]') {
-                                showToast(msg.sender_name, '', true);
+                                showChatNotificationToast(msg.sender_name, '', true);
                             } else {
-                                showToast(msg.sender_name, msg.message, false);
+                                showChatNotificationToast(msg.sender_name, msg.message, false);
                             }
                         });
                     }

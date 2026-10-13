@@ -8,8 +8,6 @@
     <link rel="icon" type="image/x-icon" href="{% if portal_settings['favicon'] %}{{ url_for('uploaded_file', filename=portal_settings['favicon']) }}{% else %}{{ url_for('static', filename='favicon.svg') }}{% endif %}">
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
-    <link href="https://cdn.jsdelivr.net/npm/gridstack@7.2.1/dist/gridstack.min.css" rel="stylesheet"/>
-    <script src="https://cdn.jsdelivr.net/npm/gridstack@7.2.1/dist/gridstack-all.js"></script>
     <script>
         window.BASE_URL = "{{ url_for('dashboard') }}";
         window.USER_PREFERENCES = {{ session.get('dashboard_layout', '{}') | safe }};
@@ -194,7 +192,7 @@
                     </h1>
                     <p style="color: var(--text-secondary); margin-top: 0.25rem;">Manage professional relationships and check vendor portfolio catalogs.</p>
                 </div>
-                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <div class="header-action-buttons" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
                     <!-- Dropdown for More options (CSV actions) -->
                     <div class="dropdown-actions" style="position: relative; display: inline-block;">
                         <button title="⚙️ More ▼" type="button" class="btn btn-secondary btn-sm" onclick="toggleActionsDropdown(event)" style="padding: 0.45rem 0.85rem; font-size: 0.8rem; border-radius: 6px; display: inline-flex; align-items: center; gap: 0.25rem;">
@@ -228,6 +226,9 @@
                     </div>
 
                     {% if user_role != 'viewer' %}
+                        <button title="📸 Scan Visiting Card via Camera" type="button" class="btn btn-secondary btn-scan-card" onclick="startCardCameraCapture()" style="padding: 0.45rem 0.85rem; font-size: 0.8rem; border-radius: 6px; white-space: nowrap; border: 1px solid rgba(99, 102, 241, 0.4); background: rgba(99, 102, 241, 0.15); color: #c7d2fe; display: inline-flex; align-items: center; gap: 0.4rem;">
+                            <span>📸</span> Scan Card
+                        </button>
                         <button title="➕ Add Partner" class="btn btn-primary" onclick="openModal('add-contact-modal')" style="padding: 0.45rem 0.85rem; font-size: 0.8rem; border-radius: 6px; white-space: nowrap;">
                             <span>➕</span> Add Partner
                         </button>
@@ -236,54 +237,36 @@
             </div>
             
             <!-- Statistical Cards -->
-            <section class="stats-grid grid-stack">
-                <div class="stat-card grid-stack-item" gs-w="3" gs-h="1">
-                    <div class="grid-stack-item-content" style="display: flex; justify-content: space-between; align-items: center; width: 100%; height: 100%;">
-                        <div>
-                            <span class="stat-label">Total Partners</span>
-                            <div id="stat-total-partners" class="stat-number">{{ stats['total'] }}</div>
-                        </div>
-                        <div class="stat-icon" style="color: var(--primary);">👥</div>
+            <section class="stats-grid">
+                <div class="stat-card stat-card-partners">
+                    <div class="stat-card-info">
+                        <span class="stat-label">Total Partners</span>
+                        <div id="stat-total-partners" class="stat-number">{{ stats['total'] }}</div>
                     </div>
+                    <div class="stat-icon" style="color: var(--primary);">👥</div>
                 </div>
-                <div class="stat-card grid-stack-item" gs-w="3" gs-h="1">
-                    <div class="grid-stack-item-content" style="display: flex; justify-content: space-between; align-items: center; width: 100%; height: 100%;">
-                        <div>
-                            <span class="stat-label">OEMs</span>
-                            <div id="stat-oems" class="stat-number">{{ stats['oems'] }}</div>
-                        </div>
-                        <div class="stat-icon" style="color: var(--color-oem);">🏢</div>
+                <div class="stat-card stat-card-oems">
+                    <div class="stat-card-info">
+                        <span class="stat-label">OEMs</span>
+                        <div id="stat-oems" class="stat-number">{{ stats['oems'] }}</div>
                     </div>
+                    <div class="stat-icon" style="color: var(--color-oem);">🏢</div>
                 </div>
-                <div class="stat-card grid-stack-item" gs-w="3" gs-h="1">
-                    <div class="grid-stack-item-content" style="display: flex; justify-content: space-between; align-items: center; width: 100%; height: 100%;">
-                        <div>
-                            <span class="stat-label">Distributors</span>
-                            <div id="stat-distributors" class="stat-number">{{ stats['distributors'] }}</div>
-                        </div>
-                        <div class="stat-icon" style="color: var(--color-distributor);">🚚</div>
+                <div class="stat-card stat-card-distributors">
+                    <div class="stat-card-info">
+                        <span class="stat-label">Distributors</span>
+                        <div id="stat-distributors" class="stat-number">{{ stats['distributors'] }}</div>
                     </div>
+                    <div class="stat-icon" style="color: var(--color-distributor);">🚚</div>
                 </div>
-                <div class="stat-card grid-stack-item" gs-w="3" gs-h="1">
-                    <div class="grid-stack-item-content" style="display: flex; justify-content: space-between; align-items: center; width: 100%; height: 100%;">
-                        <div>
-                            <span class="stat-label">Interactions</span>
-                            <div class="stat-number">{{ stats['interactions'] }}</div>
-                        </div>
-                        <div class="stat-icon" style="color: var(--secondary);">📝</div>
+                <div class="stat-card stat-card-interactions">
+                    <div class="stat-card-info">
+                        <span class="stat-label">Interactions</span>
+                        <div id="stat-interactions" class="stat-number">{{ stats['interactions'] }}</div>
                     </div>
+                    <div class="stat-icon" style="color: var(--secondary);">📝</div>
                 </div>
             </section>
-            
-            <script>
-                document.addEventListener('DOMContentLoaded', function() {
-                    GridStack.init({
-                        cellHeight: '80px',
-                        margin: 15,
-                        column: 12
-                    }, '.grid-stack');
-                });
-            </script>
             
             <!-- Dashboard Layout Grid -->
             <div class="dashboard-layout-grid">
@@ -298,11 +281,11 @@
                             <span class="search-icon">🔍</span>
                             <input type="text" id="search-input" class="form-control" placeholder="Search by company, group, contact, products...">
                         </div>
-                        <div style="width: 140px;">
+                        <div style="width: 150px;">
                             <select id="type-filter" class="form-control">
-                                <option value="all">All Types</option>
-                                <option value="OEM">OEMs</option>
-                                <option value="Distributor">Distributors</option>
+                                <option value="all">[All Types]</option>
+                                <option value="OEM">[OEM]</option>
+                                <option value="Distributor">[Distributor]</option>
                             </select>
                         </div>
                         <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
@@ -456,40 +439,50 @@
             <button class="modal-close">&times;</button>
             <h2 class="card-title" style="font-size: 1.5rem; margin-bottom: 1.5rem;">Add New Vendor Partner</h2>
             
-            <!-- Entry Mode Selector Tabs -->
-            <div class="add-mode-selector" style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-glass); padding-bottom: 1rem;">
-                <button title="✍️ Manual Entry" type="button" id="btn-mode-manual" class="btn btn-primary" onclick="switchAddMode('manual')" style="flex: 1; padding: 0.55rem; font-size: 0.85rem; border-radius: 6px;">
-                    ✍️ Manual Entry
-                </button>
-                <button title="Scan Business Card" type="button" id="btn-mode-scan" class="btn btn-secondary" onclick="switchAddMode('scan')" style="flex: 1; padding: 0.55rem; font-size: 0.85rem; border-radius: 6px;">
-                    📸 Scan Business Card
-                </button>
-            </div>
-            
-            <form action="{{ url_for('add_contact') }}" method="POST" enctype="multipart/form-data">
-                
-                <!-- Scanner Panel (Hidden by default) -->
-                <div id="add-mode-scan-panel" style="display: none; background: rgba(15, 23, 42, 0.4); border: 1px solid var(--border-glass); padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem;">
-                    <h4 style="font-size: 0.95rem; font-weight: 700; color: white; margin-bottom: 0.5rem;">⚡ Unified Business Card Scanner</h4>
-                    <p style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 1.25rem;">Upload or capture a photo of a business card. The portal automatically scans for QR codes first, then falls back to highly accurate OCR text recognition to populate contact fields.</p>
-                    
-                    <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
-                        <button title="Scan via Camera" type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('card-scan-camera-input').click()" style="font-size: 0.8rem; padding: 0.55rem 1.25rem; display: flex; align-items: center; gap: 0.35rem;">
-                            📷 Scan via Camera
-                        </button>
-                        <button title="Upload Card Image" type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('card-scan-file-input').click()" style="font-size: 0.8rem; padding: 0.55rem 1.25rem; display: flex; align-items: center; gap: 0.35rem;">
-                            📁 Upload Card Image
-                        </button>
-                        <input type="file" id="card-scan-file-input" accept="image/*" style="display: none;" onchange="handleCardScanFile(this)">
-                        <input type="file" id="card-scan-camera-input" accept="image/*" capture="environment" style="display: none;" onchange="handleCardScanFile(this)">
+            <!-- Quick Business Card Scanner Header Bar -->
+            <div class="quick-scan-banner" style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(168, 85, 247, 0.15)); border: 1px solid rgba(99, 102, 241, 0.35); border-radius: 12px; padding: 1.1rem; margin-bottom: 1.5rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
+                    <div>
+                        <div style="font-weight: 700; color: white; font-size: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 1.3rem;">📸</span> Business Card Auto-Capture
+                        </div>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                            Click to start your phone camera & snap the card. All fields below will be filled automatically!
+                        </div>
                     </div>
-
-                    <!-- OCR Status Loader Indicator -->
-                    <div id="ocr-scan-status-indicator" style="display: none; padding: 1rem; border-radius: 8px; text-align: center; background: rgba(99, 102, 241, 0.1); border: 1px dashed rgba(99, 102, 241, 0.3); margin-top: 1.25rem;">
-                        <span class="spinner" style="display: inline-block; vertical-align: middle; margin-right: 0.75rem; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.1); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite;"></span>
-                        <span id="ocr-scan-status-text" style="vertical-align: middle; color: white; font-size: 0.8rem; font-weight: 600;">Analyzing business card...</span>
+                    <div style="display: flex; gap: 0.6rem; flex-wrap: wrap;">
+                        <button type="button" class="btn btn-primary" onclick="startCardCameraCapture()" style="display: flex; align-items: center; gap: 0.45rem; font-weight: 700; padding: 0.55rem 1.1rem; font-size: 0.85rem; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);">
+                            📷 Start Camera & Scan
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('card-scan-file-input').click()" style="display: flex; align-items: center; gap: 0.45rem; padding: 0.55rem 0.9rem; font-size: 0.85rem;">
+                            📁 Choose Gallery
+                        </button>
                     </div>
                 </div>
+
+                <!-- Hidden direct file inputs for camera & gallery -->
+                <input type="file" id="card-scan-camera-input" accept="image/*" capture="environment" style="display: none;" onchange="handleCardScanFile(this)">
+                <input type="file" id="card-scan-file-input" accept="image/*" style="display: none;" onchange="handleCardScanFile(this)">
+
+                <!-- OCR Status Loader Indicator -->
+                <div id="ocr-scan-status-indicator" style="display: none; padding: 1rem; border-radius: 8px; text-align: center; background: rgba(99, 102, 241, 0.2); border: 1px dashed rgba(99, 102, 241, 0.4); margin-top: 1rem;">
+                    <span class="spinner" style="display: inline-block; vertical-align: middle; margin-right: 0.75rem; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite;"></span>
+                    <span id="ocr-scan-status-text" style="vertical-align: middle; color: white; font-size: 0.85rem; font-weight: 600;">Analyzing visiting card...</span>
+                </div>
+
+                <!-- Card Image Preview Thumbnail after scan -->
+                <div id="scanned-card-preview-container" style="display: none; align-items: center; gap: 1rem; margin-top: 1rem; padding: 0.75rem 1rem; background: rgba(0, 0, 0, 0.4); border-radius: 8px; border: 1px solid rgba(52, 211, 153, 0.3);">
+                    <img id="scanned-card-preview-img" src="" alt="Captured Card" style="height: 52px; width: 85px; object-fit: cover; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15);">
+                    <div style="flex: 1;">
+                        <div style="color: #34d399; font-weight: 700; font-size: 0.82rem;">✓ Visiting Card Captured & Auto-Attached!</div>
+                        <div style="color: var(--text-secondary); font-size: 0.74rem;">Company and contact fields have been extracted below.</div>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="startCardCameraCapture()" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;">Retake 📸</button>
+                </div>
+            </div>
+
+            <form action="{{ url_for('add_contact') }}" method="POST" enctype="multipart/form-data">
+                <input type="hidden" id="scanned_card_filename" name="scanned_card_filename">
                 
                 <!-- Manual Form Fields Container -->
                 <div id="manual-entry-form-fields">
@@ -501,8 +494,8 @@
                     <div class="form-group">
                         <label class="form-label" for="type">Partner Type*</label>
                         <select id="type" name="type" class="form-control">
-                            <option value="OEM">OEM</option>
-                            <option value="Distributor">Distributor</option>
+                            <option value="OEM">[OEM]</option>
+                            <option value="Distributor">[Distributor]</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -579,12 +572,17 @@
                 <div class="form-row" style="border-top: 1px solid var(--border-glass); margin-top: 1.5rem; padding-top: 1.25rem;">
                     <div class="form-group">
                         <label class="form-label" for="add_visiting_card_front">Front Visiting Card Image</label>
-                        <input type="file" id="add_visiting_card_front" name="visiting_card_front" class="form-control" accept="image/*">
-                        <small style="color:var(--text-muted); font-size:0.72rem; display:block; margin-top:0.25rem;">ℹ️ Uploading a card photo will auto-fill the form fields via OCR/QR scan.</small>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <input type="file" id="add_visiting_card_front" name="visiting_card_front" class="form-control" accept="image/*" capture="environment" style="flex: 1;">
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="startCardCameraCapture()" title="Snap Front Card via Camera" style="padding: 0.55rem 0.85rem; font-size: 0.8rem; white-space: nowrap; display: flex; align-items: center; gap: 0.35rem;">
+                                📷 Camera
+                            </button>
+                        </div>
+                        <small style="color:var(--text-muted); font-size:0.72rem; display:block; margin-top:0.25rem;">ℹ️ Uploading or snapping a card photo will auto-fill the form fields via OCR/QR scan.</small>
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="add_visiting_card_back">Back Visiting Card Image</label>
-                        <input type="file" id="add_visiting_card_back" name="visiting_card_back" class="form-control" accept="image/*">
+                        <input type="file" id="add_visiting_card_back" name="visiting_card_back" class="form-control" accept="image/*" capture="environment">
                     </div>
                 </div>
                 
@@ -832,6 +830,14 @@
             <span class="icon">📰</span>
             <span>News</span>
         </a>
+        {% if user_role != 'viewer' %}
+        <a href="javascript:void(0)" onclick="startCardCameraCapture()" class="mobile-nav-item mobile-scan-action-btn" title="Scan Visiting Card">
+            <div class="mobile-scan-bubble">
+                <span class="icon">📸</span>
+            </div>
+            <span>Scan</span>
+        </a>
+        {% endif %}
         <a href="{{ url_for('work_tools') }}" class="mobile-nav-item {% if request.endpoint == 'work_tools' %}active{% endif %}">
             <span class="icon">🛠️</span>
             <span>Tools</span>

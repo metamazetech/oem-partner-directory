@@ -1,11 +1,13 @@
-# OEM Partner Directory & Enterprise Portal (v6.3)
+# OEM Partner Directory & Enterprise Portal (v6.4)
 *Also known as the NextNode Yellow Pages & Enterprise Workspace*
 
 The OEM Partner Directory is a comprehensive, self-hosted enterprise portal unifying contact management, RFP/Tender tracking, automated news aggregation, team chat, timesheet & HRMS productivity, offline engineering calculations, and hardware system building into a single, beautifully responsive platform.
 
 ## 🚀 Key Features
 
-*   **📇 Smart Directory & OCR Scanning:** Manage OEMs and Distributors with dynamic categorization, automatic company logo fetching, and intelligent OCR Visiting Card scanning.
+*   **📸 1-Click Instant Camera Visiting Card Scanner:** Direct smartphone rear-camera shutter activation (`capture="environment"`), client-side canvas compression (<400KB), Pillow EXIF auto-rotation correction, multi-number regex extraction, and unified client/server OCR parsing.
+*   **📇 Smart Directory & Category Management:** Manage OEMs and Distributors with dynamic categorization, automatic company logo fetching, bracketed partner type filtering (`[All Types]`, `[OEM]`, `[Distributor]`), and instant multi-contact sharing (`Share All` via WhatsApp / native share sheets).
+*   **📊 Symmetrical Responsive Stats Grid:** Modern, pure CSS Grid dashboard tiles with zero layout shifts or duplicate text, featuring 4 desktop columns and clean 2x2 tablet/mobile grids with glowing accent borders.
 *   **📑 RFP & Tender Tracking with Security:** Track project opportunities, BOQ matrix integrations, deadlines, and customer assignments. Protect the RFP workspace via **Session-Lock passwords** and **WAN IP / Country Whitelisting**.
 *   **⏱️ Unified Timesheets & HRMS Attendance:** Employee daily task logging, productivity scoring, CSV/Excel import & export, plus GPS geo-fenced Punch In/Out (100m radius check) and Leave Management.
 *   **💬 Team Chat, Video Calls & Screen Sharing:** Secure 1-on-1 private messaging and Global Team Room with file sharing, emoji support, Jitsi WebRTC video calling, live screen sharing, and CSV chat log export.
@@ -13,7 +15,7 @@ The OEM Partner Directory is a comprehensive, self-hosted enterprise portal unif
 *   **⏰ Task Reminders & Follow-ups:** Unified dedicated dashboard to track assigned follow-ups, interaction logs, and upcoming RFP deadlines.
 *   **🌐 Automated OEM News & Portfolio Scraping:** Live feed fetching the latest updates and offerings directly from partner domains using background scrapers, complete with Search and Sort functionality.
 *   **🔍 Universal Global Search:** Instantly find Contacts, RFPs, and News articles directly from the unified sidebar search.
-*   **📱 Lovable-Inspired Mobile & Desktop UI:** Native app feel with safe-area notch padding (`viewport-fit=cover`), touch-friendly targets, mobile bottom navigation bar, and desktop glassmorphism styling.
+*   **📱 Lovable-Inspired Mobile & Desktop UI:** Native app feel with safe-area notch padding (`viewport-fit=cover`), touch-friendly targets, thumb-accessible mobile bottom navigation bar with floating 📸 Scan bubble, and desktop glassmorphism styling.
 *   **🛠️ Enterprise Work Tools:** Built-in Unit Converters, Currency Calculators, CCTV Bandwidth Calculators, Data Center Power Load tools, Excel Password Removal Utility, System Hardware Builder, and PDF Extractors.
 *   **🔄 Resilient Two-Phase Auto-Updater:** Upgrade the entire portal codebase via a simple `.zip` upload directly from the Admin Panel with Passenger WSGI crash protection and automated database rollbacks.
 

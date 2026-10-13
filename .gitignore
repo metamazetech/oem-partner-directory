@@ -36,3 +36,8 @@ patch_*.py
 fix_*.py
 check_*.py
 clean_*.py
+powershell.exe
+powershell.cmd
+
+# Deployment Archives
+*.zip

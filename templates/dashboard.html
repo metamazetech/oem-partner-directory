@@ -27,65 +27,57 @@
     {% endif %}
 </head>
 
-    
-    <!-- Mobile Hamburger Toggle -->
-    <div class="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
-    <button id="global-mobile-toggle" class="mobile-toggle-btn" onclick="toggleMobileSidebar()" style="display: none;">☰</button>
-    
-    <script>
-    function toggleMobileSidebar() {
-        const sidebar = document.querySelector('.sidebar');
-        const overlay = document.querySelector('.sidebar-overlay');
-        if (sidebar.classList.contains('menu-open')) {
-            sidebar.classList.remove('menu-open');
-            if(overlay) overlay.classList.remove('active');
-        } else {
-            sidebar.classList.add('menu-open');
-            if(overlay) overlay.classList.add('active');
-        }
-    }
-    </script>
-
 <body class="{{ session.get('theme', 'theme-slate-dark') }}">
     
+    <!-- FSM Theme Drawer Overlay -->
+    <div id="drawer-overlay" class="sidebar-overlay" onclick="closeMobileDrawer()"></div>
+
+    <!-- FSM Theme Mobile Top App Bar -->
+    <header class="mobile-top-bar">
+        <div class="mobile-top-left">
+            <button id="mobile-menu-btn" class="mobile-menu-btn" onclick="openMobileDrawer()" aria-label="Open Navigation">☰</button>
+            <a href="{{ url_for('dashboard') }}" class="mobile-top-brand">
+                {% if portal_settings['portal_logo'] %}
+                    <img src="{{ url_for('uploaded_file', filename=portal_settings['portal_logo']) }}" class="mobile-top-logo" alt="Logo">
+                {% else %}
+                    <span style="font-size: 1.15rem;">📂</span>
+                {% endif %}
+                <span class="mobile-top-title">{{ portal_settings.get('portal_name', 'NextNode Portal') }}</span>
+            </a>
+        </div>
+        <div class="mobile-top-actions">
+            <span class="mobile-top-status"><i class="pulse-dot"></i> Live</span>
+            {% if user_role != 'viewer' %}
+            <button type="button" class="mobile-top-btn" onclick="startCardCameraCapture()" title="Scan Card Camera">📸</button>
+            {% endif %}
+            <button type="button" class="mobile-top-btn" onclick="focusMobileSearch()" title="Search">🔍</button>
+        </div>
+    </header>
+
     <div class="app-container">
-
-    
-    <!-- Mobile Hamburger Toggle -->
-    <div class="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
-    <button id="global-mobile-toggle" class="mobile-toggle-btn" onclick="toggleMobileSidebar()" style="display: none;">☰</button>
-    
-    <script>
-    function toggleMobileSidebar() {
-        const sidebar = document.querySelector('.sidebar');
-        const overlay = document.querySelector('.sidebar-overlay');
-        if (sidebar.classList.contains('menu-open')) {
-            sidebar.classList.remove('menu-open');
-            if(overlay) overlay.classList.remove('active');
-        } else {
-            sidebar.classList.add('menu-open');
-            if(overlay) overlay.classList.add('active');
-        }
-    }
-    </script>
-
-
         
         <!-- Sidebar Navigation -->
-        <aside class="sidebar">
+        <aside id="sidebar" class="sidebar">
             <div class="sidebar-header">
-                <div class="logo-container" style="display: flex; align-items: center; justify-content: center; max-width: 100%; padding: 6px 0; text-decoration: none; gap: 0.4rem;">
-                    <a href="{{ url_for('dashboard') }}" style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.25rem; color: var(--text-primary); letter-spacing: -0.03em; text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
+                <div class="logo-container" style="display: flex; align-items: center; justify-content: flex-start; max-width: 100%; padding: 6px 0; text-decoration: none; gap: 0.4rem;">
+                    <a href="{{ url_for('dashboard') }}" style="font-family: var(--font-heading, sans-serif); font-weight: 800; font-size: 1.15rem; color: var(--text-primary); letter-spacing: -0.02em; text-decoration: none; display: flex; align-items: center; gap: 0.4rem;">
                         {% if portal_settings['portal_logo'] %}
-                            <img src="{{ url_for('uploaded_file', filename=portal_settings['portal_logo']) }}" style="max-height: 40px; max-width: 100%; object-fit: contain;" alt="Logo">
+                            <img src="{{ url_for('uploaded_file', filename=portal_settings['portal_logo']) }}" style="max-height: 36px; max-width: 100%; object-fit: contain;" alt="Logo">
                         {% else %}
                             <span>📂</span> {{ portal_settings['portal_name'] }}
                         {% endif %}
                     </a>
-                    <span style="font-size: 0.6rem; color: var(--text-muted); background: rgba(255,255,255,0.05); border: 1px solid var(--border-glass); padding: 0.1rem 0.3rem; border-radius: 4px; font-weight: 700; vertical-align: middle;">{{ portal_settings.get('portal_version', 'v4.0') }}</span>
+                    <span style="font-size: 0.6rem; color: var(--text-muted); background: rgba(255,255,255,0.05); border: 1px solid var(--border-glass); padding: 0.1rem 0.3rem; border-radius: 4px; font-weight: 700;">{{ portal_settings.get('portal_version', 'v4.0') }}</span>
                 </div>
                 <button id="sidebar-collapse-btn" onclick="this.closest('.sidebar').style.display='none';var b=document.getElementById('show-sidebar-btn');if(b)b.style.display='flex';localStorage.setItem('sidebar-collapsed','true');" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:1.1rem;padding:4px 8px;border-radius:6px;transition:all 0.2s;" title="Hide Sidebar">&laquo;</button>
-                
+                <button id="sidebar-mobile-close-btn" class="sidebar-mobile-close" onclick="closeMobileDrawer()" title="Close Navigation">✕</button>
+            </div>
+            
+            <!-- FSM Theme Live Status Pill -->
+            <div class="sidebar-live" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 1rem; border-bottom: 1px solid rgba(255,255,255,0.08); font-family: var(--font-mono, monospace); font-size: 0.72rem; color: #b7cec0;">
+                <span class="pulse-dot"></span>
+                <span style="letter-spacing: 0.08em; text-transform: uppercase;">Network Stable</span>
+                <span id="live-sidebar-clock" style="margin-left: auto; color: var(--color-lime); font-size: 0.72rem;"></span>
             </div>
             
             <div class="nav-container">
@@ -184,60 +176,88 @@
         <!-- Main Content Area -->
         <main class="main-content">
             
-            <div class="header-bar">
+            <div class="header-bar" style="position: relative; z-index: 500;">
                 <div>
                     <h1 class="page-title" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
                         OEM & Distributor Directory
-                        
                     </h1>
                     <p style="color: var(--text-secondary); margin-top: 0.25rem;">Manage professional relationships and check vendor portfolio catalogs.</p>
                 </div>
-                <div class="header-action-buttons" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-                    <!-- Dropdown for More options (CSV actions) -->
+                <div class="header-action-buttons" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; position: relative; z-index: 501;">
+                    <!-- Dropdown for More options (CSV actions, View Style, Fingerprint) -->
                     <div class="dropdown-actions" style="position: relative; display: inline-block;">
                         <button title="⚙️ More ▼" type="button" class="btn btn-secondary btn-sm" onclick="toggleActionsDropdown(event)" style="padding: 0.45rem 0.85rem; font-size: 0.8rem; border-radius: 6px; display: inline-flex; align-items: center; gap: 0.25rem;">
                             ⚙️ More <span style="font-size: 0.6rem;">▼</span>
                         </button>
-                        <div id="actions-dropdown-menu" class="glass-card" style="display: none; position: absolute; right: 0; top: 110%; z-index: 1000; min-width: 160px; padding: 0.5rem; flex-direction: column; gap: 0.25rem; border: 1px solid var(--border-glass-hover); box-shadow: 0 10px 25px rgba(0,0,0,0.5); background: rgba(15, 23, 42, 0.95); border-radius: 8px;">
+                        <div id="actions-dropdown-menu" class="glass-card" style="display: none; position: absolute; right: 0; top: 110%; z-index: 99999 !important; min-width: 190px; padding: 0.5rem; flex-direction: column; gap: 0.25rem; border: 1px solid var(--border-glass-hover); box-shadow: 0 12px 30px rgba(0,0,0,0.6); background: rgba(15, 23, 42, 0.98); border-radius: 8px;">
+                            <!-- View Style Options -->
+                            <div style="font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; padding: 0.25rem 0.75rem 0.15rem 0.75rem; font-weight: 700; letter-spacing: 0.05em;">Directory View Style</div>
+                            <button id="btn-view-box" title="🔲 Square Box Style" type="button" class="btn btn-secondary btn-sm" onclick="setDirectoryViewStyle('box'); closeActionsDropdown();" style="width: 100%; text-align: left; justify-content: flex-start; padding: 0.45rem 0.75rem; font-size: 0.78rem; border: none; background: transparent; color: white; display: flex; align-items: center; gap: 0.5rem;">
+                                <span>🔲</span> Square Box Style
+                            </button>
+                            <button id="btn-view-bar" title="☰ Bar Style" type="button" class="btn btn-secondary btn-sm" onclick="setDirectoryViewStyle('bar'); closeActionsDropdown();" style="width: 100%; text-align: left; justify-content: flex-start; padding: 0.45rem 0.75rem; font-size: 0.78rem; border: none; background: transparent; color: white; display: flex; align-items: center; gap: 0.5rem;">
+                                <span>☰</span> Bar Style
+                            </button>
+
+                            <div style="height: 1px; background: rgba(255,255,255,0.08); margin: 0.25rem 0;"></div>
+
                             <!-- CSV Import -->
                             {% if user_role != 'viewer' %}
-                                <button title="Import CSV" type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('csv-import-file-native').click(); closeActionsDropdown();" style="width: 100%; text-align: left; justify-content: flex-start; padding: 0.45rem 0.75rem; font-size: 0.78rem; border: none; background: transparent; color: white;">
-                                    📤 Import CSV
+                                <button title="Import CSV" type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('csv-import-file-native').click(); closeActionsDropdown();" style="width: 100%; text-align: left; justify-content: flex-start; padding: 0.45rem 0.75rem; font-size: 0.78rem; border: none; background: transparent; color: white; display: flex; align-items: center; gap: 0.5rem;">
+                                    <span>📤</span> Import CSV
                                 </button>
                                 <form id="csv-import-form" action="{{ url_for('import_csv') }}" method="POST" enctype="multipart/form-data" style="display:none;">
                                     <input type="file" id="csv-import-file-native" onchange="document.getElementById('csv-import-form').submit();" name="csv_file" accept=".csv">
                                 </form>
-                                <a href="{{ url_for('download_import_template') }}" class="btn btn-secondary btn-sm" style="width: 100%; text-align: left; justify-content: flex-start; padding: 0.45rem 0.75rem; font-size: 0.78rem; border: none; background: transparent; text-decoration: none; color: white;" title="Download Template">
-                                    📋 Template
+                                <a href="{{ url_for('download_import_template') }}" class="btn btn-secondary btn-sm" style="width: 100%; text-align: left; justify-content: flex-start; padding: 0.45rem 0.75rem; font-size: 0.78rem; border: none; background: transparent; text-decoration: none; color: white; display: flex; align-items: center; gap: 0.5rem;" title="Download Template">
+                                    <span>📋</span> CSV Template
                                 </a>
                             {% endif %}
                             
                             <!-- CSV Export -->
                             {% if user_role == 'viewer' %}
-                                <button class="btn btn-secondary btn-sm" style="width: 100%; text-align: left; justify-content: flex-start; padding: 0.45rem 0.75rem; font-size: 0.78rem; border: none; background: transparent; opacity: 0.5; cursor: not-allowed; color: white;" disabled title="Exporting is disabled for View-only users.">
-                                    📥 Export CSV
+                                <button class="btn btn-secondary btn-sm" style="width: 100%; text-align: left; justify-content: flex-start; padding: 0.45rem 0.75rem; font-size: 0.78rem; border: none; background: transparent; opacity: 0.5; cursor: not-allowed; color: white; display: flex; align-items: center; gap: 0.5rem;" disabled title="Exporting is disabled for View-only users.">
+                                    <span>📥</span> Export CSV
                                 </button>
                             {% else %}
-                                <a title="Export CSV" href="{{ url_for('export_csv') }}" class="btn btn-secondary btn-sm" style="width: 100%; text-align: left; justify-content: flex-start; padding: 0.45rem 0.75rem; font-size: 0.78rem; border: none; background: transparent; text-decoration: none; color: white;">
-                                    📥 Export CSV
+                                <a title="Export CSV" href="{{ url_for('export_csv') }}" class="btn btn-secondary btn-sm" style="width: 100%; text-align: left; justify-content: flex-start; padding: 0.45rem 0.75rem; font-size: 0.78rem; border: none; background: transparent; text-decoration: none; color: white; display: flex; align-items: center; gap: 0.5rem;">
+                                    <span>📥</span> Export CSV
                                 </a>
                             {% endif %}
+
+                            <div style="height: 1px; background: rgba(255,255,255,0.08); margin: 0.25rem 0;"></div>
+
+                            <!-- Android Biometric Fingerprint Registration -->
+                            <button title="Register Android Fingerprint" type="button" class="btn btn-secondary btn-sm" onclick="registerFingerprint(); closeActionsDropdown();" style="width: 100%; text-align: left; justify-content: flex-start; padding: 0.45rem 0.75rem; font-size: 0.78rem; border: none; background: transparent; color: #a5b4fc; display: flex; align-items: center; gap: 0.5rem;">
+                                <span>👆</span> Register Fingerprint
+                            </button>
                         </div>
                     </div>
 
                     {% if user_role != 'viewer' %}
-                        <button title="📸 Scan Visiting Card via Camera" type="button" class="btn btn-secondary btn-scan-card" onclick="startCardCameraCapture()" style="padding: 0.45rem 0.85rem; font-size: 0.8rem; border-radius: 6px; white-space: nowrap; border: 1px solid rgba(99, 102, 241, 0.4); background: rgba(99, 102, 241, 0.15); color: #c7d2fe; display: inline-flex; align-items: center; gap: 0.4rem;">
-                            <span>📸</span> Scan Card
-                        </button>
-                        <button title="➕ Add Partner" class="btn btn-primary" onclick="openModal('add-contact-modal')" style="padding: 0.45rem 0.85rem; font-size: 0.8rem; border-radius: 6px; white-space: nowrap;">
-                            <span>➕</span> Add Partner
-                        </button>
+                        <!-- Add Partner Dropdown (Manual Entry, Camera Scan, File Upload) -->
+                        <div class="dropdown-add-partner" style="position: relative; display: inline-block;">
+                            <button title="➕ Add Partner ▼" class="btn btn-primary" onclick="toggleAddPartnerDropdown(event)" style="padding: 0.45rem 0.85rem; font-size: 0.8rem; border-radius: 6px; white-space: nowrap; display: inline-flex; align-items: center; gap: 0.35rem;">
+                                <span>➕</span> Add Partner <span style="font-size: 0.6rem;">▼</span>
+                            </button>
+                            <div id="add-partner-dropdown-menu" class="glass-card" style="display: none; position: absolute; right: 0; top: 110%; z-index: 99999 !important; min-width: 215px; padding: 0.5rem; flex-direction: column; gap: 0.25rem; border: 1px solid var(--border-glass-hover); box-shadow: 0 12px 30px rgba(0,0,0,0.6); background: rgba(15, 23, 42, 0.98); border-radius: 8px;">
+                                <button title="✍️ Manual Form Entry" type="button" class="btn btn-secondary btn-sm" onclick="closeAddPartnerDropdown(); openModal('add-contact-modal');" style="width: 100%; text-align: left; justify-content: flex-start; padding: 0.5rem 0.75rem; font-size: 0.8rem; border: none; background: transparent; color: white; display: flex; align-items: center; gap: 0.5rem;">
+                                    <span>✍️</span> Manual Form Entry
+                                </button>
+                                <button title="📸 Scan Visiting Card via Camera" type="button" class="btn btn-secondary btn-sm" onclick="closeAddPartnerDropdown(); startCardCameraCapture();" style="width: 100%; text-align: left; justify-content: flex-start; padding: 0.5rem 0.75rem; font-size: 0.8rem; border: none; background: transparent; color: #a5b4fc; display: flex; align-items: center; gap: 0.5rem;">
+                                    <span>📸</span> Scan Card (Instant Camera)
+                                </button>
+                                <button title="📁 Upload Card Image from Files/Gallery" type="button" class="btn btn-secondary btn-sm" onclick="closeAddPartnerDropdown(); triggerCardGalleryUpload();" style="width: 100%; text-align: left; justify-content: flex-start; padding: 0.5rem 0.75rem; font-size: 0.8rem; border: none; background: transparent; color: white; display: flex; align-items: center; gap: 0.5rem;">
+                                    <span>📁</span> Upload Card Image
+                                </button>
+                            </div>
+                        </div>
                     {% endif %}
                 </div>
             </div>
             
             <!-- Statistical Cards -->
-            <section class="stats-grid">
+            <section class="stats-grid" style="position: relative; z-index: 10;">
                 <div class="stat-card stat-card-partners">
                     <div class="stat-card-info">
                         <span class="stat-label">Total Partners</span>
@@ -274,7 +294,105 @@
                 <!-- Left Column: Search & Partners Directory -->
                 <div>
                     <!-- Search & Filter Controls -->
-<!-- Reminders panel moved to sidebar -->
+<script>
+// Directory View Style Controller
+function setDirectoryViewStyle(style) {
+    localStorage.setItem('directory_view_style', style);
+    applyDirectoryViewStyle(style);
+    
+    // Auto expand all categories if none are open so change is immediately visible
+    const anyExpanded = document.querySelector('.category-group.expanded');
+    if (!anyExpanded) {
+        if (typeof expandAllCategories === 'function') expandAllCategories();
+    }
+    
+    if (typeof showToast === 'function') {
+        showToast(style === 'bar' ? "☰ Switched to Bar Style view" : "🔲 Switched to Square Box Style view", "info");
+    }
+}
+
+function applyDirectoryViewStyle(style) {
+    const isBar = (style === 'bar');
+    
+    const container = document.getElementById('directory-accordion-container');
+    if (container) {
+        if (isBar) {
+            container.classList.add('view-bar-style');
+        } else {
+            container.classList.remove('view-bar-style');
+        }
+    }
+    
+    const grids = document.querySelectorAll('.contacts-grid');
+    grids.forEach(grid => {
+        if (isBar) {
+            grid.classList.add('view-bar-style');
+        } else {
+            grid.classList.remove('view-bar-style');
+        }
+        const group = grid.closest('.category-group');
+        if (group && group.classList.contains('expanded')) {
+            grid.style.display = isBar ? 'flex' : 'grid';
+        }
+    });
+    
+    const btnBox = document.getElementById('btn-view-box');
+    const btnBar = document.getElementById('btn-view-bar');
+    if (btnBox && btnBar) {
+        if (isBar) {
+            btnBar.style.color = '#818cf8';
+            btnBar.style.fontWeight = '700';
+            btnBox.style.color = '#ffffff';
+            btnBox.style.fontWeight = 'normal';
+        } else {
+            btnBox.style.color = '#818cf8';
+            btnBox.style.fontWeight = '700';
+            btnBar.style.color = '#ffffff';
+            btnBar.style.fontWeight = 'normal';
+        }
+    }
+    
+    const toolBox = document.getElementById('toolbar-btn-box');
+    const toolBar = document.getElementById('toolbar-btn-bar');
+    if (toolBox && toolBar) {
+        if (isBar) {
+            toolBar.style.background = '#6366f1';
+            toolBar.style.color = '#ffffff';
+            toolBar.style.fontWeight = '700';
+            toolBar.style.boxShadow = '0 0 10px rgba(99, 102, 241, 0.5)';
+            toolBox.style.background = 'transparent';
+            toolBox.style.color = '#94a3b8';
+            toolBox.style.fontWeight = 'normal';
+            toolBox.style.boxShadow = 'none';
+        } else {
+            toolBox.style.background = '#6366f1';
+            toolBox.style.color = '#ffffff';
+            toolBox.style.fontWeight = '700';
+            toolBox.style.boxShadow = '0 0 10px rgba(99, 102, 241, 0.5)';
+            toolBar.style.background = 'transparent';
+            toolBar.style.color = '#94a3b8';
+            toolBar.style.fontWeight = 'normal';
+            toolBar.style.boxShadow = 'none';
+        }
+    }
+}
+
+// Immediately apply saved style on DOM load
+document.addEventListener('DOMContentLoaded', function() {
+    const saved = localStorage.getItem('directory_view_style') || 'box';
+    applyDirectoryViewStyle(saved);
+});
+</script>
+
+<!-- Mobile Horizontal Category Chips Carousel (FSM Theme 1-Thumb Navigation) -->
+<div class="mobile-category-carousel">
+    <button type="button" class="mobile-cat-chip active" onclick="filterDirectoryByMobileCategory('all', this)">⚡ All</button>
+    {% for group in oem_groups %}
+        <button type="button" class="mobile-cat-chip" onclick="filterDirectoryByMobileCategory('{{ group['name'] }}', this)">
+            {% if '.' in group['icon'] %}📁{% else %}{{ group['icon'] }}{% endif %} {{ group['name'] }}
+        </button>
+    {% endfor %}
+</div>
 
 <section class="search-bar-container" style="flex-wrap: wrap; gap: 0.75rem;">
                         <div class="search-input-wrapper" style="flex: 1; min-width: 250px;">
@@ -295,6 +413,14 @@
                             <button title="➖ Collapse All" type="button" class="btn btn-secondary btn-sm" onclick="collapseAllCategories()" style="font-size: 0.75rem; padding: 0.45rem 0.85rem; border-radius: 6px; display: inline-flex; align-items: center; gap: 0.25rem;">
                                 ➖ Collapse All
                             </button>
+                            <div class="view-style-toggle-group" style="display: inline-flex; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-glass); border-radius: 6px; padding: 2px;">
+                                <button type="button" id="toolbar-btn-box" onclick="setDirectoryViewStyle('box')" class="btn btn-sm" style="padding: 0.35rem 0.65rem; font-size: 0.75rem; border: none; border-radius: 4px; display: inline-flex; align-items: center; gap: 0.3rem;" title="Square Box Grid Style">
+                                    <span>🔲</span> Box
+                                </button>
+                                <button type="button" id="toolbar-btn-bar" onclick="setDirectoryViewStyle('bar')" class="btn btn-sm" style="padding: 0.35rem 0.65rem; font-size: 0.75rem; border: none; border-radius: 4px; display: inline-flex; align-items: center; gap: 0.3rem;" title="Horizontal Bar List Style">
+                                    <span>☰</span> Bar
+                                </button>
+                            </div>
                             <div style="width: 170px;">
                                 <select id="group-filter" class="form-control" style="font-size: 0.85rem; padding: 0.45rem 1.5rem 0.45rem 0.75rem; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-glass); color: white;" onchange="filterDirectoryByGroup(this.value)">
                                     <option value="all">All Groups</option>
@@ -345,14 +471,14 @@
                                                      data-name="{{ contact['name'] }}" 
                                                      data-type="{{ contact['type'] }}"
                                                      data-group="{{ contact['group_name'] or 'Other' }}"
-                                                     data-portfolio="{{ (contact['group_name'] or '') ~ ' ' ~ (contact['fetched_products'] or '') ~ ' ' ~ (contact['fetched_services'] or '') ~ ' ' ~ (contact['custom_products'] or '') ~ ' ' ~ (contact['custom_services'] or '') }}"
+                                                     data-portfolio="{{ (contact['group_name'] or '') ~ ' ' ~ (contact['fetched_products'] or '') ~ ' ' ~ (contact['fetched_services'] or '') ~ ' ' ~ (contact['custom_products'] or '') ~ ' ' ~ (contact['custom_services'] or '') ~ ' ' ~ (contact['portfolio_summary'] or '') }}"
                                                      data-contacts-count="{{ contact['contact_persons']|contacts_count }}"
                                                      onclick="window.location.href='{{ url_for('contact_detail', contact_id=contact['id']) }}'">
                                                     
                                                     <div>
                                                         <div style="display: flex; gap: 0.75rem; align-items: center; margin-bottom: 0.75rem;">
                                                             {% if contact['company_logo'] %}
-                                                                <img src="{{ url_for('uploaded_file', filename=contact['company_logo']) }}" alt="Logo" style="width: 38px; height: 38px; border-radius: 8px; object-fit: contain; background: rgba(255,255,255,0.04); border: 1px solid var(--border-glass);">
+                                                                <img src="{{ url_for('uploaded_file', filename=contact['company_logo']) }}" loading="lazy" alt="Logo" style="width: 38px; height: 38px; border-radius: 8px; object-fit: contain; background: rgba(255,255,255,0.04); border: 1px solid var(--border-glass);">
                                                             {% else %}
                                                                 <div style="width: 38px; height: 38px; border-radius: 8px; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.25); display: flex; align-items: center; justify-content: center; font-weight: 800; color: var(--primary); font-size: 1.1rem; font-family: var(--font-heading);">
                                                                     {{ contact['company_name'][0].upper() }}
@@ -362,7 +488,7 @@
                                                                 <h3 class="contact-company" style="margin-bottom: 0.15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 1.05rem;">{{ contact['company_name'] }}</h3>
                                                                 <div style="display: flex; gap: 0.25rem; flex-wrap: wrap;">
                                                                     <span class="badge {{ 'badge-oem' if contact['type'] == 'OEM' else 'badge-distributor' }}">
-                                                                        {{ contact['type'] }}
+                                                                        [{{ contact['type'] }}]
                                                                     </span>
                                                                     {% if contact['group_name'] %}
                                                                         <span class="badge" style="background: rgba(255,255,255,0.06); color: var(--text-secondary); border: 1px solid var(--border-glass);" onclick="event.stopPropagation(); filterByCategory('{{ contact['group_name'] }}')">
@@ -403,6 +529,50 @@
                                                                     <span>🌐</span> {{ contact['website'] }}
                                                                 </div>
                                                             {% endif %}
+                                                        </div>
+
+                                                        <!-- 1-Tap Mobile Action Row -->
+                                                        <div class="mobile-touch-actions" onclick="event.stopPropagation();">
+                                                            {% if contact['phone'] %}
+                                                                <a href="https://wa.me/{{ contact['phone']|to_digits }}" target="_blank" class="mobile-touch-btn btn-wa" title="WhatsApp">
+                                                                    <span>💬</span> WhatsApp
+                                                                </a>
+                                                                <a href="tel:{{ contact['phone'] }}" class="mobile-touch-btn btn-call" title="Call">
+                                                                    <span>📞</span> Call
+                                                                </a>
+                                                            {% else %}
+                                                                <button type="button" class="mobile-touch-btn" style="opacity: 0.35;" disabled>
+                                                                    <span>💬</span> WhatsApp
+                                                                </button>
+                                                                <button type="button" class="mobile-touch-btn" style="opacity: 0.35;" disabled>
+                                                                    <span>📞</span> Call
+                                                                </button>
+                                                            {% endif %}
+                                                            {% if contact['email'] %}
+                                                                <a href="mailto:{{ contact['email'] }}" class="mobile-touch-btn btn-mail" title="Email">
+                                                                    <span>✉️</span> Email
+                                                                </a>
+                                                            {% else %}
+                                                                <button type="button" class="mobile-touch-btn" style="opacity: 0.35;" disabled>
+                                                                    <span>✉️</span> Email
+                                                                </button>
+                                                            {% endif %}
+                                                            <button type="button" class="mobile-touch-btn btn-details" onclick="event.stopPropagation(); toggleMobileCardDetails('details-{{ contact.id }}')" title="Quick View">
+                                                                <span>ℹ️</span> Details
+                                                            </button>
+                                                        </div>
+                                                        <div id="details-{{ contact.id }}" class="mobile-card-expandable-details" onclick="event.stopPropagation();" style="display: none; margin-top: 0.65rem; padding: 0.75rem; background: rgba(0,0,0,0.3); border-radius: 8px; border: 1px solid rgba(255,255,255,0.06); font-size: 0.78rem;">
+                                                            <div style="font-weight: 700; color: var(--color-lime); margin-bottom: 0.35rem; display: flex; justify-content: space-between;">
+                                                                <span>Portfolio Offerings</span>
+                                                                <a href="{{ url_for('contact_detail', contact_id=contact['id']) }}" style="color: var(--primary); text-decoration: underline; font-weight: 600;">Open Profile &rarr;</a>
+                                                            </div>
+                                                            <div style="color: var(--text-secondary); line-height: 1.45;">
+                                                                {% if contact['products_services'] %}
+                                                                    {{ contact['products_services'] }}
+                                                                {% else %}
+                                                                    Standard enterprise offerings for {{ contact['group_name'] }}.
+                                                                {% endif %}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                     <div class="contact-card-footer">
@@ -820,13 +990,13 @@
     })();
     </script>
 
-    <!-- Mobile App Bottom Navigation -->
-    <div class="mobile-bottom-nav">
-        <a href="{{ url_for('dashboard') }}" class="mobile-nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
+    <!-- Mobile App Bottom Navigation (FSM Theme Dock) -->
+    <nav class="mobile-bottom-nav mobile-bottom-dock" aria-label="Mobile Bottom Navigation">
+        <a href="{{ url_for('dashboard') }}" class="mobile-nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}" title="Dashboard">
             <span class="icon">📊</span>
             <span>Home</span>
         </a>
-        <a href="{{ url_for('oem_news_page') }}" class="mobile-nav-item {% if request.endpoint == 'oem_news_page' %}active{% endif %}">
+        <a href="{{ url_for('oem_news_page') }}" class="mobile-nav-item {% if request.endpoint == 'oem_news_page' %}active{% endif %}" title="OEM News">
             <span class="icon">📰</span>
             <span>News</span>
         </a>
@@ -838,15 +1008,15 @@
             <span>Scan</span>
         </a>
         {% endif %}
-        <a href="{{ url_for('work_tools') }}" class="mobile-nav-item {% if request.endpoint == 'work_tools' %}active{% endif %}">
-            <span class="icon">🛠️</span>
-            <span>Tools</span>
+        <a href="{{ url_for('timesheets.employee_timesheets') }}" class="mobile-nav-item {% if request.endpoint and 'timesheet' in request.endpoint %}active{% endif %}" title="Time Sheet">
+            <span class="icon">⏱️</span>
+            <span>Timesheet</span>
         </a>
-        <a href="javascript:void(0)" onclick="toggleMobileSidebar()" class="mobile-nav-item">
+        <button type="button" onclick="openMobileDrawer()" class="mobile-nav-item" title="Open Navigation Drawer">
             <span class="icon">☰</span>
             <span>Menu</span>
-        </a>
-    </div>
+        </button>
+    </nav>
 
 
 <!-- Global Notification System -->

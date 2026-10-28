@@ -1,21 +1,24 @@
-# OEM Partner Directory & Enterprise Portal (v6.4)
+# OEM Partner Directory & Enterprise Portal (v6.6)
 *Also known as the NextNode Yellow Pages & Enterprise Workspace*
 
-The OEM Partner Directory is a comprehensive, self-hosted enterprise portal unifying contact management, RFP/Tender tracking, automated news aggregation, team chat, timesheet & HRMS productivity, offline engineering calculations, and hardware system building into a single, beautifully responsive platform.
+The OEM Partner Directory is a comprehensive, self-hosted enterprise portal unifying contact management, a searchable **Bank of OEMs & Solutions Catalog**, RFP/Tender tracking, automated news aggregation, team chat, timesheet & HRMS productivity, offline engineering calculations, and hardware system building into a single, beautifully responsive platform.
 
 ## 🚀 Key Features
 
+*   **🏛️ Bank of OEMs Universal Search & Solutions Catalog (v6.6):** Universal directory search matching across company names, products, services, category domains, and catalog summaries. Features pre-sales enterprise synonym expansion (e.g. `cctv`, `storage`, `firewall`, `edr`, `switch`, `ups`, `server`, `backup`), rich OEM Bank cards with `🎯 Matched Products:` and `🎯 Matched Services:` chips, 1-click topic search pills, and partner type filters (`[All Types]`, `[OEM]`, `[Distributor]`).
+*   **📋 Solutions Portfolio 10–15 Line Catalog Overview:** Dense, pre-sales actionable catalog overviews detailing hardware models, platform series, appliance form factors, software licensing packages, hypervisor/cloud interoperability, engineering services, multi-tier SLAs (24/7/365, 4-hour on-site replacement), and RFP commercial compliance. Features inline live editing with instant AJAX persistence and audit logging.
+*   **🔄 Automated Master Offerings Refresh:** One-click master sync in Admin Panel that concurrently crawls partner websites and open internet sources to refresh products, services, and re-generate tailored catalog summaries for all existing partners.
 *   **📸 1-Click Instant Camera Visiting Card Scanner:** Direct smartphone rear-camera shutter activation (`capture="environment"`), client-side canvas compression (<400KB), Pillow EXIF auto-rotation correction, multi-number regex extraction, and unified client/server OCR parsing.
+*   **📱 Field Service Management (FSM) Mobile Theme & Slide Drawer:** Modern field teal & lime design tokens, sticky glass top app bar, native slide-out sidebar drawer with backdrop blur, and 5-tab mobile bottom dock (`.mobile-bottom-dock`) with elevated center 📸 scan bubble.
+*   **👆 Android Biometric & WebAuthn Fingerprint Login:** Native biometric authentication for Android smartphones and desktop browsers with hardware credential registration and fallback heuristics.
 *   **📇 Smart Directory & Category Management:** Manage OEMs and Distributors with dynamic categorization, automatic company logo fetching, bracketed partner type filtering (`[All Types]`, `[OEM]`, `[Distributor]`), and instant multi-contact sharing (`Share All` via WhatsApp / native share sheets).
 *   **📊 Symmetrical Responsive Stats Grid:** Modern, pure CSS Grid dashboard tiles with zero layout shifts or duplicate text, featuring 4 desktop columns and clean 2x2 tablet/mobile grids with glowing accent borders.
 *   **📑 RFP & Tender Tracking with Security:** Track project opportunities, BOQ matrix integrations, deadlines, and customer assignments. Protect the RFP workspace via **Session-Lock passwords** and **WAN IP / Country Whitelisting**.
-*   **⏱️ Unified Timesheets & HRMS Attendance:** Employee daily task logging, productivity scoring, CSV/Excel import & export, plus GPS geo-fenced Punch In/Out (100m radius check) and Leave Management.
+*   **⏱️ Unified Timesheets & HRMS Attendance:** Employee daily task logging, click-style quick time chips (`09:00`, `10:00`, `+15m`, `+1h`, `Now`), productivity scoring, CSV/Excel import & export, plus GPS geo-fenced Punch In/Out and Leave Management.
 *   **💬 Team Chat, Video Calls & Screen Sharing:** Secure 1-on-1 private messaging and Global Team Room with file sharing, emoji support, Jitsi WebRTC video calling, live screen sharing, and CSV chat log export.
 *   **🔔 Ringtone & Mobile Vibration Alerts:** Browser-level audio synthesis ringtones and mobile vibration alerts for incoming calls and chat messages with interactive answer modals.
 *   **⏰ Task Reminders & Follow-ups:** Unified dedicated dashboard to track assigned follow-ups, interaction logs, and upcoming RFP deadlines.
 *   **🌐 Automated OEM News & Portfolio Scraping:** Live feed fetching the latest updates and offerings directly from partner domains using background scrapers, complete with Search and Sort functionality.
-*   **🔍 Universal Global Search:** Instantly find Contacts, RFPs, and News articles directly from the unified sidebar search.
-*   **📱 Lovable-Inspired Mobile & Desktop UI:** Native app feel with safe-area notch padding (`viewport-fit=cover`), touch-friendly targets, thumb-accessible mobile bottom navigation bar with floating 📸 Scan bubble, and desktop glassmorphism styling.
 *   **🛠️ Enterprise Work Tools:** Built-in Unit Converters, Currency Calculators, CCTV Bandwidth Calculators, Data Center Power Load tools, Excel Password Removal Utility, System Hardware Builder, and PDF Extractors.
 *   **🔄 Resilient Two-Phase Auto-Updater:** Upgrade the entire portal codebase via a simple `.zip` upload directly from the Admin Panel with Passenger WSGI crash protection and automated database rollbacks.
 

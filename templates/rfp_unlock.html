@@ -20,25 +20,6 @@
     {% endif %}
 </head>
 
-    
-    <!-- Mobile Hamburger Toggle -->
-    <div class="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
-    <button id="global-mobile-toggle" class="mobile-toggle-btn" onclick="toggleMobileSidebar()" style="display: none;">☰</button>
-    
-    <script>
-    function toggleMobileSidebar() {
-        const sidebar = document.querySelector('.sidebar');
-        const overlay = document.querySelector('.sidebar-overlay');
-        if (sidebar.classList.contains('menu-open')) {
-            sidebar.classList.remove('menu-open');
-            if(overlay) overlay.classList.remove('active');
-        } else {
-            sidebar.classList.add('menu-open');
-            if(overlay) overlay.classList.add('active');
-        }
-    }
-    </script>
-
 <body class="{{ session.get('theme', 'theme-slate-dark') }}">
     <div class="auth-container">
         <div class="auth-card" style="max-width: 420px; padding: 2.5rem;">
@@ -89,26 +70,6 @@
                 </a>
             </form>
         </div>
-    </div>
-
-    <!-- Mobile App Bottom Navigation -->
-    <div class="mobile-bottom-nav">
-        <a href="{{ url_for('dashboard') }}" class="mobile-nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
-            <span class="icon">📊</span>
-            <span>Home</span>
-        </a>
-        <a href="{{ url_for('oem_news_page') }}" class="mobile-nav-item {% if request.endpoint == 'oem_news_page' %}active{% endif %}">
-            <span class="icon">📰</span>
-            <span>News</span>
-        </a>
-        <a href="{{ url_for('work_tools') }}" class="mobile-nav-item {% if request.endpoint == 'work_tools' %}active{% endif %}">
-            <span class="icon">🛠️</span>
-            <span>Tools</span>
-        </a>
-        <a href="javascript:void(0)" onclick="toggleMobileSidebar()" class="mobile-nav-item">
-            <span class="icon">☰</span>
-            <span>Menu</span>
-        </a>
     </div>
 
 

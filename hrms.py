@@ -24,6 +24,15 @@ def get_office_location(conn):
     lng = float(lng_row['value']) if lng_row else -73.985130
     return lat, lng
 
+def get_office_radius(conn):
+    cursor = conn.cursor()
+    cursor.execute("SELECT value FROM portal_settings WHERE key = 'office_radius'")
+    row = cursor.fetchone()
+    try:
+        return int(row['value']) if row and row['value'] else 500
+    except:
+        return 500
+
 def haversine(lat1, lon1, lat2, lon2):
     R = 6371000  # radius of Earth in meters
     phi_1 = math.radians(lat1)
@@ -80,9 +89,10 @@ def attendance_dashboard():
             if lat is None or lng is None:
                 flash("Location not provided. Please enable GPS.", "danger")
             else:
+                max_dist = get_office_radius(conn)
                 dist = haversine(office_lat, office_lng, lat, lng)
-                if dist > MAX_DISTANCE_METERS:
-                    flash(f"You are {int(dist)}m away. Must be within {MAX_DISTANCE_METERS}m to punch.", "danger")
+                if dist > max_dist:
+                    flash(f"You are {int(dist)}m away. Must be within {max_dist}m to punch.", "danger")
                 else:
                     cursor = conn.cursor()
                     cursor.execute("SELECT * FROM attendance WHERE user_id = ? AND date = ?", (user_id, today_str))
@@ -126,6 +136,7 @@ def attendance_dashboard():
     cursor.execute("SELECT * FROM leaves WHERE user_id = ? ORDER BY created_at DESC", (user_id,))
     my_leaves = cursor.fetchall()
     
+    office_radius = get_office_radius(conn)
     conn.close()
     
     return render_template('attendance.html', 
@@ -134,7 +145,7 @@ def attendance_dashboard():
                            my_leaves=my_leaves,
                            office_lat=office_lat,
                            office_lng=office_lng,
-                           max_dist=MAX_DISTANCE_METERS)
+                           max_dist=office_radius)
 
 
 @hrms.route('/admin/attendance', methods=['GET', 'POST'])
@@ -156,6 +167,7 @@ def admin_attendance():
         elif action == 'update_location':
             lat = request.form.get('office_lat')
             lng = request.form.get('office_lng')
+            radius = request.form.get('office_radius', '500')
             if lat and lng:
                 cursor = conn.cursor()
                 cursor.execute("SELECT id FROM portal_settings WHERE key = 'office_lat'")
@@ -169,8 +181,14 @@ def admin_attendance():
                     cursor.execute("UPDATE portal_settings SET value = ? WHERE key = 'office_lng'", (lng,))
                 else:
                     cursor.execute("INSERT INTO portal_settings (key, value) VALUES ('office_lng', ?)", (lng,))
+
+                cursor.execute("SELECT id FROM portal_settings WHERE key = 'office_radius'")
+                if cursor.fetchone():
+                    cursor.execute("UPDATE portal_settings SET value = ? WHERE key = 'office_radius'", (radius,))
+                else:
+                    cursor.execute("INSERT INTO portal_settings (key, value) VALUES ('office_radius', ?)", (radius,))
                 conn.commit()
-                flash("Office location updated successfully.", "success")
+                flash("Office location & geofence radius updated successfully.", "success")
                 
         elif action == 'download_csv':
             cursor = conn.cursor()
@@ -198,6 +216,7 @@ def admin_attendance():
     all_attendance = cursor.fetchall()
     
     office_lat, office_lng = get_office_location(conn)
+    office_radius = get_office_radius(conn)
     
     conn.close()
     
@@ -205,4 +224,5 @@ def admin_attendance():
                            all_leaves=all_leaves, 
                            all_attendance=all_attendance,
                            office_lat=office_lat,
-                           office_lng=office_lng)
+                           office_lng=office_lng,
+                           office_radius=office_radius)

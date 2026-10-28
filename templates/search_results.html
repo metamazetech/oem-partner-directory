@@ -2,21 +2,331 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Search Results - {{ portal_settings['portal_name'] }}</title>
+    <title>Bank of OEMs - Universal Search - {{ portal_settings['portal_name'] }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ portal_settings.get('portal_version', '4.0') }}">
     <script>
         window.USER_THEME = "{{ session.get('theme', 'theme-slate-dark') }}";
     </script>
+    <style>
+        /* Bank of OEMs Directory Universal Search Styles */
+        .bank-search-bar {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid var(--border-glass);
+            border-radius: 12px;
+            padding: 0.6rem 0.85rem;
+            margin-bottom: 0.85rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+        }
+        .bank-search-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: white;
+            font-size: 1rem;
+            outline: none;
+        }
+        .bank-search-input::placeholder {
+            color: var(--text-muted);
+        }
+        .quick-tags-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+        .quick-search-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.65rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-glass);
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .quick-search-pill:hover, .quick-search-pill.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            transform: translateY(-1px);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+        .bank-filters-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            margin-bottom: 1.25rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--border-glass);
+        }
+        .filter-btn-group {
+            display: inline-flex;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border-glass);
+            border-radius: 8px;
+            padding: 3px;
+            gap: 3px;
+        }
+        .filter-btn-pill {
+            padding: 0.35rem 0.75rem;
+            font-size: 0.8rem;
+            border-radius: 6px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .filter-btn-pill.active {
+            background: var(--primary);
+            color: white;
+            font-weight: 600;
+        }
+        .oem-bank-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+        .oem-bank-card {
+            border-top: 3px solid var(--primary);
+            border-radius: 14px;
+            padding: 1.35rem;
+            background: rgba(15, 23, 42, 0.65);
+            backdrop-filter: blur(12px);
+            border-left: 1px solid var(--border-glass);
+            border-right: 1px solid var(--border-glass);
+            border-bottom: 1px solid var(--border-glass);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .oem-bank-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+        }
+        .oem-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .oem-identity {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .oem-card-logo {
+            width: 52px;
+            height: 52px;
+            object-fit: contain;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-glass);
+            border-radius: 10px;
+            padding: 4px;
+        }
+        .oem-card-avatar {
+            width: 52px;
+            height: 52px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 1.15rem;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            letter-spacing: 0.05em;
+            border: 1px solid var(--border-glass);
+        }
+        .oem-name-row {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        .oem-name-link {
+            font-size: 1.35rem;
+            font-weight: 800;
+            color: white;
+            text-decoration: none;
+            letter-spacing: -0.01em;
+        }
+        .oem-name-link:hover {
+            color: var(--primary);
+            text-decoration: underline;
+        }
+        .matched-strip {
+            display: flex;
+            flex-direction: column;
+            gap: 0.45rem;
+            margin-bottom: 1rem;
+            background: rgba(16, 185, 129, 0.08);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: 8px;
+            padding: 0.65rem 0.9rem;
+        }
+        .match-item-row {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            font-size: 0.82rem;
+        }
+        .match-label {
+            font-weight: 700;
+            color: #6ee7b7;
+            margin-right: 0.25rem;
+        }
+        .match-chip {
+            padding: 0.18rem 0.55rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(16, 185, 129, 0.22);
+            color: #a7f3d0;
+            border: 1px solid rgba(16, 185, 129, 0.45);
+        }
+        .match-chip.service {
+            background: rgba(59, 130, 246, 0.22);
+            color: #93c5fd;
+            border-color: rgba(59, 130, 246, 0.45);
+        }
+        .oem-summary-callout {
+            background: rgba(15, 23, 42, 0.5);
+            border-left: 3px solid var(--secondary);
+            border-radius: 0 8px 8px 0;
+            padding: 0.85rem 1.1rem;
+            margin-bottom: 1rem;
+        }
+        .oem-summary-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.45rem;
+        }
+        .oem-summary-title {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+        }
+        .oem-summary-text {
+            font-size: 0.88rem;
+            line-height: 1.65;
+            color: var(--text-primary);
+        }
+        .oem-summary-text.collapsed {
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .toggle-summary-btn {
+            background: none;
+            border: none;
+            color: var(--primary);
+            cursor: pointer;
+            font-size: 0.78rem;
+            font-weight: 600;
+            padding: 0.35rem 0 0;
+            margin-top: 0.25rem;
+            display: inline-block;
+        }
+        .toggle-summary-btn:hover {
+            text-decoration: underline;
+        }
+        .catalog-tags-row {
+            margin-top: 0.75rem;
+        }
+        .catalog-tags-label {
+            font-size: 0.73rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 0.35rem;
+            display: block;
+        }
+        .tags-wrap {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+        }
+        .catalog-tag {
+            padding: 0.2rem 0.55rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-glass);
+            color: var(--text-secondary);
+        }
+        .catalog-tag.highlighted {
+            background: rgba(16, 185, 129, 0.18);
+            border-color: rgba(16, 185, 129, 0.45);
+            color: #a7f3d0;
+            font-weight: 600;
+        }
+        .catalog-tag.service-tag {
+            background: rgba(59, 130, 246, 0.08);
+            border-color: rgba(59, 130, 246, 0.25);
+            color: #bfdbfe;
+        }
+        .catalog-tag.service-tag.highlighted {
+            background: rgba(59, 130, 246, 0.22);
+            border-color: rgba(59, 130, 246, 0.5);
+            color: #93c5fd;
+            font-weight: 600;
+        }
+        .card-actions-row {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            flex-wrap: wrap;
+        }
+    </style>
 </head>
 <body class="{{ session.get('theme', 'theme-slate-dark') }}">
+    
+    <!-- FSM Theme Drawer Overlay -->
+    <div id="drawer-overlay" class="sidebar-overlay" onclick="closeMobileDrawer()"></div>
+
+    <!-- FSM Theme Mobile Top App Bar -->
+    <header class="mobile-top-bar">
+        <div class="mobile-top-left">
+            <button id="mobile-menu-btn" class="mobile-menu-btn" onclick="openMobileDrawer()" aria-label="Open Navigation">☰</button>
+            <a href="{{ url_for('dashboard') }}" class="mobile-top-brand">
+                {% if portal_settings['portal_logo'] %}
+                    <img src="{{ url_for('uploaded_file', filename=portal_settings['portal_logo']) }}" class="mobile-top-logo" alt="Logo">
+                {% else %}
+                    <span style="font-size: 1.15rem;">🏛️</span>
+                {% endif %}
+                <span class="mobile-top-title">Bank of OEMs</span>
+            </a>
+        </div>
+        <div class="mobile-top-actions">
+            <span class="mobile-top-status"><i class="pulse-dot"></i> Live</span>
+            <a href="{{ url_for('dashboard') }}" class="mobile-top-btn" title="Back to Dashboard">📊</a>
+        </div>
+    </header>
+
     <div class="app-container">
-        <!-- Sidebar Navigation (Simplified) -->
-        <aside class="sidebar">
+        <!-- Sidebar Navigation -->
+        <aside id="sidebar" class="sidebar">
             <div class="sidebar-header">
-                <div class="logo-container" style="display: flex; align-items: center; justify-content: center; max-width: 100%; padding: 6px 0; text-decoration: none; gap: 0.4rem;">
-                    <a href="{{ url_for('dashboard') }}" style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.25rem; color: var(--text-primary); letter-spacing: -0.03em; text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
+                <div class="logo-container" style="display: flex; align-items: center; justify-content: flex-start; max-width: 100%; padding: 6px 0; text-decoration: none; gap: 0.4rem;">
+                    <a href="{{ url_for('dashboard') }}" style="font-family: var(--font-heading, sans-serif); font-weight: 800; font-size: 1.15rem; color: var(--text-primary); letter-spacing: -0.02em; text-decoration: none; display: flex; align-items: center; gap: 0.4rem;">
                         {% if portal_settings['portal_logo'] %}
-                            <img src="{{ url_for('uploaded_file', filename=portal_settings['portal_logo']) }}" style="max-height: 40px; max-width: 100%; object-fit: contain;" alt="Logo">
+                            <img src="{{ url_for('uploaded_file', filename=portal_settings['portal_logo']) }}" style="max-height: 36px; max-width: 100%; object-fit: contain;" alt="Logo">
                         {% else %}
                             <span>📂</span> {{ portal_settings['portal_name'] }}
                         {% endif %}
@@ -24,13 +334,20 @@
                     <span style="font-size: 0.6rem; color: var(--text-muted); background: rgba(255,255,255,0.05); border: 1px solid var(--border-glass); padding: 0.1rem 0.3rem; border-radius: 4px; font-weight: 700; vertical-align: middle;">{{ portal_settings.get('portal_version', 'v4.0') }}</span>
                 </div>
                 <button id="sidebar-collapse-btn" onclick="this.closest('.sidebar').style.display='none';var b=document.getElementById('show-sidebar-btn');if(b)b.style.display='flex';localStorage.setItem('sidebar-collapsed','true');" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:1.1rem;padding:4px 8px;border-radius:6px;transition:all 0.2s;" title="Hide Sidebar">&laquo;</button>
-                
+                <button id="sidebar-mobile-close-btn" class="sidebar-mobile-close" onclick="closeMobileDrawer()" title="Close Navigation">✕</button>
+            </div>
+            
+            <!-- FSM Theme Live Status Pill -->
+            <div class="sidebar-live" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 1rem; border-bottom: 1px solid rgba(255,255,255,0.08); font-family: var(--font-mono, monospace); font-size: 0.72rem; color: #b7cec0;">
+                <span class="pulse-dot"></span>
+                <span style="letter-spacing: 0.08em; text-transform: uppercase;">Bank of OEMs</span>
+                <span id="live-sidebar-clock" style="margin-left: auto; color: var(--color-lime); font-size: 0.72rem;"></span>
             </div>
             
             <div class="nav-container">
                 <form action="javascript:void(0);" onsubmit="window.location.href = getAppUrl('/search?q=' + encodeURIComponent(this.q.value));" method="GET" style="padding: 0.5rem 1rem;">
                     <div style="display: flex; gap: 0.5rem; position: relative;">
-                        <input type="text" name="q" placeholder="Universal Search..." style="width: 100%; padding: 0.4rem 0.5rem 0.4rem 2rem; border-radius: 6px; border: 1px solid var(--border-glass); background: rgba(15,23,42,0.6); color: white; font-size: 0.85rem;" required>
+                        <input type="text" name="q" value="{{ query }}" placeholder="Universal Search..." style="width: 100%; padding: 0.4rem 0.5rem 0.4rem 2rem; border-radius: 6px; border: 1px solid var(--border-glass); background: rgba(15,23,42,0.6); color: white; font-size: 0.85rem;" required>
                         <span style="position: absolute; left: 0.5rem; top: 50%; transform: translateY(-50%); font-size: 0.9rem; pointer-events: none;">🔍</span>
                     </div>
                 </form>
@@ -73,8 +390,6 @@
                                 <span>🛠️</span> Work Tools
                             </a>
                         </li>
-                        
-                        
                         {% endif %}
                         
                         {% if role %}
@@ -83,7 +398,6 @@
                                 <span>⏰</span> Reminders
                             </a>
                         </li>
-                        
                         
                         <li class="nav-item {% if request.endpoint == 'timesheets.employee_timesheets' %}active{% endif %}">
                             <a title="Time Sheet" href="{{ url_for('timesheets.employee_timesheets') }}">
@@ -103,207 +417,415 @@
                         </li>
                         {% endif %}
                     </ul>
-                    
                 </nav>
             </div>
             
             <!-- User profile display at the bottom of the sidebar -->
             <div class="sidebar-user-profile" style="margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border-glass); display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.5rem;">
                 <div class="user-avatar" style="position: relative; width: 34px; height: 34px; border-radius: 50%; font-size: 0.85rem; font-weight: 700; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; flex-shrink: 0; margin: 0;">
-                    {{ session['username'][0].upper() }}
+                    {{ session.get('username', 'U')[0].upper() }}
                     <a href="javascript:void(0)" onclick="openModal('preferences-modal')" style="position: absolute; bottom: -3px; right: -3px; background: var(--primary); font-size: 0.55rem; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center; border-radius: 50%; text-decoration: none; border: 1px solid var(--border-glass);" title="Personalize Portal Layout & Theme">⚙️</a>
                 </div>
                 <div style="display: flex; flex-direction: column; min-width: 0;">
-                    <span style="font-size: 0.8rem; font-weight: 700; color: white; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left;">{{ session['username'] }}</span>
-                    <span style="font-size: 0.65rem; color: var(--text-secondary); line-height: 1.2; text-transform: capitalize; text-align: left;">{{ session['role'] }}</span>
+                    <span style="font-size: 0.8rem; font-weight: 700; color: white; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left;">{{ session.get('username', 'User') }}</span>
+                    <span style="font-size: 0.65rem; color: var(--text-secondary); line-height: 1.2; text-transform: capitalize; text-align: left;">{{ session.get('role', 'Member') }}</span>
                 </div>
             </div>
         </aside>
 
         <!-- Main Content Area -->
         <main class="main-content">
-            <div class="header-bar">
+            <!-- Header Bar -->
+            <div class="header-bar" style="margin-bottom: 1rem;">
                 <div>
-                    <h1 class="page-title">Search Results for "{{ query }}"</h1>
+                    <h1 class="page-title" style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span>🏛️</span> Bank of OEMs & Solutions Catalog
+                    </h1>
+                    <p style="margin: 0.25rem 0 0; color: var(--text-secondary); font-size: 0.9rem;">
+                        Universal directory search across enterprise products, appliances, software licensing, and engineering SLAs.
+                    </p>
+                </div>
+                <div>
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 0.4rem;">
+                        <span>📊</span> Back to Dashboard
+                    </a>
                 </div>
             </div>
 
             <div class="content-wrapper">
-                {% for category, items in results.items() %}
-                    {% if items %}
-                        <div class="glass-card" style="margin-bottom: 2rem;">
-                            <div class="card-header">
-                                <h3 class="card-title">{{ category }} ({{ items|length }})</h3>
+                <!-- Dedicated In-Page Universal Search Bar -->
+                <form action="javascript:void(0);" onsubmit="executeBankSearch(this.q.value);" class="bank-search-bar">
+                    <span style="font-size: 1.15rem; color: var(--text-muted);">🔍</span>
+                    <input type="text" name="q" id="bank-query-input" value="{{ query }}" class="bank-search-input" placeholder="Search for specific product, appliance, service, or OEM (e.g. Firewall, Storage, Switch, CCTV, EDR, Backup, SLA)..." required>
+                    <button type="submit" class="btn btn-primary" style="padding: 0.45rem 1.15rem; font-size: 0.85rem; border-radius: 8px;">
+                        Search Bank
+                    </button>
+                </form>
+
+                <!-- Quick Category Search Pills -->
+                <div class="quick-tags-container">
+                    <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-right: 0.25rem;">Quick Topics:</span>
+                    <a href="javascript:void(0)" onclick="executeBankSearch('Firewall')" class="quick-search-pill {% if query|lower == 'firewall' %}active{% endif %}">🔥 Firewall</a>
+                    <a href="javascript:void(0)" onclick="executeBankSearch('Storage')" class="quick-search-pill {% if query|lower == 'storage' %}active{% endif %}">💾 Storage</a>
+                    <a href="javascript:void(0)" onclick="executeBankSearch('Switch')" class="quick-search-pill {% if query|lower == 'switch' %}active{% endif %}">🔀 Switch</a>
+                    <a href="javascript:void(0)" onclick="executeBankSearch('CCTV')" class="quick-search-pill {% if query|lower == 'cctv' %}active{% endif %}">📹 CCTV & Camera</a>
+                    <a href="javascript:void(0)" onclick="executeBankSearch('EDR')" class="quick-search-pill {% if query|lower == 'edr' %}active{% endif %}">🛡️ EDR & Antivirus</a>
+                    <a href="javascript:void(0)" onclick="executeBankSearch('Backup')" class="quick-search-pill {% if query|lower == 'backup' %}active{% endif %}">💿 Backup & DR</a>
+                    <a href="javascript:void(0)" onclick="executeBankSearch('UPS')" class="quick-search-pill {% if query|lower == 'ups' %}active{% endif %}">⚡ UPS & Power</a>
+                    <a href="javascript:void(0)" onclick="executeBankSearch('Compute')" class="quick-search-pill {% if query|lower == 'compute' %}active{% endif %}">🖥️ Compute & Server</a>
+                    <a href="javascript:void(0)" onclick="executeBankSearch('SLA')" class="quick-search-pill {% if query|lower == 'sla' %}active{% endif %}">🛠️ 24/7 SLA Support</a>
+                    <a href="javascript:void(0)" onclick="executeBankSearch('Cloud')" class="quick-search-pill {% if query|lower == 'cloud' %}active{% endif %}">☁️ Cloud & Virtualization</a>
+                </div>
+
+                <!-- Search Results Summary & Type Filter Bar -->
+                <div class="bank-filters-bar">
+                    <div>
+                        <span style="font-size: 0.95rem; font-weight: 700; color: white;">
+                            Results for "<span style="color: var(--primary);">{{ query }}</span>"
+                        </span>
+                        <span style="margin-left: 0.5rem; font-size: 0.8rem; background: rgba(59, 130, 246, 0.15); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.3); padding: 0.15rem 0.5rem; border-radius: 9999px;">
+                            {{ total_oems_count }} partner(s) found
+                        </span>
+                        {% if expanded_terms and expanded_terms|length > 1 %}
+                            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.3rem;">
+                                💡 Also matched pre-sales concepts: <span style="color: #6ee7b7;">{{ expanded_terms[1:]|join(', ') }}</span>
                             </div>
-                            <div class="card-body">
-                                <ul style="list-style: none; padding: 0;">
-                                {% for item in items %}
-                                    <li style="padding: 1rem; border-bottom: 1px solid var(--border-glass);">
-                                        {% if category == 'Contacts' %}
-                                            <a href="{{ url_for('contact_detail', contact_id=item.id) }}" style="color: var(--primary); font-weight: bold; font-size: 1.1rem; text-decoration: none;">{{ item.title }}</a>
-                                            <p style="margin: 0.5rem 0 0; color: var(--text-secondary);">Type: {{ item.subtitle }} | Group: {{ item.extra }}</p>
-                                        {% elif category == 'News' %}
-                                            <a href="{{ item.extra }}" target="_blank" style="color: var(--primary); font-weight: bold; font-size: 1.1rem; text-decoration: none;">{{ item.title }}</a>
-                                            <p style="margin: 0.5rem 0 0; color: var(--text-secondary);">OEM: {{ item.subtitle }}</p>
-                                        {% elif category == 'RFPs' %}
-                                            <a href="{{ url_for('rfp_detail', rfp_id=item.id) }}" style="color: var(--primary); font-weight: bold; font-size: 1.1rem; text-decoration: none;">{{ item.title }}</a>
-                                            <p style="margin: 0.5rem 0 0; color: var(--text-secondary);">Customer: {{ item.subtitle }} | From: {{ item.extra }}</p>
+                        {% endif %}
+                    </div>
+                    <div class="filter-btn-group">
+                        <button type="button" id="filter-btn-all" class="filter-btn-pill active" onclick="filterOemType('all')">
+                            All ({{ total_oems_count }})
+                        </button>
+                        <button type="button" id="filter-btn-oem" class="filter-btn-pill" onclick="filterOemType('OEM')">
+                            OEMs Only
+                        </button>
+                        <button type="button" id="filter-btn-dist" class="filter-btn-pill" onclick="filterOemType('Distributor')">
+                            Distributors
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 1. BANK OF OEMS SECTION -->
+                {% set oems = results.get('OEMs & Partners', []) %}
+                {% if oems %}
+                    <div class="oem-bank-grid" id="oem-bank-list">
+                        {% for item in oems %}
+                            <div class="oem-bank-card glass-card" data-type="{{ item.type }}" data-company="{{ item.company_name|lower }}">
+                                <!-- Header Row -->
+                                <div class="oem-card-header">
+                                    <div class="oem-identity">
+                                        {% if item.company_logo %}
+                                            <img src="{{ url_for('uploaded_file', filename=item.company_logo) }}" class="oem-card-logo" alt="{{ item.company_name }} Logo">
+                                        {% else %}
+                                            <div class="oem-card-avatar">
+                                                {{ item.company_name[:2].upper() }}
+                                            </div>
+                                        {% endif %}
+                                        <div>
+                                            <div class="oem-name-row">
+                                                <a href="{{ url_for('contact_detail', contact_id=item.id) }}" class="oem-name-link" title="Open Partner Profile">
+                                                    {{ item.company_name }}
+                                                </a>
+                                                <span class="badge {% if item.type == 'OEM' %}badge-oem{% else %}badge-distributor{% endif %}">
+                                                    {{ item.type }}
+                                                </span>
+                                                <span class="badge" style="background: rgba(147, 51, 234, 0.15); color: #c084fc; border: 1px solid rgba(147, 51, 234, 0.3);">
+                                                    📁 {{ item.group_name or 'General IT' }}
+                                                </span>
+                                            </div>
+                                            {% if item.website %}
+                                                <div style="margin-top: 0.25rem;">
+                                                    <a href="{{ item.website }}" target="_blank" rel="noopener noreferrer" style="color: var(--text-muted); font-size: 0.78rem; text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem;">
+                                                        <span>🌐</span> {{ item.website | replace('https://', '') | replace('http://', '') | replace('www.', '') | truncate(35) }} ↗
+                                                    </a>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <!-- Action Buttons -->
+                                    <div class="card-actions-row">
+                                        <a href="{{ url_for('contact_detail', contact_id=item.id) }}#portfolio-summary-card" class="btn btn-sm btn-primary" style="display: inline-flex; align-items: center; gap: 0.35rem;" title="View & Edit Solutions Portfolio">
+                                            <span>🌐</span> Solutions Portfolio
+                                        </a>
+                                        <a href="{{ url_for('contact_detail', contact_id=item.id) }}" class="btn btn-sm btn-secondary" style="display: inline-flex; align-items: center; gap: 0.35rem;" title="View Contacts & Organization Details">
+                                            <span>👥</span> Profile
+                                        </a>
+                                    </div>
+                                </div>
+
+                                <!-- Matched Items Highlight Strip (If Any Specific Items Matched Query) -->
+                                {% if item.matched_products or item.matched_services %}
+                                    <div class="matched-strip">
+                                        {% if item.matched_products %}
+                                            <div class="match-item-row">
+                                                <span class="match-label">🎯 Matched Products:</span>
+                                                {% for mp in item.matched_products %}
+                                                    <span class="match-chip">{{ mp }}</span>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                        {% if item.matched_services %}
+                                            <div class="match-item-row">
+                                                <span class="match-label" style="color: #93c5fd;">🎯 Matched Services:</span>
+                                                {% for ms in item.matched_services %}
+                                                    <span class="match-chip service">{{ ms }}</span>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
+
+                                <!-- Solutions & Technology Portfolio Overview (The 10-15 line catalog summary) -->
+                                <div class="oem-summary-callout">
+                                    <div class="oem-summary-top">
+                                        <span class="oem-summary-title">
+                                            📋 Products & Services Catalog Overview
+                                        </span>
+                                        <a href="{{ url_for('contact_detail', contact_id=item.id) }}#portfolio-summary-card" style="font-size: 0.75rem; color: var(--primary); text-decoration: none; font-weight: 600;" title="Edit this paragraph in Solutions Portfolio">
+                                            ✏️ Edit Overview
+                                        </a>
+                                    </div>
+                                    <div class="oem-summary-text collapsed" id="summary-text-{{ item.id }}">
+                                        {{ item.portfolio_summary or item.summary_snippet }}
+                                    </div>
+                                    {% if item.portfolio_summary and item.portfolio_summary|length > 250 %}
+                                        <button type="button" class="toggle-summary-btn" onclick="toggleSummaryCollapse({{ item.id }})">
+                                            <span id="toggle-label-{{ item.id }}">Read More (10-15 Line Overview) ▼</span>
+                                        </button>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Catalog Breakdown: Products & Hardware -->
+                                {% if item.all_products %}
+                                    <div class="catalog-tags-row">
+                                        <span class="catalog-tags-label">📦 Hardware, Platforms & Software ({{ item.all_products|length }}):</span>
+                                        <div class="tags-wrap">
+                                            {% for prod in item.all_products[:8] %}
+                                                <span class="catalog-tag {% if prod in item.matched_products %}highlighted{% endif %}">
+                                                    {{ prod }}
+                                                </span>
+                                            {% endfor %}
+                                            {% if item.all_products|length > 8 %}
+                                                <a href="{{ url_for('contact_detail', contact_id=item.id) }}#portfolio-summary-card" class="catalog-tag" style="text-decoration: none; color: var(--primary);">
+                                                    +{{ item.all_products|length - 8 }} more
+                                                </a>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                {% endif %}
+
+                                <!-- Catalog Breakdown: Services & SLAs -->
+                                {% if item.all_services %}
+                                    <div class="catalog-tags-row">
+                                        <span class="catalog-tags-label">🛠️ Professional Services & SLAs ({{ item.all_services|length }}):</span>
+                                        <div class="tags-wrap">
+                                            {% for serv in item.all_services[:8] %}
+                                                <span class="catalog-tag service-tag {% if serv in item.matched_services %}highlighted{% endif %}">
+                                                    {{ serv }}
+                                                </span>
+                                            {% endfor %}
+                                            {% if item.all_services|length > 8 %}
+                                                <a href="{{ url_for('contact_detail', contact_id=item.id) }}#portfolio-summary-card" class="catalog-tag service-tag" style="text-decoration: none; color: #93c5fd;">
+                                                    +{{ item.all_services|length - 8 }} more
+                                                </a>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                <!-- 2. NEWS MATCHES SECTION -->
+                {% set news_items = results.get('News', []) %}
+                {% if news_items %}
+                    <div class="glass-card" style="margin-top: 2rem;">
+                        <div class="card-header" style="display: flex; align-items: center; justify-content: space-between;">
+                            <h3 class="card-title" style="display: flex; align-items: center; gap: 0.5rem; font-size: 1.1rem;">
+                                <span>📰</span> Related OEM News & Bulletins ({{ news_items|length }})
+                            </h3>
+                        </div>
+                        <div class="card-body" style="padding: 0;">
+                            <ul style="list-style: none; padding: 0; margin: 0;">
+                                {% for n in news_items %}
+                                    <li style="padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-glass);">
+                                        <a href="{{ n.extra }}" target="_blank" rel="noopener noreferrer" style="color: var(--primary); font-weight: bold; font-size: 1.05rem; text-decoration: none;">
+                                            {{ n.title }}
+                                        </a>
+                                        <p style="margin: 0.35rem 0 0; color: var(--text-secondary); font-size: 0.85rem;">
+                                            OEM: <strong style="color: white;">{{ n.subtitle }}</strong>
+                                            {% if n.pub_date %} | Published: {{ n.pub_date }}{% endif %}
+                                        </p>
+                                        {% if n.snippet %}
+                                            <p style="margin: 0.35rem 0 0; color: var(--text-muted); font-size: 0.8rem; line-height: 1.5;">
+                                                {{ n.snippet | truncate(200) }}
+                                            </p>
                                         {% endif %}
                                     </li>
                                 {% endfor %}
-                                </ul>
-                            </div>
-                        </div>
-                    {% endif %}
-                {% else %}
-                    <div class="glass-card">
-                        <div class="card-body text-center">
-                            <p style="color: var(--text-muted);">No results found for "{{ query }}".</p>
+                            </ul>
                         </div>
                     </div>
-                {% endfor %}
+                {% endif %}
+
+                <!-- 3. RFP OPPORTUNITIES SECTION -->
+                {% set rfp_items = results.get('RFPs', []) %}
+                {% if rfp_items %}
+                    <div class="glass-card" style="margin-top: 2rem;">
+                        <div class="card-header" style="display: flex; align-items: center; justify-content: space-between;">
+                            <h3 class="card-title" style="display: flex; align-items: center; gap: 0.5rem; font-size: 1.1rem;">
+                                <span>📋</span> Matching RFPs & Tenders ({{ rfp_items|length }})
+                            </h3>
+                        </div>
+                        <div class="card-body" style="padding: 0;">
+                            <ul style="list-style: none; padding: 0; margin: 0;">
+                                {% for r in rfp_items %}
+                                    <li style="padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-glass);">
+                                        <a href="{{ url_for('rfp_detail', rfp_id=r.id) }}" style="color: var(--primary); font-weight: bold; font-size: 1.05rem; text-decoration: none;">
+                                            {{ r.title }}
+                                        </a>
+                                        <p style="margin: 0.35rem 0 0; color: var(--text-secondary); font-size: 0.85rem;">
+                                            Customer: <strong style="color: white;">{{ r.subtitle }}</strong> | Opportunity From: {{ r.extra or 'Direct' }}
+                                            {% if r.submission_date %} | Deadline: {{ r.submission_date }}{% endif %}
+                                        </p>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                {% endif %}
+
+                <!-- 4. EMPTY STATE (When no results found at all) -->
+                {% if total_oems_count == 0 and not news_items and not rfp_items %}
+                    <div class="glass-card" style="margin-top: 2rem; padding: 3rem 1.5rem; text-align: center;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">🔍</div>
+                        <h2 style="font-size: 1.4rem; color: white; margin-bottom: 0.5rem;">No exact match for "{{ query }}"</h2>
+                        <p style="color: var(--text-muted); max-width: 500px; margin: 0 auto 1.5rem; font-size: 0.9rem; line-height: 1.6;">
+                            We couldn't find any OEM products, services, or catalog summaries matching your keyword. Try searching for common industry categories below:
+                        </p>
+                        <div style="display: flex; justify-content: center; flex-wrap: wrap; gap: 0.5rem;">
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="executeBankSearch('Firewall')">Firewall</button>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="executeBankSearch('Storage')">Storage</button>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="executeBankSearch('Switch')">Switch</button>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="executeBankSearch('CCTV')">CCTV & Camera</button>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="executeBankSearch('EDR')">EDR</button>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="executeBankSearch('Backup')">Backup</button>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="executeBankSearch('UPS')">UPS</button>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="executeBankSearch('Compute')">Compute</button>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="executeBankSearch('SLA')">SLA</button>
+                        </div>
+                    </div>
+                {% endif %}
             </div>
         </main>
     </div>
 
-    <!-- Mobile App Bottom Navigation -->
-    <div class="mobile-bottom-nav">
-        <a href="{{ url_for('dashboard') }}" class="mobile-nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
+    <!-- Mobile App Bottom Navigation (FSM Theme Dock) -->
+    <nav class="mobile-bottom-nav mobile-bottom-dock" aria-label="Mobile Bottom Navigation">
+        <a href="{{ url_for('dashboard') }}" class="mobile-nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}" title="Dashboard">
             <span class="icon">📊</span>
             <span>Home</span>
         </a>
-        <a href="{{ url_for('oem_news_page') }}" class="mobile-nav-item {% if request.endpoint == 'oem_news_page' %}active{% endif %}">
+        <a href="{{ url_for('oem_news_page') }}" class="mobile-nav-item {% if request.endpoint == 'oem_news_page' %}active{% endif %}" title="OEM News">
             <span class="icon">📰</span>
             <span>News</span>
         </a>
-        <a href="{{ url_for('work_tools') }}" class="mobile-nav-item {% if request.endpoint == 'work_tools' %}active{% endif %}">
-            <span class="icon">🛠️</span>
-            <span>Tools</span>
+        <a href="{{ url_for('dashboard') }}" class="mobile-nav-item mobile-scan-action-btn" title="Scan Visiting Card">
+            <div class="mobile-scan-bubble">
+                <span class="icon">📸</span>
+            </div>
+            <span>Scan</span>
         </a>
-        <a href="javascript:void(0)" onclick="toggleMobileSidebar()" class="mobile-nav-item">
+        <a href="{{ url_for('timesheets.employee_timesheets') }}" class="mobile-nav-item" title="Time Sheet">
+            <span class="icon">⏱️</span>
+            <span>Timesheet</span>
+        </a>
+        <button type="button" onclick="openMobileDrawer()" class="mobile-nav-item" title="Open Navigation Drawer">
             <span class="icon">☰</span>
             <span>Menu</span>
-        </a>
-    </div>
+        </button>
+    </nav>
 
+    <!-- Global Notification System Container -->
+    <div id="global-toast-container" style="position: fixed; bottom: 20px; right: 20px; z-index: 10000; display: flex; flex-direction: column; gap: 10px;"></div>
 
-<!-- Global Notification System -->
-<div id="global-toast-container" style="position: fixed; bottom: 20px; right: 20px; z-index: 10000; display: flex; flex-direction: column; gap: 10px;"></div>
-
-<script>
-    (function() {
-        let lastNotifCheck = new Date().toISOString().replace('T', ' ').substring(0, 19);
-        let audioCtx = null;
-        
-        function initAudio() {
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            }
+    <script>
+        // Universal search URL helper
+        function getAppUrl(path) {
+            return path;
         }
-        document.addEventListener('click', initAudio, { once: true });
 
-        function playAlert(isCall) {
-            if (!audioCtx) return;
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            
-            if (isCall) {
-                const playTone = (freq, startTime, duration) => {
-                    const osc = audioCtx.createOscillator();
-                    const gain = audioCtx.createGain();
-                    osc.connect(gain);
-                    gain.connect(audioCtx.destination);
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(freq, audioCtx.currentTime + startTime);
-                    gain.gain.setValueAtTime(0.5, audioCtx.currentTime + startTime);
-                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + startTime + duration);
-                    osc.start(audioCtx.currentTime + startTime);
-                    osc.stop(audioCtx.currentTime + startTime + duration);
-                };
-                playTone(600, 0, 0.4);
-                playTone(800, 0.2, 0.4);
-                playTone(600, 1.0, 0.4);
-                playTone(800, 1.2, 0.4);
-                if (navigator.vibrate) navigator.vibrate([200, 100, 200, 800, 200, 100, 200]);
-            } else {
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                osc.type = 'triangle';
-                osc.frequency.setValueAtTime(800, audioCtx.currentTime);
-                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
-                osc.start();
-                osc.stop(audioCtx.currentTime + 0.2);
-                if (navigator.vibrate) navigator.vibrate(100);
+        // Execute search function for quick pills and form
+        function executeBankSearch(term) {
+            const cleanTerm = (term || '').trim();
+            if (cleanTerm) {
+                window.location.href = getAppUrl('/search?q=' + encodeURIComponent(cleanTerm));
             }
         }
 
-        function showToast(sender, message, isCall) {
-            const container = document.getElementById('global-toast-container');
-            const toast = document.createElement('div');
-            toast.style.background = isCall ? 'rgba(16, 185, 129, 0.95)' : 'rgba(59, 130, 246, 0.95)';
-            toast.style.color = 'white';
-            toast.style.padding = '1rem 1.5rem';
-            toast.style.borderRadius = '12px';
-            toast.style.boxShadow = '0 10px 25px rgba(0,0,0,0.5)';
-            toast.style.border = '1px solid rgba(255,255,255,0.2)';
-            toast.style.cursor = 'pointer';
-            toast.style.minWidth = '250px';
-            toast.style.backdropFilter = 'blur(10px)';
-            toast.style.transform = 'translateY(50px)';
-            toast.style.opacity = '0';
-            toast.style.transition = 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
-            
-            const title = isCall ? `🎥 Incoming Video Call from ${sender}` : `💬 New message from ${sender}`;
-            const body = isCall ? 'Click to answer' : message;
-            
-            toast.innerHTML = `<div style="font-weight: bold; margin-bottom: 0.25rem;">${title}</div>
-                               <div style="font-size: 0.9rem; opacity: 0.9;">${body}</div>`;
-            
-            toast.onclick = () => {
-                window.location.href = '/chat';
-            };
-            
-            container.appendChild(toast);
-            
-            // Animate in
-            setTimeout(() => {
-                toast.style.transform = 'translateY(0)';
-                toast.style.opacity = '1';
-            }, 50);
-            
-            playAlert(isCall);
-            
-            // Auto dismiss after 6 seconds (or 15 for call)
-            setTimeout(() => {
-                toast.style.opacity = '0';
-                toast.style.transform = 'translateY(20px)';
-                setTimeout(() => toast.remove(), 300);
-            }, isCall ? 15000 : 6000);
-        }
+        // Client-side quick filter for OEMs vs Distributors
+        function filterOemType(type) {
+            // Update filter pill UI
+            document.querySelectorAll('.filter-btn-pill').forEach(btn => btn.classList.remove('active'));
+            if (type === 'all') {
+                document.getElementById('filter-btn-all').classList.add('active');
+            } else if (type === 'OEM') {
+                document.getElementById('filter-btn-oem').classList.add('active');
+            } else if (type === 'Distributor') {
+                document.getElementById('filter-btn-dist').classList.add('active');
+            }
 
-        setInterval(async () => {
-            if (document.hidden) return; // Save cPanel resources when tab is backgrounded
-            try {
-                const res = await fetch('/chat/notifications?since=' + encodeURIComponent(lastNotifCheck));
-                if (res.ok) {
-                    const newMsgs = await res.json();
-                    if (newMsgs.length > 0) {
-                        lastNotifCheck = new Date().toISOString().replace('T', ' ').substring(0, 19);
-                        newMsgs.forEach(msg => {
-                            if (msg.message === '[CALL_RING]') {
-                                showToast(msg.sender_name, '', true);
-                            } else {
-                                showToast(msg.sender_name, msg.message, false);
-                            }
-                        });
-                    }
+            // Filter cards
+            const cards = document.querySelectorAll('.oem-bank-card');
+            cards.forEach(card => {
+                const cardType = card.getAttribute('data-type');
+                if (type === 'all' || cardType === type) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
                 }
-            } catch(e) {}
-        }, 20000);
-    })();
-</script>
+            });
+        }
 
+        // Toggle Expand/Collapse for 10-15 line portfolio overview
+        function toggleSummaryCollapse(id) {
+            const textEl = document.getElementById('summary-text-' + id);
+            const labelEl = document.getElementById('toggle-label-' + id);
+            if (!textEl) return;
+
+            if (textEl.classList.contains('collapsed')) {
+                textEl.classList.remove('collapsed');
+                if (labelEl) labelEl.textContent = 'Show Less ▲';
+            } else {
+                textEl.classList.add('collapsed');
+                if (labelEl) labelEl.textContent = 'Read More (10-15 Line Overview) ▼';
+            }
+        }
+
+        // Mobile drawer handlers
+        function openMobileDrawer() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('drawer-overlay');
+            if (sidebar) sidebar.classList.add('mobile-drawer-open');
+            if (overlay) overlay.classList.add('active');
+        }
+
+        function closeMobileDrawer() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('drawer-overlay');
+            if (sidebar) sidebar.classList.remove('mobile-drawer-open');
+            if (overlay) overlay.classList.remove('active');
+        }
+
+        // Live clock for sidebar
+        setInterval(() => {
+            const clockEl = document.getElementById('live-sidebar-clock');
+            if (clockEl) {
+                const now = new Date();
+                clockEl.textContent = now.toTimeString().split(' ')[0];
+            }
+        }, 1000);
+    </script>
 </body>
 </html>

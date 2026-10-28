@@ -215,6 +215,34 @@ function triggerWebsiteScrape(event, contactId) {
                     : `<strong>Crawl Status:</strong> Partial. Using default pre-sales profile suggestions (Web site blocked scraping).`;
             }
             
+            // Update company logo if returned
+            if (data.logo_url) {
+                const logoContainer = document.getElementById('company-logo-container');
+                if (logoContainer) {
+                    logoContainer.innerHTML = `<img src="${data.logo_url}" alt="Logo" style="width: 48px; height: 48px; border-radius: 12px; object-fit: contain; background: rgba(255,255,255,0.04); border: 1px solid var(--border-glass);">`;
+                }
+                const fetchLogoBtn = document.getElementById('btn-fetch-logo');
+                if (fetchLogoBtn) {
+                    fetchLogoBtn.style.display = 'none';
+                }
+            }
+            
+            // Update portfolio overview summary if returned
+            if (data.portfolio_summary) {
+                const displayView = document.getElementById('summary-display-view');
+                if (displayView) {
+                    displayView.textContent = data.portfolio_summary;
+                }
+                const textarea = document.getElementById('summary-textarea');
+                if (textarea) {
+                    textarea.value = data.portfolio_summary;
+                }
+                const modalInput = document.getElementById('edit_portfolio_summary');
+                if (modalInput) {
+                    modalInput.value = data.portfolio_summary;
+                }
+            }
+            
             // 1. Repopulate Products, keeping MANUAL custom ones
             if (productsList) {
                 const manualProducts = Array.from(productsList.querySelectorAll('li[data-item-source="custom"]')).map(li => li.getAttribute('data-item-val'));
@@ -310,6 +338,82 @@ function triggerWebsiteScrape(event, contactId) {
         btn.disabled = false;
         btn.innerHTML = origHtml;
         showToast('Error connecting to scraper server', true);
+        console.error(err);
+    });
+}
+
+// Toggle Overview Paragraph Edit Mode
+function toggleSummaryEdit(isEditing) {
+    const displayView = document.getElementById('summary-display-view');
+    const editView = document.getElementById('summary-edit-view');
+    const btnEdit = document.getElementById('btn-edit-summary');
+    const btnSave = document.getElementById('btn-save-summary');
+    const btnCancel = document.getElementById('btn-cancel-summary');
+    
+    if (isEditing) {
+        if (displayView) displayView.style.display = 'none';
+        if (editView) editView.style.display = 'block';
+        if (btnEdit) btnEdit.style.display = 'none';
+        if (btnSave) btnSave.style.display = 'inline-flex';
+        if (btnCancel) btnCancel.style.display = 'inline-flex';
+        const textarea = document.getElementById('summary-textarea');
+        if (textarea) textarea.focus();
+    } else {
+        if (displayView) displayView.style.display = 'block';
+        if (editView) editView.style.display = 'none';
+        if (btnEdit) btnEdit.style.display = 'inline-flex';
+        if (btnSave) btnSave.style.display = 'none';
+        if (btnCancel) btnCancel.style.display = 'none';
+    }
+}
+
+// Save Portfolio Solutions Overview via AJAX
+function savePortfolioSummary(contactId) {
+    const textarea = document.getElementById('summary-textarea');
+    if (!textarea) return;
+    const summaryText = textarea.value.trim();
+    const btnSave = document.getElementById('btn-save-summary');
+    const origHtml = btnSave ? btnSave.innerHTML : '💾 Save';
+    
+    if (btnSave) {
+        btnSave.disabled = true;
+        btnSave.innerHTML = '<span class="spinner"></span> Saving...';
+    }
+    
+    fetch(getAppUrl(`/contact/${contactId}/portfolio-summary`), {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ portfolio_summary: summaryText })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (btnSave) {
+            btnSave.disabled = false;
+            btnSave.innerHTML = origHtml;
+        }
+        if (data.status === 'success') {
+            const displayView = document.getElementById('summary-display-view');
+            if (displayView) {
+                displayView.textContent = data.portfolio_summary || 'No solutions overview generated yet. Click "Fetch Offerings" to auto-generate a comprehensive 10-15 line portfolio profile from the internet, or click "Edit Overview" to write one manually.';
+            }
+            const modalInput = document.getElementById('edit_portfolio_summary');
+            if (modalInput) {
+                modalInput.value = data.portfolio_summary;
+            }
+            toggleSummaryEdit(false);
+            showToast('🎉 Portfolio overview updated successfully!');
+        } else {
+            showToast('❌ ' + (data.message || 'Failed to update overview.'), true);
+        }
+    })
+    .catch(err => {
+        if (btnSave) {
+            btnSave.disabled = false;
+            btnSave.innerHTML = origHtml;
+        }
+        showToast('Error saving portfolio summary', true);
         console.error(err);
     });
 }
@@ -848,33 +952,55 @@ function populatePartnerFormWithData(data, showNotification = true) {
     }
 }
 
-// Execute OCR processing via Tesseract.js loaded from CDN
+// Execute fast OCR processing via Tesseract.js with 7.5s safety timeout
 function runOCROnImage(imageSrc) {
     const statusText = document.getElementById('ocr-scan-status-text');
     const statusIndicator = document.getElementById('ocr-scan-status-indicator');
     
     if (typeof Tesseract === 'undefined') {
         if (statusIndicator) statusIndicator.style.display = 'none';
-        showToast("ℹ️ Card photo attached! Please enter details in the form.", "info");
+        showToast("📸 Card photo attached! Please fill details in the form.", "info");
         return;
     }
     
     if (statusIndicator) statusIndicator.style.display = 'block';
-    if (statusText) statusText.innerText = "Analyzing card with browser OCR...";
+    if (statusText) statusText.innerText = "Analyzing card with fast OCR...";
     
     const langSelect = document.getElementById('ocr-lang-select');
     const selectedLang = langSelect ? langSelect.value : 'eng';
     
-    Tesseract.recognize(
+    // Safety timeout promise (7.5 seconds) to prevent UI from freezing on slow connections
+    const ocrTimeout = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("OCR timeout - connection slow")), 7500);
+    });
+    
+    const ocrProcess = Tesseract.recognize(
         imageSrc,
         selectedLang,
-        { logger: m => {
-            if (statusText && m.status === 'recognizing') {
-                statusText.innerText = `Recognizing text: ${Math.round((m.progress || 0) * 100)}%`;
+        {
+            langPath: 'https://cdn.jsdelivr.net/gh/naptha/tessdata@gh-pages/4.0.0_fast',
+            logger: m => {
+                if (statusText) {
+                    if (m.status === 'loading tesseract core') {
+                        statusText.innerText = "Loading OCR engine...";
+                    } else if (m.status === 'loading language traineddata') {
+                        statusText.innerText = "Loading dictionary...";
+                    } else if (m.status === 'recognizing') {
+                        statusText.innerText = `Recognizing text: ${Math.round((m.progress || 0) * 100)}%`;
+                    }
+                }
             }
-        }}
-    ).then(({ data: { text } }) => {
+        }
+    );
+    
+    Promise.race([ocrProcess, ocrTimeout])
+    .then(({ data: { text } }) => {
         if (statusIndicator) statusIndicator.style.display = 'none';
+        
+        if (!text || text.trim().length < 5) {
+            showToast("📸 Card photo attached! Please fill details in the form.", "info");
+            return;
+        }
         
         // Post raw text to server parser for identical high-accuracy regex extraction
         fetch(getAppUrl('/parse-card-text'), {
@@ -893,10 +1019,11 @@ function runOCROnImage(imageSrc) {
         .catch(() => {
             parseOCRVendorInfo(text);
         });
-    }).catch(err => {
-        console.error("Tesseract OCR Error:", err);
+    })
+    .catch(err => {
+        console.warn("OCR notice/fallback:", err.message || err);
         if (statusIndicator) statusIndicator.style.display = 'none';
-        showToast("ℹ️ Card photo attached! Please enter details in the form.", "info");
+        showToast("📸 Card photo attached! Please review details below.", "info");
     });
 }
 
@@ -1510,13 +1637,14 @@ function toggleCategoryAccordion(id, autoScroll = false) {
     
     const group = content.parentElement;
     const isExpanded = group.classList.contains('expanded');
+    const isBar = (localStorage.getItem('directory_view_style') === 'bar');
     
     if (isExpanded) {
         group.classList.remove('expanded');
         content.style.display = 'none';
     } else {
         group.classList.add('expanded');
-        content.style.display = 'grid';
+        content.style.display = isBar ? 'flex' : 'grid';
         if (autoScroll) {
             content.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
@@ -1768,12 +1896,13 @@ window.triggerWebRefresh = triggerWebRefresh;
 
 // Expand/Collapse all categories globally
 function expandAllCategories() {
+    const isBar = (localStorage.getItem('directory_view_style') === 'bar');
     const groups = document.querySelectorAll('.category-group');
     groups.forEach(group => {
         const content = group.querySelector('.category-content');
         if (content) {
             group.classList.add('expanded');
-            content.style.display = 'grid';
+            content.style.display = isBar ? 'flex' : 'grid';
         }
     });
 }
@@ -1847,7 +1976,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Dropdown More Actions menu helper functions
 function toggleActionsDropdown(event) {
-    event.stopPropagation();
+    if (event) event.stopPropagation();
+    closeAddPartnerDropdown();
     const menu = document.getElementById('actions-dropdown-menu');
     if (menu) {
         menu.style.display = menu.style.display === 'none' ? 'flex' : 'none';
@@ -1859,13 +1989,229 @@ function closeActionsDropdown() {
     if (menu) menu.style.display = 'none';
 }
 
+// Dropdown Add Partner helper functions
+function toggleAddPartnerDropdown(event) {
+    if (event) event.stopPropagation();
+    closeActionsDropdown();
+    const menu = document.getElementById('add-partner-dropdown-menu');
+    if (menu) {
+        menu.style.display = menu.style.display === 'none' ? 'flex' : 'none';
+    }
+}
+
+function closeAddPartnerDropdown() {
+    const menu = document.getElementById('add-partner-dropdown-menu');
+    if (menu) menu.style.display = 'none';
+}
+
+function triggerCardGalleryUpload() {
+    const fileInput = document.getElementById('card-scan-file-input');
+    if (fileInput) {
+        fileInput.click();
+        return;
+    }
+    const cameraInput = document.getElementById('card-scan-camera-input');
+    if (cameraInput) {
+        const oldCapture = cameraInput.getAttribute('capture');
+        cameraInput.removeAttribute('capture');
+        cameraInput.click();
+        if (oldCapture) {
+            setTimeout(() => cameraInput.setAttribute('capture', oldCapture), 1000);
+        }
+    }
+}
+
+// Directory View Style Switcher (Square Box vs Bar Style)
+function setDirectoryViewStyle(style) {
+    localStorage.setItem('directory_view_style', style);
+    applyDirectoryViewStyle(style);
+    
+    // Auto expand all categories if none are open so change is immediately visible
+    const anyExpanded = document.querySelector('.category-group.expanded');
+    if (!anyExpanded) {
+        expandAllCategories();
+    }
+    
+    if (typeof showToast === 'function') {
+        showToast(style === 'bar' ? "☰ Switched to Bar Style view" : "🔲 Switched to Square Box Style view", "info");
+    }
+}
+
+function applyDirectoryViewStyle(style) {
+    const isBar = (style === 'bar');
+    
+    // 1. Directory accordion container
+    const container = document.getElementById('directory-accordion-container');
+    if (container) {
+        if (isBar) {
+            container.classList.add('view-bar-style');
+        } else {
+            container.classList.remove('view-bar-style');
+        }
+    }
+    
+    // 2. Grids
+    const grids = document.querySelectorAll('.contacts-grid');
+    grids.forEach(grid => {
+        if (isBar) {
+            grid.classList.add('view-bar-style');
+        } else {
+            grid.classList.remove('view-bar-style');
+        }
+        const group = grid.closest('.category-group');
+        if (group && group.classList.contains('expanded')) {
+            grid.style.display = isBar ? 'flex' : 'grid';
+        }
+    });
+    
+    // 3. Dropdown buttons
+    const btnBox = document.getElementById('btn-view-box');
+    const btnBar = document.getElementById('btn-view-bar');
+    if (btnBox && btnBar) {
+        if (isBar) {
+            btnBar.style.color = '#818cf8';
+            btnBar.style.fontWeight = '700';
+            btnBox.style.color = '#ffffff';
+            btnBox.style.fontWeight = 'normal';
+        } else {
+            btnBox.style.color = '#818cf8';
+            btnBox.style.fontWeight = '700';
+            btnBar.style.color = '#ffffff';
+            btnBar.style.fontWeight = 'normal';
+        }
+    }
+    
+    // 4. Toolbar buttons
+    const toolBox = document.getElementById('toolbar-btn-box');
+    const toolBar = document.getElementById('toolbar-btn-bar');
+    if (toolBox && toolBar) {
+        if (isBar) {
+            toolBar.style.background = '#6366f1';
+            toolBar.style.color = '#ffffff';
+            toolBar.style.fontWeight = '700';
+            toolBar.style.boxShadow = '0 0 10px rgba(99, 102, 241, 0.5)';
+            toolBox.style.background = 'transparent';
+            toolBox.style.color = '#94a3b8';
+            toolBox.style.fontWeight = 'normal';
+            toolBox.style.boxShadow = 'none';
+        } else {
+            toolBox.style.background = '#6366f1';
+            toolBox.style.color = '#ffffff';
+            toolBox.style.fontWeight = '700';
+            toolBox.style.boxShadow = '0 0 10px rgba(99, 102, 241, 0.5)';
+            toolBar.style.background = 'transparent';
+            toolBar.style.color = '#94a3b8';
+            toolBar.style.fontWeight = 'normal';
+            toolBar.style.boxShadow = 'none';
+        }
+    }
+}
+
+// Register Android Fingerprint Biometrics
+async function registerFingerprint() {
+    if (!window.PublicKeyCredential) {
+        showToast("⚠️ Biometric authentication is not supported by this browser.", "warning");
+        return;
+    }
+    try {
+        if (PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) {
+            const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+            if (!available) {
+                showToast("⚠️ No fingerprint or platform biometric sensor found on this device.", "warning");
+                return;
+            }
+        }
+        
+        showToast("⏳ Contacting server for biometric registration...", "info");
+        const res = await fetch(getAppUrl('/biometric/register/options'), { method: 'POST' });
+        const options = await res.json();
+        if (options.status !== 'success') {
+            showToast("❌ " + (options.message || "Could not start registration"), "error");
+            return;
+        }
+        
+        const challengeBytes = Uint8Array.from(atob(options.challenge), c => c.charCodeAt(0));
+        const userIdBytes = new TextEncoder().encode(options.user.id.toString());
+        
+        const isIp = /^(\d{1,3}\.){3}\d{1,3}$/.test(window.location.hostname);
+        const rpObj = { name: options.rp.name || "OEM Directory" };
+        if (window.location.hostname && !isIp) {
+            rpObj.id = window.location.hostname;
+        }
+
+        const createOptions = {
+            challenge: challengeBytes,
+            rp: rpObj,
+            user: {
+                id: userIdBytes,
+                name: options.user.name,
+                displayName: options.user.displayName
+            },
+            pubKeyCredParams: [
+                { alg: -7, type: "public-key" },  // ES256
+                { alg: -257, type: "public-key" } // RS256
+            ],
+            authenticatorSelection: {
+                authenticatorAttachment: "platform",
+                userVerification: "preferred"
+            },
+            timeout: 60000,
+            attestation: "none"
+        };
+        
+        showToast("👆 Touch your phone fingerprint sensor now...", "info");
+        const credential = await navigator.credentials.create({
+            publicKey: createOptions
+        });
+        
+        if (!credential) throw new Error("No credential returned");
+        
+        const rawId = btoa(String.fromCharCode(...new Uint8Array(credential.rawId)));
+        const deviceName = navigator.userAgent.includes('Android') ? 'Android Phone' : 'Biometric Device';
+        
+        const verifyRes = await fetch(getAppUrl('/biometric/register/verify'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                credential_id: rawId,
+                device_name: deviceName
+            })
+        });
+        
+        const verifyData = await verifyRes.json();
+        if (verifyData.status === 'success') {
+            localStorage.setItem('has_biometric', 'true');
+            localStorage.setItem('biometric_username', options.user.name);
+            showToast("✅ Android Fingerprint registered! You can now use fingerprint to log in.");
+        } else {
+            showToast("❌ " + (verifyData.message || "Failed to register"), "error");
+        }
+    } catch (err) {
+        console.error("Biometric register error:", err);
+        showToast("⚠️ Biometric registration cancelled or sensor error.", "warning");
+    }
+}
+
 // Bind dropdown outside click handler
 window.addEventListener('click', () => {
     closeActionsDropdown();
+    closeAddPartnerDropdown();
+});
+
+// Auto-apply saved view style on load
+document.addEventListener('DOMContentLoaded', () => {
+    const savedStyle = localStorage.getItem('directory_view_style') || 'box';
+    applyDirectoryViewStyle(savedStyle);
 });
 
 window.toggleActionsDropdown = toggleActionsDropdown;
 window.closeActionsDropdown = closeActionsDropdown;
+window.toggleAddPartnerDropdown = toggleAddPartnerDropdown;
+window.closeAddPartnerDropdown = closeAddPartnerDropdown;
+window.triggerCardGalleryUpload = triggerCardGalleryUpload;
+window.setDirectoryViewStyle = setDirectoryViewStyle;
+window.applyDirectoryViewStyle = applyDirectoryViewStyle;
+window.registerFingerprint = registerFingerprint;
 
 // Global Searchable Autocomplete Select Dropdown Widget
 function initSearchableSelects() {
@@ -3055,3 +3401,109 @@ function filterDirectoryByGroup(groupName) {
         }
     });
 }
+
+// ==========================================
+// FSM Theme Mobile Drawer & Card Controller
+// ==========================================
+
+function openMobileDrawer() {
+    const sidebar = document.getElementById('sidebar') || document.querySelector('.sidebar');
+    const overlay = document.getElementById('drawer-overlay') || document.querySelector('.sidebar-overlay');
+    if (sidebar) {
+        sidebar.classList.add('drawer-open');
+        sidebar.classList.add('menu-open');
+    }
+    if (overlay) {
+        overlay.classList.add('active');
+    }
+    document.body.classList.add('drawer-open');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeMobileDrawer() {
+    const sidebar = document.getElementById('sidebar') || document.querySelector('.sidebar');
+    const overlay = document.getElementById('drawer-overlay') || document.querySelector('.sidebar-overlay');
+    if (sidebar) {
+        sidebar.classList.remove('drawer-open');
+        sidebar.classList.remove('menu-open');
+    }
+    if (overlay) {
+        overlay.classList.remove('active');
+    }
+    document.body.classList.remove('drawer-open');
+    document.body.style.overflow = '';
+}
+
+// Backward compatibility
+function toggleMobileSidebar() {
+    const sidebar = document.getElementById('sidebar') || document.querySelector('.sidebar');
+    if (sidebar && (sidebar.classList.contains('drawer-open') || sidebar.classList.contains('menu-open'))) {
+        closeMobileDrawer();
+    } else {
+        openMobileDrawer();
+    }
+}
+
+function focusMobileSearch() {
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) {
+        searchInput.focus();
+        searchInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+}
+
+function toggleMobileCardDetails(detailsId) {
+    const el = document.getElementById(detailsId);
+    if (!el) return;
+    if (el.style.display === 'none' || !el.style.display) {
+        el.style.display = 'block';
+    } else {
+        el.style.display = 'none';
+    }
+}
+
+function filterDirectoryByMobileCategory(catName, chipEl) {
+    // Update active chip UI
+    const chips = document.querySelectorAll('.mobile-cat-chip');
+    chips.forEach(c => c.classList.remove('active'));
+    if (chipEl) chipEl.classList.add('active');
+    
+    // Sync with group select dropdown if present
+    const groupSelect = document.getElementById('group-filter');
+    if (groupSelect) {
+        groupSelect.value = catName;
+    }
+    
+    // Filter groups
+    const groups = document.querySelectorAll('.category-group');
+    groups.forEach(group => {
+        const groupAttr = group.getAttribute('data-category-group-name');
+        if (catName === 'all' || groupAttr === catName) {
+            group.style.display = 'block';
+            group.classList.add('expanded');
+            const content = group.querySelector('.category-content');
+            if (content) {
+                const isBar = document.getElementById('directory-accordion-container')?.classList.contains('view-bar-style');
+                content.style.display = isBar ? 'flex' : 'grid';
+            }
+        } else {
+            group.style.display = 'none';
+        }
+    });
+}
+
+// Live clock updater for FSM theme
+(function startFsmClock() {
+    function updateClock() {
+        const clockEl = document.getElementById('live-sidebar-clock');
+        if (clockEl) {
+            const now = new Date();
+            const hrs = String(now.getHours()).padStart(2, '0');
+            const mins = String(now.getMinutes()).padStart(2, '0');
+            const secs = String(now.getSeconds()).padStart(2, '0');
+            clockEl.textContent = hrs + ':' + mins + ':' + secs;
+        }
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+})();

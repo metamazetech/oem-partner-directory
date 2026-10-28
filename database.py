@@ -14,6 +14,21 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
+def get_portal_settings(conn=None):
+    close_at_end = False
+    if conn is None:
+        conn = get_db_connection()
+        close_at_end = True
+    try:
+        rows = conn.execute("SELECT key, value FROM portal_settings").fetchall()
+        return {r['key']: r['value'] for r in rows}
+    finally:
+        if close_at_end:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -53,6 +68,7 @@ def init_db():
         custom_products TEXT, -- JSON string
         custom_services TEXT, -- JSON string
         contact_persons TEXT, -- JSON string of multiple contact profiles
+        portfolio_summary TEXT, -- 10-15 line comprehensive summary of products & services
         created_by INTEGER,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -72,6 +88,9 @@ def init_db():
     if 'company_logo' not in columns:
         cursor.execute("ALTER TABLE contacts ADD COLUMN company_logo TEXT")
         print("Database migrated: company_logo column added to contacts.")
+    if 'portfolio_summary' not in columns:
+        cursor.execute("ALTER TABLE contacts ADD COLUMN portfolio_summary TEXT")
+        print("Database migrated: portfolio_summary column added to contacts.")
         
     # Create dynamic OEM Categories / Groups table
     cursor.execute('''
@@ -141,6 +160,22 @@ def init_db():
         ]
         cursor.executemany("INSERT INTO oem_groups (name, icon) VALUES (?, ?)", default_groups)
         print("Pre-seeded default OEM groups/categories.")
+        
+    # Create Biometric Credentials table for Android / WebAuthn fingerprint authentication
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS biometric_credentials (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        username TEXT NOT NULL,
+        credential_id TEXT UNIQUE NOT NULL,
+        public_key TEXT,
+        device_name TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+    ''')
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_biometric_user_id ON biometric_credentials(user_id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_biometric_cred_id ON biometric_credentials(credential_id);")
         
     cursor.execute("PRAGMA table_info(users)")
     user_columns = [col[1] for col in cursor.fetchall()]
@@ -435,7 +470,7 @@ def init_db():
     
 
     # Version Auto-Migration Block
-    CURRENT_VERSION = 'v6.4'
+    CURRENT_VERSION = 'v6.6'
     try:
         db_ver_row = cursor.execute("SELECT value FROM portal_settings WHERE key = 'portal_version'").fetchone()
         db_ver = db_ver_row['value'] if db_ver_row else 'v4.0'
@@ -444,7 +479,7 @@ def init_db():
             # Update the DB version
             cursor.execute("UPDATE portal_settings SET value = ? WHERE key = 'portal_version'", (CURRENT_VERSION,))
             
-            # Insert change log for v6.4 if not exists
+            # Insert change log for v6.6 if not exists
             check_cl = cursor.execute("SELECT id FROM change_logs WHERE version = ?", (CURRENT_VERSION,)).fetchone()
             if not check_cl:
                 import datetime
@@ -454,11 +489,36 @@ def init_db():
                 ''', (
                     CURRENT_VERSION, 
                     datetime.date.today().strftime('%Y-%m-%d'),
-                    '1-Click Instant Camera Visiting Card Scanner & Contact Share All',
-                    'Direct mobile camera auto-capture with client-side canvas pre-compression, EXIF rotation fix, 100% regex OCR heuristics, CSP updates, and native Web Share integration.'
+                    'Bank of OEMs Universal Search & Products/Services Solutions Catalog',
+                    'Dense 10-15 line pre-sales catalog overview for Solutions Portfolio with inline live editing and persistence. Redesigned Universal Search with enterprise synonym expansion, matching product/service highlights, tag clouds, and automated master refresh across all partners.'
                 ))
     except Exception as e:
         print(f"Migration error: {e}")
+
+    # Auto-populate portfolio summaries for any partners missing them
+    try:
+        empty_summaries = cursor.execute("SELECT id, company_name, website, fetched_products, fetched_services, group_name FROM contacts WHERE portfolio_summary IS NULL OR TRIM(portfolio_summary) = ''").fetchall()
+        if empty_summaries:
+            import json
+            from scraper import generate_oem_portfolio_summary
+            for row in empty_summaries:
+                cid = row['id']
+                cname = row['company_name']
+                cweb = row['website']
+                cgrp = row['group_name']
+                try:
+                    p = json.loads(row['fetched_products']) if row['fetched_products'] else []
+                except Exception:
+                    p = []
+                try:
+                    s = json.loads(row['fetched_services']) if row['fetched_services'] else []
+                except Exception:
+                    s = []
+                summary = generate_oem_portfolio_summary(cname, cweb, p, s, group_name=cgrp)
+                cursor.execute("UPDATE contacts SET portfolio_summary = ? WHERE id = ?", (summary, cid))
+            print(f"Auto-populated portfolio_summary for {len(empty_summaries)} partners.")
+    except Exception as e:
+        print(f"Portfolio summary auto-fill notice: {e}")
 
     conn.commit()
 

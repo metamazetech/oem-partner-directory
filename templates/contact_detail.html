@@ -96,57 +96,39 @@
     {% endif %}
 </head>
 
-    
-    <!-- Mobile Hamburger Toggle -->
-    <div class="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
-    <button id="global-mobile-toggle" class="mobile-toggle-btn" onclick="toggleMobileSidebar()" style="display: none;">☰</button>
-    
-    <script>
-    function toggleMobileSidebar() {
-        const sidebar = document.querySelector('.sidebar');
-        const overlay = document.querySelector('.sidebar-overlay');
-        if (sidebar.classList.contains('menu-open')) {
-            sidebar.classList.remove('menu-open');
-            if(overlay) overlay.classList.remove('active');
-        } else {
-            sidebar.classList.add('menu-open');
-            if(overlay) overlay.classList.add('active');
-        }
-    }
-    </script>
-
 <body class="{{ session.get('theme', 'theme-slate-dark') }}">
     
+    <!-- FSM Theme Drawer Overlay -->
+    <div id="drawer-overlay" class="sidebar-overlay" onclick="closeMobileDrawer()"></div>
+
+    <!-- FSM Theme Mobile Top App Bar -->
+    <header class="mobile-top-bar">
+        <div class="mobile-top-left">
+            <button id="mobile-menu-btn" class="mobile-menu-btn" onclick="openMobileDrawer()" aria-label="Open Navigation">☰</button>
+            <a href="{{ url_for('dashboard') }}" class="mobile-top-brand">
+                {% if portal_settings['portal_logo'] %}
+                    <img src="{{ url_for('uploaded_file', filename=portal_settings['portal_logo']) }}" class="mobile-top-logo" alt="Logo">
+                {% else %}
+                    <span style="font-size: 1.15rem;">🏢</span>
+                {% endif %}
+                <span class="mobile-top-title">{{ contact['company_name'] }}</span>
+            </a>
+        </div>
+        <div class="mobile-top-actions">
+            <span class="mobile-top-status"><i class="pulse-dot"></i> Live</span>
+            <a href="{{ url_for('dashboard') }}" class="mobile-top-btn" title="Back to Directory">📊</a>
+        </div>
+    </header>
+
     <div class="app-container">
-
-    
-    <!-- Mobile Hamburger Toggle -->
-    <div class="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
-    <button id="global-mobile-toggle" class="mobile-toggle-btn" onclick="toggleMobileSidebar()" style="display: none;">☰</button>
-    
-    <script>
-    function toggleMobileSidebar() {
-        const sidebar = document.querySelector('.sidebar');
-        const overlay = document.querySelector('.sidebar-overlay');
-        if (sidebar.classList.contains('menu-open')) {
-            sidebar.classList.remove('menu-open');
-            if(overlay) overlay.classList.remove('active');
-        } else {
-            sidebar.classList.add('menu-open');
-            if(overlay) overlay.classList.add('active');
-        }
-    }
-    </script>
-
-
         
         <!-- Sidebar Navigation -->
-        <aside class="sidebar">
+        <aside id="sidebar" class="sidebar">
             <div class="sidebar-header">
-                <div class="logo-container" style="display: flex; align-items: center; justify-content: center; max-width: 100%; padding: 6px 0; text-decoration: none; gap: 0.4rem;">
-                    <a href="{{ url_for('dashboard') }}" style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.25rem; color: var(--text-primary); letter-spacing: -0.03em; text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
+                <div class="logo-container" style="display: flex; align-items: center; justify-content: flex-start; max-width: 100%; padding: 6px 0; text-decoration: none; gap: 0.4rem;">
+                    <a href="{{ url_for('dashboard') }}" style="font-family: var(--font-heading, sans-serif); font-weight: 800; font-size: 1.15rem; color: var(--text-primary); letter-spacing: -0.02em; text-decoration: none; display: flex; align-items: center; gap: 0.4rem;">
                         {% if portal_settings['portal_logo'] %}
-                            <img src="{{ url_for('uploaded_file', filename=portal_settings['portal_logo']) }}" style="max-height: 40px; max-width: 100%; object-fit: contain;" alt="Logo">
+                            <img src="{{ url_for('uploaded_file', filename=portal_settings['portal_logo']) }}" style="max-height: 36px; max-width: 100%; object-fit: contain;" alt="Logo">
                         {% else %}
                             <span>📂</span> {{ portal_settings['portal_name'] }}
                         {% endif %}
@@ -154,7 +136,14 @@
                     <span style="font-size: 0.6rem; color: var(--text-muted); background: rgba(255,255,255,0.05); border: 1px solid var(--border-glass); padding: 0.1rem 0.3rem; border-radius: 4px; font-weight: 700; vertical-align: middle;">{{ portal_settings.get('portal_version', 'v4.0') }}</span>
                 </div>
                 <button id="sidebar-collapse-btn" onclick="this.closest('.sidebar').style.display='none';var b=document.getElementById('show-sidebar-btn');if(b)b.style.display='flex';localStorage.setItem('sidebar-collapsed','true');" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:1.1rem;padding:4px 8px;border-radius:6px;transition:all 0.2s;" title="Hide Sidebar">&laquo;</button>
-                
+                <button id="sidebar-mobile-close-btn" class="sidebar-mobile-close" onclick="closeMobileDrawer()" title="Close Navigation">✕</button>
+            </div>
+            
+            <!-- FSM Theme Live Status Pill -->
+            <div class="sidebar-live" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 1rem; border-bottom: 1px solid rgba(255,255,255,0.08); font-family: var(--font-mono, monospace); font-size: 0.72rem; color: #b7cec0;">
+                <span class="pulse-dot"></span>
+                <span style="letter-spacing: 0.08em; text-transform: uppercase;">Network Stable</span>
+                <span id="live-sidebar-clock" style="margin-left: auto; color: var(--color-lime); font-size: 0.72rem;"></span>
             </div>
             
             <div class="nav-container">
@@ -475,6 +464,52 @@
                             </div>
                         {% endif %}
                         
+                        <!-- OEM Products & Services Overview (10-15 Lines Editable Section) -->
+                        <div id="portfolio-summary-card" style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-glass); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; position: relative;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <span style="font-size: 1.1rem;">📝</span>
+                                    <h3 style="font-size: 0.95rem; font-weight: 700; margin: 0; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.03em;">
+                                        OEM Products & Services Overview
+                                    </h3>
+                                    <span class="badge" style="background: rgba(99, 102, 241, 0.15); color: var(--primary); font-size: 0.65rem; font-weight: 700;">AI / Web Intel</span>
+                                </div>
+                                {% if session['role'] != 'viewer' %}
+                                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                    <button type="button" id="btn-edit-summary" class="btn btn-secondary btn-sm" onclick="toggleSummaryEdit(true)" style="padding: 0.25rem 0.65rem; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.3rem;" title="Edit this 10-15 line portfolio overview">
+                                        ✏️ Edit Overview
+                                    </button>
+                                    <button type="button" id="btn-save-summary" class="btn btn-primary btn-sm" onclick="savePortfolioSummary({{ contact['id'] }})" style="display: none; padding: 0.25rem 0.75rem; font-size: 0.75rem; align-items: center; gap: 0.3rem;" title="Save updated overview">
+                                        💾 Save
+                                    </button>
+                                    <button type="button" id="btn-cancel-summary" class="btn btn-secondary btn-sm" onclick="toggleSummaryEdit(false)" style="display: none; padding: 0.25rem 0.65rem; font-size: 0.75rem;" title="Cancel editing">
+                                        Cancel
+                                    </button>
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Read-only Display View -->
+                            <div id="summary-display-view" style="font-size: 0.88rem; line-height: 1.75; color: var(--text-secondary); text-align: justify; letter-spacing: 0.01em;">
+                                {{ contact['portfolio_summary'] or 'No solutions overview generated yet. Click "Fetch Offerings" to auto-generate a comprehensive 10-15 line portfolio profile from the internet, or click "Edit Overview" to write one manually.' }}
+                            </div>
+
+                            <!-- Editable Textarea View -->
+                            {% if session['role'] != 'viewer' %}
+                            <div id="summary-edit-view" style="display: none; margin-top: 0.75rem;">
+                                <textarea id="summary-textarea" class="form-control" rows="8" style="font-size: 0.88rem; line-height: 1.6; resize: vertical; width: 100%;" placeholder="Write a 10-15 line comprehensive overview about the OEM's products, services, architectures, and enterprise market capabilities...">{{ contact['portfolio_summary'] or '' }}</textarea>
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+                                    <small style="color: var(--text-muted); font-size: 0.75rem;">
+                                        💡 10–15 lines detailing core hardware/software platforms, professional services, SLAs, and architecture value.
+                                    </small>
+                                    <button type="button" class="btn btn-primary btn-sm" onclick="savePortfolioSummary({{ contact['id'] }})" style="padding: 0.35rem 0.85rem; font-size: 0.8rem;">
+                                        💾 Save Overview
+                                    </button>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                        
                         <div class="portfolio-grid">
                             
                             <!-- Products Column -->
@@ -639,6 +674,32 @@
         </main>
     </div>
     
+    <!-- Mobile App Bottom Navigation (FSM Theme Dock) -->
+    <nav class="mobile-bottom-nav mobile-bottom-dock" aria-label="Mobile Bottom Navigation">
+        <a href="{{ url_for('dashboard') }}" class="mobile-nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}" title="Dashboard">
+            <span class="icon">📊</span>
+            <span>Home</span>
+        </a>
+        <a href="{{ url_for('oem_news_page') }}" class="mobile-nav-item {% if request.endpoint == 'oem_news_page' %}active{% endif %}" title="OEM News">
+            <span class="icon">📰</span>
+            <span>News</span>
+        </a>
+        <a href="{{ url_for('dashboard') }}" class="mobile-nav-item mobile-scan-action-btn" title="Scan Visiting Card">
+            <div class="mobile-scan-bubble">
+                <span class="icon">📸</span>
+            </div>
+            <span>Scan</span>
+        </a>
+        <a href="{{ url_for('timesheets.employee_timesheets') }}" class="mobile-nav-item" title="Time Sheet">
+            <span class="icon">⏱️</span>
+            <span>Timesheet</span>
+        </a>
+        <button type="button" onclick="openMobileDrawer()" class="mobile-nav-item" title="Open Navigation Drawer">
+            <span class="icon">☰</span>
+            <span>Menu</span>
+        </button>
+    </nav>
+    
     <!-- Edit Partner Modal -->
     <div id="edit-contact-modal" class="modal-backdrop">
         <div class="modal-content">
@@ -759,6 +820,11 @@
                 <div class="form-group">
                     <label class="form-label" for="edit_address">Office Address</label>
                     <textarea id="edit_address" name="address" class="form-control" rows="2">{{ contact['address'] or '' }}</textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="edit_portfolio_summary">Products & Services Overview (10-15 lines)</label>
+                    <textarea id="edit_portfolio_summary" name="portfolio_summary" class="form-control" rows="5" placeholder="10-15 line comprehensive portfolio overview...">{{ contact['portfolio_summary'] or '' }}</textarea>
                 </div>
                 
                 <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 2rem;">
@@ -1047,34 +1113,6 @@
         }
     })();
     </script>
-
-    <!-- Mobile App Bottom Navigation -->
-    <div class="mobile-bottom-nav">
-        <a href="{{ url_for('dashboard') }}" class="mobile-nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
-            <span class="icon">📊</span>
-            <span>Home</span>
-        </a>
-        <a href="{{ url_for('oem_news_page') }}" class="mobile-nav-item {% if request.endpoint == 'oem_news_page' %}active{% endif %}">
-            <span class="icon">📰</span>
-            <span>News</span>
-        </a>
-        {% if user_role != 'viewer' %}
-        <a href="javascript:void(0)" onclick="startCardCameraCapture()" class="mobile-nav-item mobile-scan-action-btn" title="Scan Visiting Card">
-            <div class="mobile-scan-bubble">
-                <span class="icon">📸</span>
-            </div>
-            <span>Scan</span>
-        </a>
-        {% endif %}
-        <a href="{{ url_for('work_tools') }}" class="mobile-nav-item {% if request.endpoint == 'work_tools' %}active{% endif %}">
-            <span class="icon">🛠️</span>
-            <span>Tools</span>
-        </a>
-        <a href="javascript:void(0)" onclick="toggleMobileSidebar()" class="mobile-nav-item">
-            <span class="icon">☰</span>
-            <span>Menu</span>
-        </a>
-    </div>
 
 
 <!-- Global Notification System -->

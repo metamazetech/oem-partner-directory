@@ -1,6 +1,8 @@
 import os
 import json
 import uuid
+import base64
+import secrets
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_from_directory, send_file
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
@@ -136,10 +138,6 @@ def download_company_logo(website, contact_id, company_name=None):
     import urllib.request
     from urllib.parse import urlparse
     import socket
-    import time
-    
-    with logo_download_lock:
-        time.sleep(0.5)  # Rate limit prevention
     
     domain = None
     if website:
@@ -185,21 +183,20 @@ def download_company_logo(website, contact_id, company_name=None):
     filename = f"logo_{contact_id}.png"
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     
-    # List of public logo/favicon API services
-    # We will prioritize Google since Clearbit often fails or returns placeholder blocks
+    # Fast & reliable logo / favicon sources
     sources = [
-        f"https://logo.clearbit.com/{domain}",
         f"https://icons.duckduckgo.com/ip3/{domain}.ico",
-        f"https://www.google.com/s2/favicons?sz=128&domain={domain}"
+        f"https://www.google.com/s2/favicons?sz=128&domain={domain}",
+        f"https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://{domain}&size=128",
+        f"https://{domain}/favicon.ico"
     ]
     
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
     
-    # Try sequentially
     import requests
     for logo_url in sources:
         try:
-            response = requests.get(logo_url, headers=headers, timeout=5, verify=False)
+            response = requests.get(logo_url, headers=headers, timeout=4, verify=False)
             content_length = len(response.content)
             # Skip Google's default 726-byte globe icon
             is_google_globe = 'google.com' in logo_url and content_length == 726
@@ -207,8 +204,8 @@ def download_company_logo(website, contact_id, company_name=None):
                 with open(filepath, 'wb') as out_file:
                     out_file.write(response.content)
                 return filename
-        except Exception as e:
-            print(f"Requests failed to fetch logo from {logo_url}: {e}")
+        except Exception:
+            pass
             
         try:
             import ssl
@@ -254,6 +251,20 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def get_portal_settings(conn=None):
+    close_at_end = False
+    if conn is None:
+        conn = database.get_db_connection()
+        close_at_end = True
+    try:
+        rows = conn.execute("SELECT key, value FROM portal_settings").fetchall()
+        return {r['key']: r['value'] for r in rows}
+    finally:
+        if close_at_end:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 @app.before_request
 def make_session_permanent():
@@ -513,6 +524,144 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
+# ----------------------------------------------------
+# NATIVE ANDROID BIOMETRIC / FINGERPRINT AUTHENTICATION
+# ----------------------------------------------------
+@app.route('/biometric/register/options', methods=['POST'])
+@login_required
+def biometric_register_options():
+    try:
+        user_id = session.get('user_id')
+        username = session.get('username')
+        challenge = secrets.token_urlsafe(32)
+        session['biometric_reg_challenge'] = challenge
+        
+        settings = get_portal_settings()
+        portal_name = settings.get('portal_name', 'OEM Directory')
+        
+        return jsonify({
+            "status": "success",
+            "challenge": base64.b64encode(challenge.encode()).decode(),
+            "rp": {
+                "name": portal_name
+            },
+            "user": {
+                "id": user_id,
+                "name": username,
+                "displayName": username
+            }
+        })
+    except Exception as e:
+        print(f"Biometric register options error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/biometric/register/verify', methods=['POST'])
+@login_required
+def biometric_register_verify():
+    try:
+        data = request.get_json(silent=True) or {}
+        credential_id = data.get('credential_id', '').strip()
+        device_name = data.get('device_name', 'Android Phone').strip()
+        user_id = session.get('user_id')
+        username = session.get('username')
+        
+        if not credential_id:
+            return jsonify({"status": "error", "message": "Missing credential ID"}), 400
+            
+        conn = database.get_db_connection()
+        conn.execute('''
+        INSERT OR REPLACE INTO biometric_credentials (user_id, username, credential_id, device_name)
+        VALUES (?, ?, ?, ?)
+        ''', (user_id, username, credential_id, device_name))
+        conn.commit()
+        conn.close()
+        
+        log_audit('REGISTER_BIOMETRIC', f"User {username} registered fingerprint on {device_name}")
+        return jsonify({"status": "success", "message": "Fingerprint registered successfully!"})
+    except Exception as e:
+        print(f"Biometric register verify error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/biometric/login/options', methods=['POST'])
+def biometric_login_options():
+    try:
+        data = request.get_json(silent=True) or {}
+        username = data.get('username', '').strip()
+        
+        challenge = secrets.token_urlsafe(32)
+        session['biometric_auth_challenge'] = challenge
+        
+        conn = database.get_db_connection()
+        if username:
+            rows = conn.execute('SELECT credential_id FROM biometric_credentials WHERE username = ?', (username,)).fetchall()
+        else:
+            rows = conn.execute('SELECT credential_id FROM biometric_credentials').fetchall()
+        conn.close()
+        
+        if not rows:
+            return jsonify({
+                "status": "error", 
+                "message": "No fingerprint registered yet on this portal. Log in once with password and tap 'Register Fingerprint'."
+            }), 404
+            
+        allow_creds = [{"id": row['credential_id'], "type": "public-key"} for row in rows]
+        
+        return jsonify({
+            "status": "success",
+            "challenge": base64.b64encode(challenge.encode()).decode(),
+            "allowCredentials": allow_creds
+        })
+    except Exception as e:
+        print(f"Biometric login options error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/biometric/login/verify', methods=['POST'])
+def biometric_login_verify():
+    try:
+        data = request.get_json(silent=True) or {}
+        credential_id = data.get('credential_id', '').strip()
+        
+        if not credential_id:
+            return jsonify({"status": "error", "message": "Missing credential ID"}), 400
+            
+        conn = database.get_db_connection()
+        cred = conn.execute('''
+        SELECT b.credential_id, b.user_id, u.id, u.username, u.role, u.status, u.theme, u.dashboard_layout
+        FROM biometric_credentials b
+        JOIN users u ON b.user_id = u.id
+        WHERE b.credential_id = ?
+        ''', (credential_id,)).fetchone()
+        conn.close()
+        
+        if not cred:
+            return jsonify({"status": "error", "message": "Fingerprint credential not recognized."}), 401
+            
+        if cred['status'] != 'approved' and cred['status'] != 'active':
+            return jsonify({"status": "error", "message": f"User account is {cred['status']}."}), 403
+            
+        session['user_id'] = cred['id']
+        session['username'] = cred['username']
+        session['role'] = cred['role']
+        session['theme'] = cred['theme'] or 'theme-slate-dark'
+        session['dashboard_layout'] = cred['dashboard_layout'] or '{}'
+        session.permanent = True
+        
+        log_audit('USER_LOGIN_BIOMETRIC', f"User {cred['username']} logged in via Fingerprint/Biometrics.")
+        return jsonify({"status": "success", "redirect": url_for('dashboard')})
+    except Exception as e:
+        print(f"Biometric login verify error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/biometric/status', methods=['GET'])
+def biometric_status():
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({"registered": False})
+    conn = database.get_db_connection()
+    count = conn.execute('SELECT COUNT(*) FROM biometric_credentials WHERE user_id = ?', (user_id,)).fetchone()[0]
+    conn.close()
+    return jsonify({"registered": count > 0, "count": count})
+
 @app.route('/forgot-password', methods=['POST'])
 def forgot_password():
     email = request.form.get('email', '').strip()
@@ -623,11 +772,20 @@ def serve_service_worker():
     response = send_from_directory('static', 'service-worker.js', mimetype='application/javascript')
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     return response
-def get_portal_settings():
-    conn = database.get_db_connection()
-    rows = conn.execute("SELECT key, value FROM portal_settings").fetchall()
-    conn.close()
-    return {r['key']: r['value'] for r in rows}
+def get_portal_settings(conn=None):
+    close_at_end = False
+    if conn is None:
+        conn = database.get_db_connection()
+        close_at_end = True
+    try:
+        rows = conn.execute("SELECT key, value FROM portal_settings").fetchall()
+        return {r['key']: r['value'] for r in rows}
+    finally:
+        if close_at_end:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 @app.route('/search')
 @login_required
@@ -638,34 +796,159 @@ def universal_search():
         
     conn = database.get_db_connection()
     search_pattern = f"%{query}%"
+    query_lower = query.lower()
     
-    contacts = conn.execute('''
-        SELECT id, company_name as title, type as subtitle, 'Contact' as category, group_name as extra
+    # Enterprise Pre-Sales Synonyms Mapping for Universal OEM Search
+    ENTERPRISE_SYNONYMS = {
+        'cctv': ['camera', 'surveillance', 'vms', 'nvr', 'dvr', 'video security'],
+        'camera': ['cctv', 'surveillance', 'vms', 'nvr', 'dvr'],
+        'surveillance': ['camera', 'cctv', 'vms', 'video security'],
+        'storage': ['san', 'nas', 'backup', 'all-flash', 'storage solutions'],
+        'san': ['storage', 'nas', 'datacenter'],
+        'nas': ['storage', 'san', 'backup'],
+        'firewall': ['ngfw', 'utm', 'cyber security', 'network security'],
+        'ngfw': ['firewall', 'security', 'cyber security'],
+        'edr': ['endpoint', 'antivirus', 'xdr', 'detection', 'malware'],
+        'antivirus': ['edr', 'endpoint', 'malware', 'threat protection', 'security'],
+        'switch': ['switching', 'router', 'routing', 'poe', 'catalyst', 'nexus'],
+        'switching': ['switch', 'networking', 'router'],
+        'networking': ['switch', 'router', 'sd-wan', 'lan', 'wan', 'access point'],
+        'router': ['routing', 'switch', 'networking', 'gateway'],
+        'server': ['compute', 'blade', 'rackmount', 'hci', 'hyperconverged'],
+        'compute': ['server', 'workstation', 'virtualization', 'cluster'],
+        'ups': ['power', 'inverter', 'battery', 'rack', 'uniline', 'apc'],
+        'battery': ['ups', 'power', 'inverter'],
+        'power': ['ups', 'battery', 'inverter', 'distribution'],
+        'wifi': ['wireless', 'access point', 'rf', 'wlan', 'wi-fi'],
+        'wireless': ['wifi', 'access point', 'rf', 'wlan'],
+        'backup': ['disaster recovery', 'replication', 'veeam', 'storage'],
+        'cloud': ['hybrid cloud', 'virtualization', 'aws', 'azure', 'saas']
+    }
+    
+    expanded_terms = [query_lower]
+    for syn_key, syn_vals in ENTERPRISE_SYNONYMS.items():
+        if syn_key in query_lower or query_lower in syn_key:
+            for v in syn_vals:
+                if v not in expanded_terms:
+                    expanded_terms.append(v)
+    
+    # Build dynamic multi-term search conditions
+    term_clauses = []
+    term_params = []
+    for term in expanded_terms:
+        pat = f"%{term}%"
+        term_clauses.append('''
+            (company_name LIKE ? 
+             OR group_name LIKE ? 
+             OR fetched_products LIKE ? 
+             OR fetched_services LIKE ? 
+             OR custom_products LIKE ? 
+             OR custom_services LIKE ? 
+             OR portfolio_summary LIKE ? 
+             OR contact_persons LIKE ? 
+             OR address LIKE ?)
+        ''')
+        term_params.extend([pat] * 9)
+        
+    order_params = [
+        query_lower, f"{query_lower}%", search_pattern, search_pattern, 
+        search_pattern, search_pattern, search_pattern, search_pattern,
+        search_pattern, search_pattern
+    ]
+    full_sql_params = term_params + order_params
+    
+    sql_query = f'''
+        SELECT id, company_name, type, group_name, company_logo, website, email, phone, address,
+               fetched_products, fetched_services, custom_products, custom_services, 
+               portfolio_summary, contact_persons
         FROM contacts 
-        WHERE company_name LIKE ? OR group_name LIKE ? OR fetched_products LIKE ? OR fetched_services LIKE ? OR custom_products LIKE ? OR custom_services LIKE ? OR contact_persons LIKE ?
-    ''', (search_pattern,)*7).fetchall()
+        WHERE {' OR '.join(term_clauses)}
+        ORDER BY 
+           CASE 
+               WHEN LOWER(company_name) = ? THEN 1
+               WHEN LOWER(company_name) LIKE ? THEN 2
+               WHEN fetched_products LIKE ? OR custom_products LIKE ? THEN 3
+               WHEN fetched_services LIKE ? OR custom_services LIKE ? THEN 4
+               WHEN portfolio_summary LIKE ? THEN 5
+               WHEN LOWER(group_name) LIKE ? THEN 6
+               WHEN contact_persons LIKE ? THEN 7
+               WHEN address LIKE ? THEN 8
+               ELSE 9 
+           END, company_name ASC
+    '''
+    
+    # 1. Search OEM & Partner Bank with deep products, services, and portfolio summary matching
+    raw_contacts = conn.execute(sql_query, full_sql_params).fetchall()
+    
+    processed_contacts = []
+    for c in raw_contacts:
+        c_dict = dict(c)
+        c_dict['title'] = c_dict['company_name']
+        c_dict['subtitle'] = c_dict['type']
+        c_dict['category'] = 'OEMs & Partners'
+        c_dict['extra'] = c_dict['group_name'] or 'General IT'
+        
+        f_prods = json.loads(c_dict['fetched_products']) if c_dict['fetched_products'] else []
+        f_servs = json.loads(c_dict['fetched_services']) if c_dict['fetched_services'] else []
+        c_prods = json.loads(c_dict['custom_products']) if c_dict['custom_products'] else []
+        c_servs = json.loads(c_dict['custom_services']) if c_dict['custom_services'] else []
+        
+        all_prods = f_prods + c_prods
+        all_servs = f_servs + c_servs
+        
+        # Identify matching items across direct query and expanded synonyms
+        matched_prods = [p for p in all_prods if any(t in p.lower() for t in expanded_terms)]
+        matched_servs = [s for s in all_servs if any(t in s.lower() for t in expanded_terms)]
+        
+        # Contextual summary snippet
+        summary_text = c_dict.get('portfolio_summary') or ''
+        summary_snippet = ""
+        if summary_text:
+            sentences = [sen.strip() for sen in summary_text.split('. ') if sen.strip()]
+            matching_sentences = [sen for sen in sentences if any(t in sen.lower() for t in expanded_terms)]
+            if matching_sentences:
+                summary_snippet = ". ".join(matching_sentences[:2]) + "."
+            if not summary_snippet:
+                summary_snippet = summary_text[:280] + ("..." if len(summary_text) > 280 else "")
+                
+        c_dict['all_products'] = all_prods
+        c_dict['all_services'] = all_servs
+        c_dict['matched_products'] = matched_prods
+        c_dict['matched_services'] = matched_servs
+        c_dict['summary_snippet'] = summary_snippet
+        processed_contacts.append(c_dict)
     
     news = conn.execute('''
-        SELECT id, title, oem_name as subtitle, 'News' as category, link as extra
+        SELECT id, title, oem_name as subtitle, 'News' as category, link as extra, pub_date, snippet
         FROM oem_news
         WHERE title LIKE ? OR snippet LIKE ? OR oem_name LIKE ?
+        ORDER BY pub_date DESC
     ''', (search_pattern,)*3).fetchall()
     
     rfps = conn.execute('''
-        SELECT id, rfp_number as title, customer_name as subtitle, 'RFP' as category, opportunity_from as extra
+        SELECT id, rfp_number as title, customer_name as subtitle, 'RFP' as category, opportunity_from as extra, submission_date
         FROM rfps
         WHERE rfp_number LIKE ? OR customer_name LIKE ? OR title LIKE ?
+        ORDER BY id DESC
     ''', (search_pattern,)*3).fetchall()
     
     conn.close()
     
     results = {
-        'Contacts': [dict(r) for r in contacts],
+        'OEMs & Partners': processed_contacts,
         'News': [dict(r) for r in news],
         'RFPs': [dict(r) for r in rfps]
     }
     
-    return render_template('search_results.html', query=query, results=results, portal_settings=get_portal_settings())
+    total_oems_count = len(processed_contacts)
+    return render_template(
+        'search_results.html', 
+        query=query, 
+        expanded_terms=expanded_terms,
+        results=results, 
+        total_oems_count=total_oems_count,
+        portal_settings=get_portal_settings()
+    )
 
 @app.route('/')
 @login_required
@@ -890,16 +1173,45 @@ def add_contact():
     ))
     contact_id = cursor.lastrowid
     
-    # Try fetching company logo from Clearbit
+    # 1. Fetch & update brand logo
     logo_filename = download_company_logo(website, contact_id, company_name)
     if logo_filename:
         cursor.execute("UPDATE contacts SET company_logo = ? WHERE id = ?", (logo_filename, contact_id))
+        
+    # 2. Fetch OEM offerings (products & services) from URL and open internet
+    if website or company_name:
+        try:
+            from scraper import scrape_oem_website, search_open_internet_offerings
+            scrape_data = scrape_oem_website(website, company_name)
+            scraped_products = scrape_data.get('products', []) if scrape_data else []
+            scraped_services = scrape_data.get('services', []) if scrape_data else []
+            
+            if len(scraped_products) < 3 or len(scraped_services) < 3:
+                open_offerings = search_open_internet_offerings(company_name)
+                for p in open_offerings.get('products', []):
+                    if p not in scraped_products:
+                        scraped_products.append(p)
+                for s in open_offerings.get('services', []):
+                    if s not in scraped_services:
+                        scraped_services.append(s)
+                        
+            if scraped_products or scraped_services:
+                portfolio_summary = scrape_data.get('portfolio_summary', '') if scrape_data else ''
+                if not portfolio_summary:
+                    from scraper import generate_oem_portfolio_summary
+                    portfolio_summary = generate_oem_portfolio_summary(company_name, website, scraped_products, scraped_services)
+                cursor.execute(
+                    "UPDATE contacts SET fetched_products = ?, fetched_services = ?, portfolio_summary = ? WHERE id = ?",
+                    (json.dumps(scraped_products[:12]), json.dumps(scraped_services[:12]), portfolio_summary, contact_id)
+                )
+        except Exception as e:
+            print(f"Error fetching offerings during onboarding for {company_name}: {e}")
         
     conn.commit()
     conn.close()
     
     log_audit('CONTACT_ADD', f"Added contact: {company_name} (ID: {contact_id})")
-    flash(f"Vendor partner '{company_name}' successfully added.", 'success')
+    flash(f"Vendor partner '{company_name}' successfully added with offerings catalog & logo.", 'success')
     return redirect(url_for('contact_detail', contact_id=contact_id))
 
 @app.route('/contact/<int:contact_id>')
@@ -1009,16 +1321,48 @@ def edit_contact(contact_id):
     WHERE id = ?
     ''', (company_name, primary_contact["name"], type_, group_name, primary_contact["designation"], primary_contact["email"], primary_contact["phone"], website, address, json.dumps(contacts_list), contact_id))
     
-    # Try fetching company logo on edit
+    # 1. Try fetching company logo on edit
     logo_filename = download_company_logo(website, contact_id, company_name)
     if logo_filename:
         cursor.execute("UPDATE contacts SET company_logo = ? WHERE id = ?", (logo_filename, contact_id))
+        
+    # 2. Refresh offerings if website or company_name is provided
+    if website or company_name:
+        try:
+            from scraper import scrape_oem_website, search_open_internet_offerings
+            scrape_data = scrape_oem_website(website, company_name)
+            scraped_products = scrape_data.get('products', []) if scrape_data else []
+            scraped_services = scrape_data.get('services', []) if scrape_data else []
+            if len(scraped_products) < 3 or len(scraped_services) < 3:
+                open_offerings = search_open_internet_offerings(company_name)
+                for p in open_offerings.get('products', []):
+                    if p not in scraped_products:
+                        scraped_products.append(p)
+                for s in open_offerings.get('services', []):
+                    if s not in scraped_services:
+                        scraped_services.append(s)
+            if scraped_products or scraped_services:
+                summary = scrape_data.get('portfolio_summary', '') if scrape_data else ''
+                if not summary:
+                    from scraper import generate_oem_portfolio_summary
+                    summary = generate_oem_portfolio_summary(company_name, website, scraped_products, scraped_services)
+                cursor.execute(
+                    "UPDATE contacts SET fetched_products = ?, fetched_services = ?, portfolio_summary = ? WHERE id = ?",
+                    (json.dumps(scraped_products[:12]), json.dumps(scraped_services[:12]), summary, contact_id)
+                )
+        except Exception as e:
+            print(f"Error updating offerings on edit for {company_name}: {e}")
+            
+    # Check if direct form summary was edited
+    form_summary = request.form.get('portfolio_summary', '').strip()
+    if form_summary:
+        cursor.execute("UPDATE contacts SET portfolio_summary = ? WHERE id = ?", (form_summary, contact_id))
         
     conn.commit()
     conn.close()
     
     log_audit('CONTACT_EDIT', f"Edited details for contact ID: {contact_id}")
-    flash('Partner profile updated successfully.', 'success')
+    flash('Partner profile and offerings catalog updated successfully.', 'success')
     return redirect(url_for('contact_detail', contact_id=contact_id))
 
 @app.route('/contact/<int:contact_id>/delete', methods=['POST'])
@@ -1121,13 +1465,19 @@ def scrape_website(contact_id):
         return jsonify({"status": "error", "message": "Access Denied: View-only users cannot trigger scraping."}), 403
         
     conn = database.get_db_connection()
-    contact = conn.execute('SELECT website, company_name FROM contacts WHERE id = ?', (contact_id,)).fetchone()
+    contact = conn.execute('SELECT website, company_name, fetched_products, fetched_services FROM contacts WHERE id = ?', (contact_id,)).fetchone()
     
     if not contact or not contact['website']:
         conn.close()
         return jsonify({"status": "error", "message": "Website URL not configured."}), 400
         
     website = contact['website']
+    try:
+        existing_p = json.loads(contact['fetched_products']) if contact['fetched_products'] else []
+        existing_s = json.loads(contact['fetched_services']) if contact['fetched_services'] else []
+    except Exception:
+        existing_p = []
+        existing_s = []
     
     # Run the web scraper
     scrape_data = scrape_oem_website(website, contact['company_name'])
@@ -1151,21 +1501,30 @@ def scrape_website(contact_id):
             except Exception as e:
                 print(f"Open search fallback error: {e}")
                 
-        # Merge with existing products/services to prevent data loss
-        existing_record = conn.execute('SELECT fetched_products, fetched_services FROM contacts WHERE id = ?', (contact_id,)).fetchone()
-        existing_p = json.loads(existing_record['fetched_products']) if (existing_record and existing_record['fetched_products']) else []
-        existing_s = json.loads(existing_record['fetched_services']) if (existing_record and existing_record['fetched_services']) else []
+        # Refresh products and services with fresh crawl results
+        final_products = list(dict.fromkeys(scraped_products))[:12] if scraped_products else existing_p[:12]
+        final_services = list(dict.fromkeys(scraped_services))[:12] if scraped_services else existing_s[:12]
         
-        final_products = list(set(scraped_products + existing_p))[:12]
-        final_services = list(set(scraped_services + existing_s))[:12]
-        
+        # Also refresh brand logo
+        logo_filename = download_company_logo(website, contact_id, contact['company_name'])
+        if logo_filename:
+            conn.execute("UPDATE contacts SET company_logo = ? WHERE id = ?", (logo_filename, contact_id))
+            scrape_data['logo_url'] = url_for('uploaded_file', filename=logo_filename)
+            
+        summary = scrape_data.get('portfolio_summary', '')
+        if not summary:
+            from scraper import generate_oem_portfolio_summary
+            summary = generate_oem_portfolio_summary(contact['company_name'], website, final_products, final_services)
+        scrape_data['portfolio_summary'] = summary
+            
         conn.execute('''
         UPDATE contacts 
-        SET fetched_products = ?, fetched_services = ?
+        SET fetched_products = ?, fetched_services = ?, portfolio_summary = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
         ''', (
             json.dumps(final_products), 
             json.dumps(final_services), 
+            summary,
             contact_id
         ))
         conn.commit()
@@ -1177,6 +1536,33 @@ def scrape_website(contact_id):
         
     conn.close()
     return jsonify(scrape_data)
+
+# Save / Update Portfolio Overview Summary directly (Editable Section)
+@app.route('/contact/<int:contact_id>/portfolio-summary', methods=['POST'])
+@login_required
+def update_portfolio_summary(contact_id):
+    if session.get('role') == 'viewer':
+        return jsonify({"status": "error", "message": "Access Denied: View-only users cannot edit summary."}), 403
+        
+    data = request.get_json() or {}
+    new_summary = data.get('portfolio_summary', '').strip()
+    
+    conn = database.get_db_connection()
+    contact = conn.execute('SELECT company_name FROM contacts WHERE id = ?', (contact_id,)).fetchone()
+    if not contact:
+        conn.close()
+        return jsonify({"status": "error", "message": "Partner contact not found."}), 404
+        
+    conn.execute('UPDATE contacts SET portfolio_summary = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', (new_summary, contact_id))
+    conn.commit()
+    conn.close()
+    
+    log_audit('PORTFOLIO_SUMMARY_UPDATE', f"Updated solutions overview summary for {contact['company_name']} (ID: {contact_id})")
+    return jsonify({
+        "status": "success", 
+        "message": "Portfolio solutions overview updated successfully.",
+        "portfolio_summary": new_summary
+    })
 
 # Add Custom Portfolio Item (Product or Service)
 @app.route('/contact/<int:contact_id>/custom-item', methods=['POST'])
@@ -2400,11 +2786,26 @@ def run_master_sync_thread(user_id, username):
                 existing_products = []
                 existing_services = []
             
-            if cleaned_website or cleaned_company:
+            # 1. First, crawl actual OEM website if website is configured
+            if cleaned_website:
+                try:
+                    from scraper import scrape_oem_website
+                    scrape_res = scrape_oem_website(cleaned_website, cleaned_company)
+                    if scrape_res and scrape_res.get('status') in ['success', 'partial']:
+                        for p in scrape_res.get('products', []):
+                            if p not in scraped_products:
+                                scraped_products.append(p)
+                        for s in scrape_res.get('services', []):
+                            if s not in scraped_services:
+                                scraped_services.append(s)
+                except Exception as e:
+                    print(f"Website scrape error for {cleaned_company} ({cleaned_website}): {e}")
+                    
+            # 2. If website yielded few or no results (or no website configured), query open internet
+            if len(scraped_products) < 3 or len(scraped_services) < 3:
                 try:
                     from scraper import search_open_internet_offerings
-                    domain = cleaned_website if cleaned_website else cleaned_company
-                    search_results = search_open_internet_offerings(domain)
+                    search_results = search_open_internet_offerings(cleaned_company)
                     for p in search_results.get('products', []):
                         if p not in scraped_products:
                             scraped_products.append(p)
@@ -2412,21 +2813,29 @@ def run_master_sync_thread(user_id, username):
                         if s not in scraped_services:
                             scraped_services.append(s)
                 except Exception as e:
-                    print(f"Open search fallback error: {e}")
+                    print(f"Open search fallback error for {cleaned_company}: {e}")
             
-            # Merge with existing so custom additions or valid old scrapes are preserved permanently
-            final_products = list(set(scraped_products + existing_products))
-            final_services = list(set(scraped_services + existing_services))
+            # 3. Refresh existing entries:
+            # If new offerings were successfully fetched, refresh the list completely with fresh data!
+            # Only fallback to existing if scraper returned empty so data isn't wiped out
+            if scraped_products:
+                final_products = list(dict.fromkeys(scraped_products))[:12]
+            else:
+                final_products = existing_products[:12]
+                
+            if scraped_services:
+                final_services = list(dict.fromkeys(scraped_services))[:12]
+            else:
+                final_services = existing_services[:12]
             
-            # Limit lists to prevent UI bloat
-            final_products = final_products[:12]
-            final_services = final_services[:12]
+            from scraper import generate_oem_portfolio_summary
+            portfolio_summary = generate_oem_portfolio_summary(cleaned_company, cleaned_website, final_products, final_services, group_name=contact['group_name'])
             
             thread_conn = database.get_db_connection() # Reopen for writing
             thread_conn.execute('''
             UPDATE contacts
             SET company_name = ?, name = ?, designation = ?, email = ?, phone = ?, website = ?, address = ?, 
-                contact_persons = ?, fetched_products = ?, fetched_services = ?, updated_at = CURRENT_TIMESTAMP
+                contact_persons = ?, fetched_products = ?, fetched_services = ?, portfolio_summary = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
             ''', (
                 cleaned_company,
@@ -2439,6 +2848,7 @@ def run_master_sync_thread(user_id, username):
                 json.dumps(contact_persons),
                 json.dumps(final_products),
                 json.dumps(final_services),
+                portfolio_summary,
                 contact_id
             ))
             

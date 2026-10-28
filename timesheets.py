@@ -75,9 +75,21 @@ def calculate_hours(start, end):
 @login_required
 def employee_timesheets():
     user_id = session.get('user_id')
+    sort = request.args.get('sort', 'project_asc')
+    if sort == 'task_asc':
+        order_clause = 'task ASC, date DESC'
+    elif sort == 'date_desc':
+        order_clause = 'date DESC, start_time ASC'
+    elif sort == 'date_asc':
+        order_clause = 'date ASC, start_time ASC'
+    elif sort == 'time_asc':
+        order_clause = 'start_time ASC, date DESC'
+    else:  # project_asc (A to Z)
+        order_clause = 'project_title ASC, date DESC, start_time ASC'
+
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM timesheets WHERE user_id = ? ORDER BY date DESC, start_time ASC', (user_id,))
+    cursor.execute(f'SELECT * FROM timesheets WHERE user_id = ? ORDER BY {order_clause}', (user_id,))
     rows = cursor.fetchall()
     
     cursor.execute('SELECT DISTINCT project_title FROM timesheets WHERE user_id = ? AND project_title IS NOT NULL AND project_title != "" ORDER BY project_title ASC', (user_id,))
@@ -132,43 +144,58 @@ def employee_timesheets():
         lat_row = cursor.fetchone()
         cursor.execute("SELECT value FROM portal_settings WHERE key = 'office_lng'")
         lng_row = cursor.fetchone()
+        cursor.execute("SELECT value FROM portal_settings WHERE key = 'office_radius'")
+        rad_row = cursor.fetchone()
         office_lat = float(lat_row['value']) if lat_row else 40.758896
         office_lng = float(lng_row['value']) if lng_row else -73.985130
+        try:
+            office_radius = int(rad_row['value']) if rad_row and rad_row['value'] else 500
+        except:
+            office_radius = 500
     except Exception as e:
         today_attendance = None
         my_leaves = []
         office_lat = 40.758896
         office_lng = -73.985130
+        office_radius = 500
         
     conn.close()
 
     return render_template('timesheets.html', timesheets=timesheets, projects=projects, daily_summary=daily_summary,
                            today_attendance=today_attendance, my_leaves=my_leaves, 
-                           office_lat=office_lat, office_lng=office_lng, max_dist=100)
+                           office_lat=office_lat, office_lng=office_lng, max_dist=office_radius)
 
 @timesheets_bp.route('/timesheets/add', methods=['POST'])
 @login_required
 def add_timesheet():
     user_id = session.get('user_id')
-    date = request.form.get('date')
-    task = request.form.get('task')
+    date = (request.form.get('date') or '').strip()
+    task = (request.form.get('task') or '').strip()
     
-    project_title = request.form.get('project_title')
+    project_title = (request.form.get('project_title') or '').strip()
     if project_title == '__NEW__':
-        project_title = request.form.get('new_project_title')
+        project_title = (request.form.get('new_project_title') or '').strip()
         
-    if date and task:
-        conn = get_db()
-        cursor = conn.cursor()
-        start_time = request.form.get('start_time')
-        end_time = request.form.get('end_time')
-        cursor.execute('INSERT INTO timesheets (user_id, date, start_time, end_time, task, project_title) VALUES (?, ?, ?, ?, ?, ?)',
-                       (user_id, date, start_time, end_time, task, project_title))
-        conn.commit()
-        conn.close()
-        flash('Timesheet entry added successfully.', 'success')
-    else:
-        flash('Date and Task are required.', 'danger')
+    if not date:
+        date = datetime.now().strftime('%Y-%m-%d')
+    if not task and project_title:
+        task = project_title
+    if not project_title and task:
+        project_title = task
+    if not task:
+        task = 'General Task'
+    if not project_title:
+        project_title = 'General'
+        
+    conn = get_db()
+    cursor = conn.cursor()
+    start_time = (request.form.get('start_time') or '').strip()
+    end_time = (request.form.get('end_time') or '').strip()
+    cursor.execute('INSERT INTO timesheets (user_id, date, start_time, end_time, task, project_title) VALUES (?, ?, ?, ?, ?, ?)',
+                   (user_id, date, start_time, end_time, task, project_title))
+    conn.commit()
+    conn.close()
+    flash('Timesheet entry added successfully.', 'success')
         
     return redirect(url_for('timesheets.employee_timesheets'))
 
@@ -249,33 +276,74 @@ def import_timesheets():
 
 
 
-@timesheets_bp.route('/timesheets/edit/<int:entry_id>', methods=['POST'])
+@timesheets_bp.route('/timesheets/edit', methods=['POST'])
+@timesheets_bp.route('/timesheets/edit/<int:entry_id>', methods=['GET', 'POST'])
+@timesheets_bp.route('/timesheet/edit/<int:entry_id>', methods=['GET', 'POST'])
 @login_required
-def edit_timesheet(entry_id):
+def edit_timesheet(entry_id=None):
+    if request.method == 'GET':
+        return redirect(url_for('timesheets.employee_timesheets'))
+        
+    if entry_id is None:
+        raw_id = request.form.get('id') or request.form.get('entry_id')
+        if not raw_id:
+            flash('Invalid or missing timesheet entry ID.', 'error')
+            return redirect(url_for('timesheets.employee_timesheets'))
+        try:
+            entry_id = int(raw_id)
+        except ValueError:
+            flash('Invalid timesheet ID format.', 'error')
+            return redirect(url_for('timesheets.employee_timesheets'))
+
     user_id = session.get('user_id')
-    date = request.form.get('date')
-    task = request.form.get('task')
-    project_title = request.form.get('project_title')
-    start_time = request.form.get('start_time')
-    end_time = request.form.get('end_time')
+    is_admin = session.get('role') == 'admin'
+    date = (request.form.get('date') or '').strip()
+    task = (request.form.get('task') or '').strip()
+    project_title = (request.form.get('project_title') or '').strip()
+    start_time = (request.form.get('start_time') or '').strip()
+    end_time = (request.form.get('end_time') or '').strip()
     
-    if date and task:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute('UPDATE timesheets SET date = ?, start_time = ?, end_time = ?, project_title = ?, task = ? WHERE id = ? AND user_id = ?',
-                       (date, start_time, end_time, project_title, task, entry_id, user_id))
-        conn.commit()
-        conn.close()
-        flash('Timesheet entry updated.', 'success')
+    if not date:
+        date = datetime.now().strftime('%Y-%m-%d')
+    if not task and project_title:
+        task = project_title
+    if not project_title and task:
+        project_title = task
+    if not task:
+        task = 'General Task'
+    if not project_title:
+        project_title = 'General'
+        
+    conn = get_db()
+    cursor = conn.cursor()
+    if is_admin:
+        cursor.execute('''
+            UPDATE timesheets 
+            SET date = ?, start_time = ?, end_time = ?, project_title = ?, task = ? 
+            WHERE id = ?
+        ''', (date, start_time, end_time, project_title, task, entry_id))
+    else:
+        cursor.execute('''
+            UPDATE timesheets 
+            SET date = ?, start_time = ?, end_time = ?, project_title = ?, task = ? 
+            WHERE id = ? AND user_id = ?
+        ''', (date, start_time, end_time, project_title, task, entry_id, user_id))
+    conn.commit()
+    conn.close()
+    flash('Timesheet entry updated successfully.', 'success')
     return redirect(url_for('timesheets.employee_timesheets'))
 
 @timesheets_bp.route('/timesheets/delete/<int:entry_id>', methods=['POST'])
 @login_required
 def delete_timesheet(entry_id):
     user_id = session.get('user_id')
+    is_admin = session.get('role') == 'admin'
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute('DELETE FROM timesheets WHERE id = ? AND user_id = ?', (entry_id, user_id))
+    if is_admin:
+        cursor.execute('DELETE FROM timesheets WHERE id = ?', (entry_id,))
+    else:
+        cursor.execute('DELETE FROM timesheets WHERE id = ? AND user_id = ?', (entry_id, user_id))
     conn.commit()
     conn.close()
     flash('Timesheet entry deleted.', 'success')

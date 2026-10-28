@@ -144,68 +144,58 @@
 </head>
 
     
-    <!-- Mobile Hamburger Toggle -->
-    <div class="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
-    <button id="global-mobile-toggle" class="mobile-toggle-btn" onclick="toggleMobileSidebar()" style="display: none;">☰</button>
-    
-    <script>
-    function toggleMobileSidebar() {
-        const sidebar = document.querySelector('.sidebar');
-        const overlay = document.querySelector('.sidebar-overlay');
-        if (sidebar.classList.contains('menu-open')) {
-            sidebar.classList.remove('menu-open');
-            if(overlay) overlay.classList.remove('active');
-        } else {
-            sidebar.classList.add('menu-open');
-            if(overlay) overlay.classList.add('active');
-        }
-    }
-    </script>
-
 <body class="{{ theme }}">
     
+    <!-- FSM Theme Drawer Overlay -->
+    <div id="drawer-overlay" class="sidebar-overlay" onclick="closeMobileDrawer()"></div>
+
+    <!-- FSM Theme Mobile Top App Bar -->
+    <header class="mobile-top-bar">
+        <div class="mobile-top-left">
+            <button id="mobile-menu-btn" class="mobile-menu-btn" onclick="openMobileDrawer()" aria-label="Open Navigation">☰</button>
+            <a href="{{ url_for('dashboard') }}" class="mobile-top-brand">
+                {% if portal_settings.get('portal_logo') %}
+                    <img src="{{ url_for('uploaded_file', filename=portal_settings.get('portal_logo')) }}" class="mobile-top-logo" alt="Logo">
+                {% else %}
+                    <span style="font-size: 1.15rem;">📂</span>
+                {% endif %}
+                <span class="mobile-top-title">Time Sheet</span>
+            </a>
+        </div>
+        <div class="mobile-top-actions">
+            <span class="mobile-top-status"><i class="pulse-dot"></i> Live</span>
+            <a href="{{ url_for('dashboard') }}" class="mobile-top-btn" title="Back to Dashboard">📊</a>
+        </div>
+    </header>
+
 {% set enabled_tools = portal_settings.get('enabled_work_tools', 'unit_converter,currency_calculator,pocket_calculator,cctv_calculator,power_calculator,pdf_converter,cloud_calculator,subnet_calculator').split(',') %}
     <div class="app-container">
-
-    
-    <!-- Mobile Hamburger Toggle -->
-    <div class="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
-    <button id="global-mobile-toggle" class="mobile-toggle-btn" onclick="toggleMobileSidebar()" style="display: none;">☰</button>
-    
-    <script>
-    function toggleMobileSidebar() {
-        const sidebar = document.querySelector('.sidebar');
-        const overlay = document.querySelector('.sidebar-overlay');
-        if (sidebar.classList.contains('menu-open')) {
-            sidebar.classList.remove('menu-open');
-            if(overlay) overlay.classList.remove('active');
-        } else {
-            sidebar.classList.add('menu-open');
-            if(overlay) overlay.classList.add('active');
-        }
-    }
-    </script>
-
-
         
         <!-- Sidebar Navigation -->
-        <aside class="sidebar">
+        <aside id="sidebar" class="sidebar">
             <div style="display: flex; flex-direction: column; flex-grow: 1;">
             <div class="sidebar-header">
                 <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                    <div class="logo-container" style="display: flex; align-items: center; justify-content: center; max-width: 100%; padding: 6px 0; text-decoration: none; gap: 0.4rem;">
-                    <a href="{{ url_for('dashboard') }}" style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.25rem; color: var(--text-primary); letter-spacing: -0.03em; text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
+                    <div class="logo-container" style="display: flex; align-items: center; justify-content: flex-start; max-width: 100%; padding: 6px 0; text-decoration: none; gap: 0.4rem;">
+                    <a href="{{ url_for('dashboard') }}" style="font-family: var(--font-heading, sans-serif); font-weight: 800; font-size: 1.15rem; color: var(--text-primary); letter-spacing: -0.02em; text-decoration: none; display: flex; align-items: center; gap: 0.4rem;">
                         {% if portal_settings.get('portal_logo') %}
-                            <img src="{{ url_for('uploaded_file', filename=portal_settings.get('portal_logo')) }}" style="max-height: 40px; max-width: 100%; object-fit: contain;" alt="Logo">
+                            <img src="{{ url_for('uploaded_file', filename=portal_settings.get('portal_logo')) }}" style="max-height: 36px; max-width: 100%; object-fit: contain;" alt="Logo">
                         {% else %}
                             <span>📂</span> {{ portal_settings.get('portal_name', 'OEM Portal') }}
                         {% endif %}
                     </a>
                 </div>
                 <button id="sidebar-collapse-btn" onclick="this.closest('.sidebar').style.display='none';var b=document.getElementById('show-sidebar-btn');if(b)b.style.display='flex';localStorage.setItem('sidebar-collapsed','true');" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:1.1rem;padding:4px 8px;border-radius:6px;transition:all 0.2s;" title="Hide Sidebar">&laquo;</button>
-                
+                <button id="sidebar-mobile-close-btn" class="sidebar-mobile-close" onclick="closeMobileDrawer()" title="Close Menu">✕</button>
             </div>
-        </div>
+            </div>
+            
+            <!-- FSM Theme Live Status Pill -->
+            <div class="sidebar-live" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 1rem; border-bottom: 1px solid rgba(255,255,255,0.08); font-family: var(--font-mono, monospace); font-size: 0.72rem; color: #b7cec0;">
+                <span class="pulse-dot"></span>
+                <span style="letter-spacing: 0.08em; text-transform: uppercase;">Network Stable</span>
+                <span id="live-sidebar-clock" style="margin-left: auto; color: var(--color-lime); font-size: 0.72rem;"></span>
+            </div>
             
             <div class="nav-container">
                 <form action="javascript:void(0);" onsubmit="window.location.href = getAppUrl('/search?q=' + encodeURIComponent(this.q.value));" method="GET" style="padding: 0.5rem 1rem;">
@@ -289,6 +279,18 @@
         
         <!-- Main Content Area -->
         <main class="main-content">
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div style="margin-bottom: 1.5rem;">
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category if category != 'error' else 'danger' }}" style="padding: 0.85rem 1.25rem; border-radius: 8px; margin-bottom: 0.5rem; background: {% if category == 'success' %}rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.4); color: #6ee7b7;{% elif category == 'danger' or category == 'error' %}rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5;{% else %}rgba(59, 130, 246, 0.2); border: 1px solid rgba(59, 130, 246, 0.4); color: #93c5fd;{% endif %}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
 
 <div class="header-bar">
     <div>
@@ -386,7 +388,7 @@
     <script>
         const OFFICE_LAT = {{ office_lat|default(40.758896) }};
         const OFFICE_LNG = {{ office_lng|default(-73.985130) }};
-        const MAX_DIST = {{ max_dist|default(100) }};
+        const MAX_DIST = {{ max_dist|default(500) }};
         
         function haversineDist(lat1, lon1, lat2, lon2) {
             const R = 6371000;
@@ -464,12 +466,35 @@
                 <input type="date" name="date" class="form-control" required>
             </div>
             <div class="form-group" style="margin: 0;">
-                <label class="form-label">Start Time</label>
-                <input type="time" name="start_time" class="form-control" required>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                    <label class="form-label" style="margin: 0;">Start Time</label>
+                    <button type="button" onclick="setQuickTime('add_start_time', 'now')" style="background: none; border: none; color: var(--primary); font-size: 0.75rem; cursor: pointer; text-decoration: underline;">⏱️ Now</button>
+                </div>
+                <input type="time" name="start_time" id="add_start_time" class="form-control" required onchange="autoSuggestEndTime('add_start_time', 'add_end_time')">
+                <div class="time-presets" style="display: flex; gap: 0.25rem; flex-wrap: wrap; margin-top: 0.35rem;">
+                    <span class="time-chip" onclick="setQuickTime('add_start_time', '09:00')">09:00</span>
+                    <span class="time-chip" onclick="setQuickTime('add_start_time', '10:00')">10:00</span>
+                    <span class="time-chip" onclick="setQuickTime('add_start_time', '11:00')">11:00</span>
+                    <span class="time-chip" onclick="setQuickTime('add_start_time', '13:00')">13:00</span>
+                    <span class="time-chip" onclick="setQuickTime('add_start_time', '14:00')">14:00</span>
+                    <span class="time-chip" onclick="setQuickTime('add_start_time', '15:00')">15:00</span>
+                    <span class="time-chip" onclick="setQuickTime('add_start_time', '16:00')">16:00</span>
+                </div>
             </div>
             <div class="form-group" style="margin: 0;">
-                <label class="form-label">End Time</label>
-                <input type="time" name="end_time" class="form-control" required>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                    <label class="form-label" style="margin: 0;">End Time</label>
+                    <button type="button" onclick="setQuickTime('add_end_time', 'now')" style="background: none; border: none; color: var(--primary); font-size: 0.75rem; cursor: pointer; text-decoration: underline;">⏱️ Now</button>
+                </div>
+                <input type="time" name="end_time" id="add_end_time" class="form-control" required>
+                <div class="time-presets" style="display: flex; gap: 0.25rem; flex-wrap: wrap; margin-top: 0.35rem;">
+                    <span class="time-chip chip-duration" onclick="addDurationToTime('add_start_time', 'add_end_time', 30)">+30m</span>
+                    <span class="time-chip chip-duration" onclick="addDurationToTime('add_start_time', 'add_end_time', 60)">+1h</span>
+                    <span class="time-chip chip-duration" onclick="addDurationToTime('add_start_time', 'add_end_time', 120)">+2h</span>
+                    <span class="time-chip chip-duration" onclick="addDurationToTime('add_start_time', 'add_end_time', 180)">+3h</span>
+                    <span class="time-chip chip-duration" onclick="addDurationToTime('add_start_time', 'add_end_time', 240)">+4h</span>
+                    <span class="time-chip" onclick="setQuickTime('add_end_time', '18:00')">18:00</span>
+                </div>
             </div>
             
             <button type="submit" class="btn btn-primary" style="grid-column: span 3;">Log Task</button>
@@ -487,10 +512,22 @@
         </script>
     </div>
 
-    <div class="glass-card" style="padding: 1.5rem;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+    <div class="glass-card" style="padding: 1.5rem; margin-bottom: 2rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
             <h2 class="card-title" style="margin: 0;">My Timesheet Log</h2>
-            <button type="button" class="btn btn-secondary" onclick="document.querySelectorAll('details.date-group').forEach(d => d.open = true);" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">Expand All</button>
+            <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 0.35rem;">
+                    <span style="font-size: 0.8rem; color: var(--text-secondary);">Sort:</span>
+                    <select id="timesheetSortSelect" class="form-control" onchange="sortTimesheetLog(this.value)" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; width: auto; background: rgba(15,23,42,0.8); border: 1px solid var(--border-glass); border-radius: 6px; color: white;">
+                        <option value="project-asc" selected>🔤 Project (A to Z Order)</option>
+                        <option value="task-asc">📝 Task (A to Z Order)</option>
+                        <option value="date-desc">📅 Date (Newest first)</option>
+                        <option value="date-asc">📅 Date (Oldest first)</option>
+                        <option value="time-asc">⏰ Time (Morning to Evening)</option>
+                    </select>
+                </div>
+                <button type="button" class="btn btn-secondary" onclick="document.querySelectorAll('details.date-group').forEach(d => d.open = true);" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">Expand All</button>
+            </div>
         </div>
         
         <div class="accordion-container">
@@ -530,7 +567,15 @@
                                 <td style="padding: 0.5rem; font-size: 0.9rem;">{{ sheet.task }}</td>
                                 <td style="padding: 0.5rem; font-size: 0.9rem; text-align: right; font-weight: bold;">{{ sheet.hours_worked }}</td>
                                 <td style="padding: 0.5rem; display: flex; gap: 0.5rem; justify-content: center;">
-                                    <button class="btn btn-sm btn-secondary" onclick="editTimesheet('{{ sheet.id }}', '{{ sheet.date }}', '{{ sheet.start_time }}', '{{ sheet.end_time }}', '{{ sheet.project_title|escape }}', '{{ sheet.task|escape }}')" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">Edit</button>
+                                    <button type="button" class="btn btn-sm btn-secondary btn-edit-timesheet" 
+                                            data-id="{{ sheet.id }}" 
+                                            data-date="{{ sheet.date }}" 
+                                            data-start="{{ sheet.start_time or '' }}" 
+                                            data-end="{{ sheet.end_time or '' }}" 
+                                            data-project="{{ sheet.project_title or '' }}" 
+                                            data-task="{{ sheet.task or '' }}"
+                                            onclick="openEditTimesheetModal('{{ sheet.id }}', '{{ sheet.date }}', '{{ sheet.start_time or '' }}', '{{ sheet.end_time or '' }}', '{{ (sheet.project_title or '')|replace('\'', '\\\'')|replace('\"', '&quot;') }}', '{{ (sheet.task or '')|replace('\'', '\\\'')|replace('\"', '&quot;') }}')"
+                                            style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">Edit</button>
                                     <form action="{{ url_for('timesheets.delete_timesheet', entry_id=sheet.id) }}" method="POST" onsubmit="return confirmMathPuzzle(event);" style="margin: 0;">
                                         <button type="submit" class="btn btn-sm btn-danger" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; background: rgba(239, 68, 68, 0.25); border-color: rgba(239, 68, 68, 0.5);">Delete</button>
                                     </form>
@@ -549,33 +594,58 @@
 </div>
 
 <!-- Edit Timesheet Modal -->
-<div id="editModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center;">
-    <div class="glass-card" style="padding: 2rem; width: 90%; max-width: 500px;">
-        <h3 style="margin-top: 0; color: white;">Edit Timesheet Entry</h3>
-        <form id="editForm" method="POST" action="">
+<div id="editModal" class="modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); z-index: 999999 !important; justify-content: center; align-items: center;">
+    <div class="modal-content glass-card" style="padding: 1.75rem; width: 90%; max-width: 520px; box-shadow: 0 20px 50px rgba(0,0,0,0.6); border: 1px solid var(--border-glass-hover);">
+        <div class="sheet-drag-handle"></div>
+        <h3 style="margin-top: 0; color: white; display: flex; align-items: center; gap: 0.5rem; font-size: 1.25rem;">✏️ Edit Timesheet Entry</h3>
+        <form id="editForm" method="POST" action="{{ url_for('timesheets.edit_timesheet') }}" onsubmit="return validateEditTimesheetForm();">
+            <input type="hidden" name="id" id="editEntryId">
             <div class="form-group" style="margin-bottom: 1rem;">
                 <label class="form-label">Date</label>
                 <input type="date" name="date" id="editDate" class="form-control" required>
             </div>
-            <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-                <div class="form-group" style="flex: 1; margin: 0;">
-                    <label class="form-label">Start Time</label>
-                    <input type="time" name="start_time" id="editStart" class="form-control" required>
+            <div style="display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                <div class="form-group" style="flex: 1; min-width: 200px; margin: 0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                        <label class="form-label" style="margin: 0;">Start Time</label>
+                        <button type="button" onclick="setQuickTime('editStart', 'now')" style="background: none; border: none; color: var(--primary); font-size: 0.75rem; cursor: pointer; text-decoration: underline;">⏱️ Now</button>
+                    </div>
+                    <input type="time" name="start_time" id="editStart" class="form-control" onchange="autoSuggestEndTime('editStart', 'editEnd')">
+                    <div class="time-presets" style="display: flex; gap: 0.25rem; flex-wrap: wrap; margin-top: 0.35rem;">
+                        <span class="time-chip" onclick="setQuickTime('editStart', '09:00')">09:00</span>
+                        <span class="time-chip" onclick="setQuickTime('editStart', '09:30')">09:30</span>
+                        <span class="time-chip" onclick="setQuickTime('editStart', '10:00')">10:00</span>
+                        <span class="time-chip" onclick="setQuickTime('editStart', '11:00')">11:00</span>
+                        <span class="time-chip" onclick="setQuickTime('editStart', '13:00')">13:00</span>
+                        <span class="time-chip" onclick="setQuickTime('editStart', '14:00')">14:00</span>
+                    </div>
                 </div>
-                <div class="form-group" style="flex: 1; margin: 0;">
-                    <label class="form-label">End Time</label>
-                    <input type="time" name="end_time" id="editEnd" class="form-control" required>
+                <div class="form-group" style="flex: 1; min-width: 200px; margin: 0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                        <label class="form-label" style="margin: 0;">End Time</label>
+                        <button type="button" onclick="setQuickTime('editEnd', 'now')" style="background: none; border: none; color: var(--primary); font-size: 0.75rem; cursor: pointer; text-decoration: underline;">⏱️ Now</button>
+                    </div>
+                    <input type="time" name="end_time" id="editEnd" class="form-control">
+                    <div class="time-presets" style="display: flex; gap: 0.25rem; flex-wrap: wrap; margin-top: 0.35rem;">
+                        <span class="time-chip chip-duration" onclick="addDurationToTime('editStart', 'editEnd', 15)">+15m</span>
+                        <span class="time-chip chip-duration" onclick="addDurationToTime('editStart', 'editEnd', 30)">+30m</span>
+                        <span class="time-chip chip-duration" onclick="addDurationToTime('editStart', 'editEnd', 45)">+45m</span>
+                        <span class="time-chip chip-duration" onclick="addDurationToTime('editStart', 'editEnd', 60)">+1h</span>
+                        <span class="time-chip chip-duration" onclick="addDurationToTime('editStart', 'editEnd', 120)">+2h</span>
+                        <span class="time-chip chip-duration" onclick="addDurationToTime('editStart', 'editEnd', 180)">+3h</span>
+                        <span class="time-chip" onclick="setQuickTime('editEnd', '18:00')">18:00</span>
+                    </div>
                 </div>
             </div>
             <div class="form-group" style="margin-bottom: 1rem;">
                 <label class="form-label">Project Title</label>
-                <input type="text" name="project_title" id="editProject" class="form-control" required>
+                <input type="text" name="project_title" id="editProject" class="form-control" placeholder="Project name...">
             </div>
             <div class="form-group" style="margin-bottom: 1rem;">
                 <label class="form-label">Task Description</label>
-                <input type="text" name="task" id="editTask" class="form-control" required>
+                <input type="text" name="task" id="editTask" class="form-control" placeholder="Describe what you worked on...">
             </div>
-            <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+            <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem;">
                 <button type="button" class="btn btn-secondary" onclick="document.getElementById('editModal').style.display='none'">Cancel</button>
                 <button type="submit" class="btn btn-primary">Save Changes</button>
             </div>
@@ -583,44 +653,218 @@
     </div>
 </div>
 
-<script>
-function editTimesheet(id, date, start, end, project, task) {
-    document.getElementById('editModal').style.display = 'flex';
-    document.getElementById('editForm').action = "/timesheets/edit/" + id;
-    document.getElementById('editDate').value = date;
-    document.getElementById('editStart').value = start;
-    document.getElementById('editEnd').value = end;
-    document.getElementById('editProject').value = project;
-    document.getElementById('editTask').value = task;
+<style>
+.time-chip {
+    font-size: 0.68rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #cbd5e1;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
 }
+.time-chip:hover {
+    background: rgba(99, 102, 241, 0.35);
+    border-color: #6366f1;
+    color: white;
+}
+.chip-duration {
+    background: rgba(16, 185, 129, 0.15);
+    border-color: rgba(16, 185, 129, 0.3);
+    color: #6ee7b7;
+}
+.chip-duration:hover {
+    background: rgba(16, 185, 129, 0.35);
+    color: white;
+}
+</style>
+
+<script>
+function setQuickTime(inputId, val) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    if (val === 'now') {
+        const d = new Date();
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mm = String(d.getMinutes()).padStart(2, '0');
+        input.value = `${hh}:${mm}`;
+    } else {
+        input.value = val;
+    }
+    input.dispatchEvent(new Event('change'));
+}
+
+function addDurationToTime(startInputId, endInputId, minutes) {
+    const startInput = document.getElementById(startInputId);
+    const endInput = document.getElementById(endInputId);
+    if (!startInput || !endInput) return;
+    
+    let baseTime = startInput.value;
+    if (!baseTime) {
+        setQuickTime(startInputId, 'now');
+        baseTime = startInput.value;
+    }
+    const parts = baseTime.split(':').map(Number);
+    const hh = parts[0] || 0;
+    const mm = parts[1] || 0;
+    const totalMinutes = hh * 60 + mm + minutes;
+    const newH = Math.floor(totalMinutes / 60) % 24;
+    const newM = totalMinutes % 60;
+    endInput.value = `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`;
+}
+
+function autoSuggestEndTime(startInputId, endInputId) {
+    const startInput = document.getElementById(startInputId);
+    const endInput = document.getElementById(endInputId);
+    if (startInput && endInput && !endInput.value && startInput.value) {
+        addDurationToTime(startInputId, endInputId, 60);
+    }
+}
+
+function openEditTimesheetModal(id, date, start, end, project, task) {
+    const modal = document.getElementById('editModal');
+    const form = document.getElementById('editForm');
+    if (!modal || !form) return;
+    
+    const hiddenId = document.getElementById('editEntryId');
+    if (hiddenId) hiddenId.value = id;
+    
+    const baseUrl = "{{ url_for('timesheets.employee_timesheets') }}".replace(/\/$/, "");
+    form.action = baseUrl + "/edit/" + id;
+    
+    // Normalize time to HH:MM (strip seconds if present)
+    const cleanStart = (start || '').substring(0, 5);
+    const cleanEnd = (end || '').substring(0, 5);
+    
+    const finalProject = project || task || '';
+    const finalTask = task || project || '';
+    
+    document.getElementById('editDate').value = date || '';
+    document.getElementById('editStart').value = cleanStart;
+    document.getElementById('editEnd').value = cleanEnd;
+    document.getElementById('editProject').value = finalProject;
+    document.getElementById('editTask').value = finalTask;
+    
+    modal.style.display = 'flex';
+    modal.style.zIndex = '999999';
+}
+
+function validateEditTimesheetForm() {
+    const p = (document.getElementById('editProject').value || '').trim();
+    const t = (document.getElementById('editTask').value || '').trim();
+    if (!p && !t) {
+        alert('Please provide a Project Title or Task Description.');
+        return false;
+    }
+    if (!t && p) {
+        document.getElementById('editTask').value = p;
+    }
+    if (!p && t) {
+        document.getElementById('editProject').value = t;
+    }
+    return true;
+}
+
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.btn-edit-timesheet');
+    if (btn) {
+        const id = btn.getAttribute('data-id');
+        const date = btn.getAttribute('data-date');
+        const start = btn.getAttribute('data-start');
+        const end = btn.getAttribute('data-end');
+        const project = btn.getAttribute('data-project');
+        const task = btn.getAttribute('data-task');
+        openEditTimesheetModal(id, date, start, end, project, task);
+    }
+});
+
+function sortTimesheetLog(sortType) {
+    localStorage.setItem('timesheet_sort_pref', sortType);
+    const container = document.querySelector('.accordion-container');
+    if (!container) return;
+    
+    const dateGroups = Array.from(container.querySelectorAll('details.date-group'));
+    
+    if (sortType === 'date-desc') {
+        dateGroups.sort((a, b) => b.querySelector('summary span').innerText.localeCompare(a.querySelector('summary span').innerText));
+        dateGroups.forEach(g => container.appendChild(g));
+    } else if (sortType === 'date-asc') {
+        dateGroups.sort((a, b) => a.querySelector('summary span').innerText.localeCompare(b.querySelector('summary span').innerText));
+        dateGroups.forEach(g => container.appendChild(g));
+    }
+    
+    dateGroups.forEach(g => {
+        const tbody = g.querySelector('tbody');
+        if (!tbody) return;
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        rows.sort((r1, r2) => {
+            const time1 = r1.cells[0]?.innerText.trim() || '';
+            const proj1 = r1.cells[1]?.innerText.trim().toLowerCase() || '';
+            const task1 = r1.cells[2]?.innerText.trim().toLowerCase() || '';
+            
+            const time2 = r2.cells[0]?.innerText.trim() || '';
+            const proj2 = r2.cells[1]?.innerText.trim().toLowerCase() || '';
+            const task2 = r2.cells[2]?.innerText.trim().toLowerCase() || '';
+            
+            if (sortType === 'project-asc') {
+                return proj1.localeCompare(proj2) || task1.localeCompare(task2);
+            } else if (sortType === 'task-asc') {
+                return task1.localeCompare(task2);
+            } else if (sortType === 'time-asc') {
+                return time1.localeCompare(time2);
+            }
+            return 0;
+        });
+        rows.forEach(r => tbody.appendChild(r));
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const pref = localStorage.getItem('timesheet_sort_pref') || 'project-asc';
+    const select = document.getElementById('timesheetSortSelect');
+    if (select) {
+        select.value = pref;
+        sortTimesheetLog(pref);
+    }
+});
 </script>
 
 <script>
-    document.querySelector('input[type="date"]').valueAsDate = new Date();
+    if (document.querySelector('input[name="date"]')) {
+        document.querySelector('input[name="date"]').valueAsDate = new Date();
+    }
 </script>
 
 </main>
     </div>
 
-    <!-- Mobile App Bottom Navigation -->
-    <div class="mobile-bottom-nav">
-        <a href="{{ url_for('dashboard') }}" class="mobile-nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
+    <!-- Mobile App Bottom Navigation (FSM Theme Dock) -->
+    <nav class="mobile-bottom-nav mobile-bottom-dock" aria-label="Mobile Bottom Navigation">
+        <a href="{{ url_for('dashboard') }}" class="mobile-nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}" title="Dashboard">
             <span class="icon">📊</span>
             <span>Home</span>
         </a>
-        <a href="{{ url_for('oem_news_page') }}" class="mobile-nav-item {% if request.endpoint == 'oem_news_page' %}active{% endif %}">
+        <a href="{{ url_for('oem_news_page') }}" class="mobile-nav-item {% if request.endpoint == 'oem_news_page' %}active{% endif %}" title="OEM News">
             <span class="icon">📰</span>
             <span>News</span>
         </a>
-        <a href="{{ url_for('work_tools') }}" class="mobile-nav-item {% if request.endpoint == 'work_tools' %}active{% endif %}">
-            <span class="icon">🛠️</span>
-            <span>Tools</span>
+        <a href="{{ url_for('dashboard') }}" class="mobile-nav-item mobile-scan-action-btn" title="Scan Visiting Card">
+            <div class="mobile-scan-bubble">
+                <span class="icon">📸</span>
+            </div>
+            <span>Scan</span>
         </a>
-        <a href="javascript:void(0)" onclick="toggleMobileSidebar()" class="mobile-nav-item">
+        <a href="{{ url_for('timesheets.employee_timesheets') }}" class="mobile-nav-item active" title="Time Sheet">
+            <span class="icon">⏱️</span>
+            <span>Timesheet</span>
+        </a>
+        <button type="button" onclick="openMobileDrawer()" class="mobile-nav-item" title="Open Navigation Drawer">
             <span class="icon">☰</span>
             <span>Menu</span>
-        </a>
-    </div>
+        </button>
+    </nav>
 
 
 <!-- Global Notification System -->

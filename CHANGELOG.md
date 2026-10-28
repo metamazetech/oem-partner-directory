@@ -1,5 +1,45 @@
 # OEM Portal Changelog
 
+## [v6.6.0] - 2026-10-28
+### Added
+- **Bank of OEMs Universal Search Engine**:
+  - Deep multi-field universal search matching across `company_name`, `group_name`, `fetched_products`, `fetched_services`, `custom_products`, `custom_services`, `portfolio_summary`, `contact_persons`, and `address`.
+  - **Enterprise Pre-Sales Synonym Expansion**: Automatically maps shorthand and related IT concepts (e.g. `cctv` $\rightarrow$ Camera, Surveillance, VMS, NVR; `storage` $\rightarrow$ SAN, NAS, Backup, All-Flash; `firewall` $\rightarrow$ NGFW, UTM, Cyber Security; `edr` $\rightarrow$ Endpoint, Antivirus, XDR; `switch` $\rightarrow$ Switching, Router, PoE, Catalyst; `ups` $\rightarrow$ Power, Inverter, Battery; `server` $\rightarrow$ Compute, Blade, HCI).
+  - **Redesigned Bank of OEMs Directory Interface (`search_results.html`)**:
+    - Dedicated top search bar with 1-click quick topic pills (`🔥 Firewall`, `💾 Storage`, `🔀 Switch`, `📹 CCTV`, `🛡️ EDR`, `💿 Backup`, `⚡ UPS`, `🖥️ Compute`, `🛠️ SLA`).
+    - Filter pills for instant client-side switching between `All`, `OEMs Only`, and `Distributors`.
+    - Rich OEM Bank cards with company logos, category badges, website links, and glowing `🎯 Matched Products:` and `🎯 Matched Services:` chips.
+    - Product and service tag clouds displaying full hardware platform and engineering SLA offerings.
+- **Solutions Portfolio 10–15 Line Product & Service Catalog Overview**:
+  - Pre-sales actionable catalog overview detailing core hardware appliances, platform series, software licensing packages, hypervisor/cloud interoperability, engineering services, multi-tier SLAs (24/7/365, 4-hour on-site replacement), and RFP commercial compliance.
+  - Dedicated `#portfolio-summary-card` on `contact_detail.html` with inline read-only view, instant AJAX editor (`/contact/<id>/portfolio-summary`), and audit trail logging.
+  - Integration into partner onboarding, profile editing modal, and live website scraping.
+- **Automated Master Offerings Refresh**:
+  - Admin Panel "Fetch Offerings for All Partners" concurrently crawls partner domains and open internet sources to refresh products, services, and re-generate the tailored 10–15 line catalog summary for all existing partners.
+- **Zero-Downtime Database Auto-Migration**:
+  - `database.py` boot sequence automatically verifies and adds the `portfolio_summary` column and auto-populates any unpopulated partner records without downtime.
+
+## [v6.5.0] - 2026-10-15
+### Added
+- **Complete Mobile View Rebuild (FSM Design System)**:
+  - Rebuilt the entire mobile UI from scratch using the Field Service Management (FSM) theme architecture with modern design tokens (`#102f32` field teal, `#c7e36f` lime accents, `#ec7654` signal alerts, and `#0e1b1d` dark glass panels).
+  - Unified sticky `.mobile-top-bar` with high-contrast Sanddy branding, title, live status pulsing indicator, and quick-action buttons.
+  - Native-style `#sidebar` slide drawer with smooth `#drawer-overlay` backdrop blur, preventing side panel occlusion and content clipping.
+  - Unified `.mobile-bottom-dock` 5-tab navigation dock with elevated center 1-tap card scanner bubble (Home, News, Scan, Timesheets, Menu).
+  - Mobile bottom-sheet modals with tactile grab handles (`.sheet-drag-handle`) and full screen-height bounds.
+- **Timesheet Productivity & Click-Style Time Chips**:
+  - Click-style quick-fill chips for Start and End times (`09:00`, `10:00`, `11:00`, `14:00`, `16:00`, `+15m`, `+30m`, `+1h`, `+2h`, `Now`) for instant 1-tap entry without manual keyboard typing.
+  - Multi-criteria ordering for Timesheet logs (A-Z by Project title, Task name, Date descending/ascending, and Time).
+- **Responsive OEM & Distributor Directory**:
+  - Full-width symmetrical card layout on both mobile and desktop with square-bracketed badges (`[OEM]`, `[Distributor]`).
+  - 1-tap quick action shortcuts on cards (WhatsApp direct message, telephone call, and email client).
+
+### Fixed
+- **Fingerprint Registration TypeError**: Fixed `get_portal_settings()` argument mismatch in `/biometric/register/options` by supporting optional `conn=None` across `database.py` and `app.py`. Added robust WebAuthn domain heuristics and user verification fallbacks for Android smartphone fingerprint hardware.
+- **Timesheet Edit 404 Route Error**: Unified the edit endpoint across `/timesheets/edit`, `/timesheets/edit/<entry_id>`, and `/timesheet/edit/<entry_id>` supporting both URL params and form-encoded IDs.
+- **Attendance Geofence Radius Rejection**: Corrected the client-side office perimeter calculation to honor the dynamic office radius configured in portal settings (500m), eliminating false "outside office zone" errors.
+- **Eliminated Duplicate Bottom Navs & Sticky Headers**: Stripped conflicting legacy bottom bars, duplicate hamburger icons, and sticky pseudo-elements across all templates.
+
 ## [v6.4.0] - 2026-10-13
 ### Added
 - **1-Click Instant Camera Visiting Card Scanner**: Directly triggers the mobile rear camera (`capture="environment"`) to snap visiting cards without manual field requirements or navigating gallery pickers. Auto-extracts Company, Contact Person, Designation, Phone, Email, Website, and Address.

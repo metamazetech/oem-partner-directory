@@ -50,25 +50,6 @@
     {% endif %}
 </head>
 
-    
-    <!-- Mobile Hamburger Toggle -->
-    <div class="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
-    <button id="global-mobile-toggle" class="mobile-toggle-btn" onclick="toggleMobileSidebar()" style="display: none;">☰</button>
-    
-    <script>
-    function toggleMobileSidebar() {
-        const sidebar = document.querySelector('.sidebar');
-        const overlay = document.querySelector('.sidebar-overlay');
-        if (sidebar.classList.contains('menu-open')) {
-            sidebar.classList.remove('menu-open');
-            if(overlay) overlay.classList.remove('active');
-        } else {
-            sidebar.classList.add('menu-open');
-            if(overlay) overlay.classList.add('active');
-        }
-    }
-    </script>
-
 <body class="{{ session.get('theme', 'theme-slate-dark') }}">
     <div class="auth-container">
         <div class="auth-card">
@@ -128,6 +109,18 @@
                     <button title="Log In" type="submit" class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;">
                         Log In
                     </button>
+                    
+                    <div id="biometric-login-wrapper" style="margin-top: 1.25rem;">
+                        <div style="display: flex; align-items: center; margin-bottom: 0.85rem; color: var(--text-muted); font-size: 0.78rem;">
+                            <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.08);"></div>
+                            <span style="padding: 0 0.65rem; text-transform: uppercase; font-size: 0.68rem; letter-spacing: 0.05em;">Or Android Fast Sign In</span>
+                            <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.08);"></div>
+                        </div>
+                        <button type="button" id="btn-biometric-login" onclick="loginWithFingerprint()" class="btn btn-secondary" style="width: 100%; padding: 0.75rem; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; font-weight: 600; border: 1px solid rgba(99, 102, 241, 0.4); background: rgba(99, 102, 241, 0.12); color: #c7d2fe; transition: all 0.2s ease;">
+                            <span style="font-size: 1.2rem;">👆</span> Sign in with Fingerprint
+                        </button>
+                        <div id="biometric-status-msg" style="font-size: 0.78rem; margin-top: 0.5rem; text-align: center; color: var(--text-muted); min-height: 1.2rem;"></div>
+                    </div>
                 </form>
             </div>
 
@@ -260,26 +253,6 @@
         }
     </style>
 
-    <!-- Mobile App Bottom Navigation -->
-    <div class="mobile-bottom-nav">
-        <a href="{{ url_for('dashboard') }}" class="mobile-nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
-            <span class="icon">📊</span>
-            <span>Home</span>
-        </a>
-        <a href="{{ url_for('oem_news_page') }}" class="mobile-nav-item {% if request.endpoint == 'oem_news_page' %}active{% endif %}">
-            <span class="icon">📰</span>
-            <span>News</span>
-        </a>
-        <a href="{{ url_for('work_tools') }}" class="mobile-nav-item {% if request.endpoint == 'work_tools' %}active{% endif %}">
-            <span class="icon">🛠️</span>
-            <span>Tools</span>
-        </a>
-        <a href="javascript:void(0)" onclick="toggleMobileSidebar()" class="mobile-nav-item">
-            <span class="icon">☰</span>
-            <span>Menu</span>
-        </a>
-    </div>
-
 
 <!-- Global Notification System -->
 <div id="global-toast-container" style="position: fixed; bottom: 20px; right: 20px; z-index: 10000; display: flex; flex-direction: column; gap: 10px;"></div>
@@ -397,6 +370,113 @@
             } catch(e) {}
         }, 20000);
     })();
+</script>
+
+<script>
+// Android / WebAuthn Biometric Authentication
+async function loginWithFingerprint() {
+    const statusMsg = document.getElementById('biometric-status-msg');
+    const btn = document.getElementById('btn-biometric-login');
+    if (statusMsg) {
+        statusMsg.style.color = 'var(--text-muted)';
+        statusMsg.innerText = "Connecting to biometric sensor...";
+    }
+    
+    if (!window.PublicKeyCredential) {
+        if (statusMsg) {
+            statusMsg.style.color = '#f87171';
+            statusMsg.innerText = "Biometric authentication is not supported on this browser.";
+        }
+        return;
+    }
+    
+    try {
+        const usernameInput = document.getElementById('username');
+        const username = usernameInput ? usernameInput.value.trim() : '';
+        
+        const res = await fetch("{{ url_for('biometric_login_options') }}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: username })
+        });
+        
+        const data = await res.json();
+        if (data.status !== 'success') {
+            if (statusMsg) {
+                statusMsg.style.color = '#fbbf24';
+                statusMsg.innerText = data.message || "No fingerprint registered yet. Please log in with password once first.";
+            }
+            return;
+        }
+        
+        if (statusMsg) {
+            statusMsg.style.color = '#818cf8';
+            statusMsg.innerText = "Touch your phone fingerprint sensor...";
+        }
+        
+        // Decode base64 challenge to Uint8Array
+        const challengeBytes = Uint8Array.from(atob(data.challenge), c => c.charCodeAt(0));
+        
+        const isIp = /^(\d{1,3}\.){3}\d{1,3}$/.test(window.location.hostname);
+        const getCredentialOptions = {
+            challenge: challengeBytes,
+            timeout: 60000,
+            userVerification: "preferred"
+        };
+        if (window.location.hostname && !isIp) {
+            getCredentialOptions.rpId = window.location.hostname;
+        }
+        
+        if (data.allowCredentials && data.allowCredentials.length > 0) {
+            getCredentialOptions.allowCredentials = data.allowCredentials.map(cred => ({
+                id: Uint8Array.from(atob(cred.id), c => c.charCodeAt(0)),
+                type: 'public-key',
+                transports: ['internal']
+            }));
+        }
+        
+        const assertion = await navigator.credentials.get({
+            publicKey: getCredentialOptions
+        });
+        
+        if (!assertion) {
+            throw new Error("No biometric credential returned");
+        }
+        
+        const rawId = btoa(String.fromCharCode(...new Uint8Array(assertion.rawId)));
+        
+        if (statusMsg) {
+            statusMsg.style.color = '#38bdf8';
+            statusMsg.innerText = "Verifying fingerprint...";
+        }
+        
+        const verifyRes = await fetch("{{ url_for('biometric_login_verify') }}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ credential_id: rawId })
+        });
+        
+        const verifyData = await verifyRes.json();
+        if (verifyData.status === 'success') {
+            if (statusMsg) {
+                statusMsg.style.color = '#34d399';
+                statusMsg.innerText = "✓ Fingerprint verified! Redirecting...";
+            }
+            window.location.href = verifyData.redirect || "{{ url_for('dashboard') }}";
+        } else {
+            if (statusMsg) {
+                statusMsg.style.color = '#f87171';
+                statusMsg.innerText = "⚠️ " + (verifyData.message || "Fingerprint verification failed.");
+            }
+        }
+    } catch (err) {
+        console.error("Biometric login error:", err);
+        if (statusMsg) {
+            statusMsg.style.color = '#f87171';
+            statusMsg.innerText = "⚠️ Fingerprint scan cancelled or not recognized.";
+        }
+    }
+}
 </script>
 
 </body>

@@ -41,3 +41,7 @@ powershell.cmd
 
 # Deployment Archives
 *.zip
+
+# Scratch and temporary directories
+scratch/
+

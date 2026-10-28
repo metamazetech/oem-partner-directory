@@ -143,69 +143,58 @@
     {% endif %}
 </head>
 
-    
-    <!-- Mobile Hamburger Toggle -->
-    <div class="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
-    <button id="global-mobile-toggle" class="mobile-toggle-btn" onclick="toggleMobileSidebar()" style="display: none;">☰</button>
-    
-    <script>
-    function toggleMobileSidebar() {
-        const sidebar = document.querySelector('.sidebar');
-        const overlay = document.querySelector('.sidebar-overlay');
-        if (sidebar.classList.contains('menu-open')) {
-            sidebar.classList.remove('menu-open');
-            if(overlay) overlay.classList.remove('active');
-        } else {
-            sidebar.classList.add('menu-open');
-            if(overlay) overlay.classList.add('active');
-        }
-    }
-    </script>
-
 <body class="{{ theme }}">
     
+    <!-- FSM Theme Drawer Overlay -->
+    <div id="drawer-overlay" class="sidebar-overlay" onclick="closeMobileDrawer()"></div>
+
+    <!-- FSM Theme Mobile Top App Bar -->
+    <header class="mobile-top-bar">
+        <div class="mobile-top-left">
+            <button id="mobile-menu-btn" class="mobile-menu-btn" onclick="openMobileDrawer()" aria-label="Open Navigation">☰</button>
+            <a href="{{ url_for('dashboard') }}" class="mobile-top-brand">
+                {% if portal_settings.get('portal_logo') %}
+                    <img src="{{ url_for('uploaded_file', filename=portal_settings.get('portal_logo')) }}" class="mobile-top-logo" alt="Logo">
+                {% else %}
+                    <span style="font-size: 1.15rem;">💬</span>
+                {% endif %}
+                <span class="mobile-top-title">Chat Audit Logs</span>
+            </a>
+        </div>
+        <div class="mobile-top-actions">
+            <span class="mobile-top-status"><i class="pulse-dot"></i> Live</span>
+            <a href="{{ url_for('admin_panel') }}" class="mobile-top-btn" title="Back to Admin Panel">⚙️</a>
+        </div>
+    </header>
+
 {% set enabled_tools = portal_settings.get('enabled_work_tools', 'unit_converter,currency_calculator,pocket_calculator,cctv_calculator,power_calculator,pdf_converter,cloud_calculator,subnet_calculator').split(',') %}
     <div class="app-container">
-
-    
-    <!-- Mobile Hamburger Toggle -->
-    <div class="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
-    <button id="global-mobile-toggle" class="mobile-toggle-btn" onclick="toggleMobileSidebar()" style="display: none;">☰</button>
-    
-    <script>
-    function toggleMobileSidebar() {
-        const sidebar = document.querySelector('.sidebar');
-        const overlay = document.querySelector('.sidebar-overlay');
-        if (sidebar.classList.contains('menu-open')) {
-            sidebar.classList.remove('menu-open');
-            if(overlay) overlay.classList.remove('active');
-        } else {
-            sidebar.classList.add('menu-open');
-            if(overlay) overlay.classList.add('active');
-        }
-    }
-    </script>
-
-
         
         <!-- Sidebar Navigation -->
-        <aside class="sidebar">
+        <aside id="sidebar" class="sidebar">
             <div style="display: flex; flex-direction: column; flex-grow: 1;">
             <div class="sidebar-header">
                 <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                    <div class="logo-container" style="display: flex; align-items: center; justify-content: center; max-width: 100%; padding: 6px 0; text-decoration: none; gap: 0.4rem;">
-                    <a href="{{ url_for('dashboard') }}" style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.25rem; color: var(--text-primary); letter-spacing: -0.03em; text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
+                    <div class="logo-container" style="display: flex; align-items: center; justify-content: flex-start; max-width: 100%; padding: 6px 0; text-decoration: none; gap: 0.4rem;">
+                    <a href="{{ url_for('dashboard') }}" style="font-family: var(--font-heading, sans-serif); font-weight: 800; font-size: 1.15rem; color: var(--text-primary); letter-spacing: -0.02em; text-decoration: none; display: flex; align-items: center; gap: 0.4rem;">
                         {% if portal_settings.get('portal_logo') %}
-                            <img src="{{ url_for('uploaded_file', filename=portal_settings.get('portal_logo')) }}" style="max-height: 40px; max-width: 100%; object-fit: contain;" alt="Logo">
+                            <img src="{{ url_for('uploaded_file', filename=portal_settings.get('portal_logo')) }}" style="max-height: 36px; max-width: 100%; object-fit: contain;" alt="Logo">
                         {% else %}
                             <span>📂</span> {{ portal_settings.get('portal_name', 'OEM Portal') }}
                         {% endif %}
                     </a>
                 </div>
                 <button id="sidebar-collapse-btn" onclick="this.closest('.sidebar').style.display='none';var b=document.getElementById('show-sidebar-btn');if(b)b.style.display='flex';localStorage.setItem('sidebar-collapsed','true');" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:1.1rem;padding:4px 8px;border-radius:6px;transition:all 0.2s;" title="Hide Sidebar">&laquo;</button>
-                
+                <button id="sidebar-mobile-close-btn" class="sidebar-mobile-close" onclick="closeMobileDrawer()" title="Close Navigation">✕</button>
             </div>
         </div>
+            
+            <!-- FSM Theme Live Status Pill -->
+            <div class="sidebar-live" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 1rem; border-bottom: 1px solid rgba(255,255,255,0.08); font-family: var(--font-mono, monospace); font-size: 0.72rem; color: #b7cec0;">
+                <span class="pulse-dot"></span>
+                <span style="letter-spacing: 0.08em; text-transform: uppercase;">Network Stable</span>
+                <span id="live-sidebar-clock" style="margin-left: auto; color: var(--color-lime); font-size: 0.72rem;"></span>
+            </div>
             
             <div class="nav-container">
                 <form action="javascript:void(0);" onsubmit="window.location.href = getAppUrl('/search?q=' + encodeURIComponent(this.q.value));" method="GET" style="padding: 0.5rem 1rem;">
@@ -357,25 +346,31 @@
 </main>
     </div>
 
-    <!-- Mobile App Bottom Navigation -->
-    <div class="mobile-bottom-nav">
-        <a href="{{ url_for('dashboard') }}" class="mobile-nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
+    <!-- Mobile App Bottom Navigation (FSM Theme Dock) -->
+    <nav class="mobile-bottom-nav mobile-bottom-dock" aria-label="Mobile Bottom Navigation">
+        <a href="{{ url_for('dashboard') }}" class="mobile-nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}" title="Dashboard">
             <span class="icon">📊</span>
             <span>Home</span>
         </a>
-        <a href="{{ url_for('oem_news_page') }}" class="mobile-nav-item {% if request.endpoint == 'oem_news_page' %}active{% endif %}">
+        <a href="{{ url_for('oem_news_page') }}" class="mobile-nav-item {% if request.endpoint == 'oem_news_page' %}active{% endif %}" title="OEM News">
             <span class="icon">📰</span>
             <span>News</span>
         </a>
-        <a href="{{ url_for('work_tools') }}" class="mobile-nav-item {% if request.endpoint == 'work_tools' %}active{% endif %}">
-            <span class="icon">🛠️</span>
-            <span>Tools</span>
+        <a href="{{ url_for('dashboard') }}" class="mobile-nav-item mobile-scan-action-btn" title="Scan Visiting Card">
+            <div class="mobile-scan-bubble">
+                <span class="icon">📸</span>
+            </div>
+            <span>Scan</span>
         </a>
-        <a href="javascript:void(0)" onclick="toggleMobileSidebar()" class="mobile-nav-item">
+        <a href="{{ url_for('timesheets.employee_timesheets') }}" class="mobile-nav-item" title="Time Sheet">
+            <span class="icon">⏱️</span>
+            <span>Timesheet</span>
+        </a>
+        <button type="button" onclick="openMobileDrawer()" class="mobile-nav-item" title="Open Navigation Drawer">
             <span class="icon">☰</span>
             <span>Menu</span>
-        </a>
-    </div>
+        </button>
+    </nav>
 
 
 <!-- Global Notification System -->

@@ -1,5 +1,7 @@
 import os
 import json
+import re
+import shutil
 import uuid
 import base64
 import secrets
@@ -126,6 +128,14 @@ def request_entity_too_large(error):
     flash("File size exceeds 40 MB limit.", "error")
     return redirect(request.referrer or url_for('rfps_list'))
 
+@app.errorhandler(404)
+def handle_404_not_found(error):
+    if request.path.startswith('/api/') or request.is_json:
+        return jsonify({'status': 'error', 'message': 'Requested API endpoint was not found.'}), 404
+    flash("The requested page or document was not found on the server.", "error")
+    return redirect(request.referrer or url_for('dashboard'))
+
+
 # Ensure upload directory exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -136,94 +146,143 @@ logo_download_lock = __import__('threading').Lock()
 
 def download_company_logo(website, contact_id, company_name=None):
     import urllib.request
-    from urllib.parse import urlparse
+    from urllib.parse import urlparse, urljoin
+    import requests
+    from bs4 import BeautifulSoup
     import socket
     
+    # 1. Clean input website and extract domain
     domain = None
     if website:
-        try:
-            url = website.strip().lower()
-            if not url.startswith('http://') and not url.startswith('https://'):
-                url = 'https://' + url
-            parsed = urlparse(url)
-            domain = parsed.netloc
-            if domain.startswith('www.'):
-                domain = domain[4:]
-        except Exception:
-            pass
-            
-    # Guess domain from company_name if domain is still empty/invalid
-    if not domain and company_name:
-        # Strip common suffixes and spaces
-        clean_name = company_name.strip().lower()
-        clean_name = "".join(c for c in clean_name if c.isalnum() or c in ['-'])
-        
-        domains_to_try = [clean_name + ".com", clean_name + ".co.in", clean_name + ".io"]
-        import requests
-        for test_domain in domains_to_try:
+        cleaned = website.strip().strip("'\"<>[](){};,`").strip()
+        if cleaned:
+            if not cleaned.startswith(('http://', 'https://')):
+                cleaned = 'https://' + cleaned
             try:
-                if requests.head("http://" + test_domain, timeout=2).status_code < 400:
-                    domain = test_domain
-                    break
-            except:
+                parsed = urlparse(cleaned)
+                domain = parsed.netloc.split(':')[0].strip().lower()
+                if domain.startswith('www.'):
+                    domain = domain[4:]
+            except Exception:
                 pass
                 
-        if not domain:
-            # strip common endings
-            for suffix in ['ltd', 'inc', 'corp', 'limited', 'systems', 'india', 'tech', 'technologies', 'group', 'solutions']:
-                if clean_name.endswith(suffix):
-                    clean_name = clean_name[:-len(suffix)].strip('-')
-            
-            if clean_name:
-                domain = clean_name + ".com"
+    # 2. Build candidate domain hierarchy (e.g. ['in.panasonic.com', 'panasonic.com'])
+    candidate_domains = []
+    if domain:
+        candidate_domains.append(domain)
+        parts = domain.split('.')
+        if len(parts) >= 3:
+            if parts[-2] in ['co', 'com', 'gov', 'org', 'net', 'edu', 'ac'] and len(parts) >= 4:
+                parent = ".".join(parts[-3:])
+                if parent not in candidate_domains:
+                    candidate_domains.append(parent)
+            elif parts[-2] not in ['co', 'com', 'gov', 'org', 'net', 'edu', 'ac']:
+                parent = ".".join(parts[-2:])
+                if parent not in candidate_domains:
+                    candidate_domains.append(parent)
 
-    if not domain:
+    # 3. If domain is still empty or to supplement, guess domains from company_name
+    if company_name:
+        clean_name = re.sub(r'[^a-zA-Z0-9]', '', company_name.lower())
+        for suffix in ['ltd', 'limited', 'pvt', 'private', 'india', 'tech', 'technologies', 'solutions', 'systems', 'corp', 'electronics', 'global', 'smart', 'cloud', 'infosec', 'industries', 'group', 'enterprise']:
+            if clean_name.endswith(suffix) and len(clean_name) > len(suffix) + 2:
+                clean_name = clean_name[:-len(suffix)]
+        if clean_name:
+            for tld in ['.com', '.in', '.co.in', '.io']:
+                g_dom = clean_name + tld
+                if g_dom not in candidate_domains:
+                    candidate_domains.append(g_dom)
+
+    if not candidate_domains:
         return None
-        
+
     filename = f"logo_{contact_id}.png"
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     
-    # Fast & reliable logo / favicon sources
-    sources = [
-        f"https://icons.duckduckgo.com/ip3/{domain}.ico",
-        f"https://www.google.com/s2/favicons?sz=128&domain={domain}",
-        f"https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://{domain}&size=128",
-        f"https://{domain}/favicon.ico"
-    ]
-    
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
-    
-    import requests
-    for logo_url in sources:
-        try:
-            response = requests.get(logo_url, headers=headers, timeout=4, verify=False)
-            content_length = len(response.content)
-            # Skip Google's default 726-byte globe icon
-            is_google_globe = 'google.com' in logo_url and content_length == 726
-            if response.status_code == 200 and content_length > 150 and not is_google_globe:
-                with open(filepath, 'wb') as out_file:
-                    out_file.write(response.content)
-                return filename
-        except Exception:
-            pass
-            
-        try:
-            import ssl
-            context = ssl._create_unverified_context()
-            req = urllib.request.Request(logo_url, headers=headers)
-            with urllib.request.urlopen(req, timeout=4, context=context) as urllib_resp:
-                urllib_content = urllib_resp.read()
-                c_len = len(urllib_content)
-                is_google_globe = 'google.com' in logo_url and c_len == 726
-                if urllib_resp.status == 200 and c_len > 150 and not is_google_globe:
-                    with open(filepath, 'wb') as out_file:
-                        out_file.write(urllib_content)
-                    return filename
-        except Exception as e2:
-            print(f"Urllib fallback failed to fetch logo from {logo_url}: {e2}")
-            
-    return None
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
+    }
 
+    def is_valid_logo_image(resp):
+        if resp.status_code != 200:
+            return False
+        c_len = len(resp.content)
+        if c_len < 180:
+            return False
+        ct = resp.headers.get('Content-Type', '').lower()
+        if 'text/html' in ct or 'text/plain' in ct or 'application/json' in ct:
+            return False
+        # Discard Google default placeholder globe icons
+        if 'google.com' in resp.url and c_len in [726, 429, 1150, 1493]:
+            return False
+        return True
+
+    for test_d in candidate_domains:
+        # High quality multi-source endpoints
+        sources = [
+            f"https://unavatar.io/{test_d}?fallback=false",
+            f"https://api.faviconkit.com/{test_d}/144",
+            f"https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://{test_d}&size=128",
+            f"https://www.google.com/s2/favicons?sz=128&domain={test_d}",
+            f"https://icons.duckduckgo.com/ip3/{test_d}.ico",
+            f"https://{test_d}/favicon.ico",
+            f"http://{test_d}/favicon.ico"
+        ]
+
+        for logo_url in sources:
+            try:
+                resp = requests.get(logo_url, headers=headers, timeout=3, verify=False, allow_redirects=True)
+                if is_valid_logo_image(resp):
+                    with open(filepath, 'wb') as out_f:
+                        out_f.write(resp.content)
+                    return filename
+            except Exception:
+                pass
+
+        # Scrape website homepage directly (looking for apple-touch-icon, og:image, favicon, logo img)
+        for proto in ['https', 'http']:
+            for prefix in ['', 'www.']:
+                h_url = f"{proto}://{prefix}{test_d}"
+                try:
+                    r = requests.get(h_url, headers=headers, timeout=3, verify=False)
+                    if r.status_code == 200 and 'text/html' in r.headers.get('Content-Type', ''):
+                        soup = BeautifulSoup(r.text, 'html.parser')
+                        candidates = []
+                        for link in soup.find_all('link'):
+                            rel = link.get('rel', [])
+                            rel_str = (" ".join(rel) if isinstance(rel, list) else str(rel)).lower()
+                            if any(x in rel_str for x in ['apple-touch-icon', 'icon', 'shortcut icon']):
+                                href = link.get('href')
+                                if href:
+                                    candidates.append(urljoin(h_url, href))
+
+                        og_img = soup.find('meta', property='og:image') or soup.find('meta', attrs={'name': 'og:image'})
+                        if og_img and og_img.get('content'):
+                            candidates.append(urljoin(h_url, og_img.get('content')))
+
+                        for img in soup.find_all('img'):
+                            attrs = " ".join([str(img.get('class', '')), str(img.get('id', '')), str(img.get('alt', '')), str(img.get('src', ''))]).lower()
+                            if 'logo' in attrs:
+                                src = img.get('src')
+                                if src and not src.startswith('data:'):
+                                    candidates.append(urljoin(h_url, src))
+                                    break
+
+                        for c_url in candidates:
+                            try:
+                                img_resp = requests.get(c_url, headers=headers, timeout=3, verify=False)
+                                if is_valid_logo_image(img_resp):
+                                    with open(filepath, 'wb') as out_f:
+                                        out_f.write(img_resp.content)
+                                    return filename
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+
+    return None
 # Helper decorator/checker to verify login
 def is_logged_in():
     return 'user_id' in session
@@ -1172,43 +1231,51 @@ def add_contact():
         session['user_id']
     ))
     contact_id = cursor.lastrowid
-    
-    # 1. Fetch & update brand logo
-    logo_filename = download_company_logo(website, contact_id, company_name)
-    if logo_filename:
-        cursor.execute("UPDATE contacts SET company_logo = ? WHERE id = ?", (logo_filename, contact_id))
-        
-    # 2. Fetch OEM offerings (products & services) from URL and open internet
-    if website or company_name:
-        try:
-            from scraper import scrape_oem_website, search_open_internet_offerings
-            scrape_data = scrape_oem_website(website, company_name)
-            scraped_products = scrape_data.get('products', []) if scrape_data else []
-            scraped_services = scrape_data.get('services', []) if scrape_data else []
-            
-            if len(scraped_products) < 3 or len(scraped_services) < 3:
-                open_offerings = search_open_internet_offerings(company_name)
-                for p in open_offerings.get('products', []):
-                    if p not in scraped_products:
-                        scraped_products.append(p)
-                for s in open_offerings.get('services', []):
-                    if s not in scraped_services:
-                        scraped_services.append(s)
-                        
-            if scraped_products or scraped_services:
-                portfolio_summary = scrape_data.get('portfolio_summary', '') if scrape_data else ''
-                if not portfolio_summary:
-                    from scraper import generate_oem_portfolio_summary
-                    portfolio_summary = generate_oem_portfolio_summary(company_name, website, scraped_products, scraped_services)
-                cursor.execute(
-                    "UPDATE contacts SET fetched_products = ?, fetched_services = ?, portfolio_summary = ? WHERE id = ?",
-                    (json.dumps(scraped_products[:12]), json.dumps(scraped_services[:12]), portfolio_summary, contact_id)
-                )
-        except Exception as e:
-            print(f"Error fetching offerings during onboarding for {company_name}: {e}")
-        
     conn.commit()
     conn.close()
+    
+    # Asynchronous background enrichment for logo & offerings catalog
+    # Guarantees zero 503 gateway timeouts or SQLite write lockups on cPanel
+    def async_enrich_new_contact(c_id, web, comp_name):
+        try:
+            l_file = download_company_logo(web, c_id, comp_name)
+            if l_file:
+                t_conn = database.get_db_connection()
+                t_conn.execute("UPDATE contacts SET company_logo = ? WHERE id = ?", (l_file, c_id))
+                t_conn.commit()
+                t_conn.close()
+        except Exception as e:
+            print(f"Async logo fetch error for {comp_name}: {e}")
+
+        try:
+            if web or comp_name:
+                from scraper import scrape_oem_website, search_open_internet_offerings, generate_oem_portfolio_summary
+                scrape_data = scrape_oem_website(web, comp_name)
+                scraped_products = scrape_data.get('products', []) if scrape_data else []
+                scraped_services = scrape_data.get('services', []) if scrape_data else []
+                if len(scraped_products) < 3 or len(scraped_services) < 3:
+                    open_offerings = search_open_internet_offerings(comp_name)
+                    for p in open_offerings.get('products', []):
+                        if p not in scraped_products:
+                            scraped_products.append(p)
+                    for s in open_offerings.get('services', []):
+                        if s not in scraped_services:
+                            scraped_services.append(s)
+                if scraped_products or scraped_services:
+                    portfolio_summary = scrape_data.get('portfolio_summary', '') if scrape_data else ''
+                    if not portfolio_summary:
+                        portfolio_summary = generate_oem_portfolio_summary(comp_name, web, scraped_products, scraped_services)
+                    t_conn = database.get_db_connection()
+                    t_conn.execute(
+                        "UPDATE contacts SET fetched_products = ?, fetched_services = ?, portfolio_summary = ? WHERE id = ?",
+                        (json.dumps(scraped_products[:12]), json.dumps(scraped_services[:12]), portfolio_summary, c_id)
+                    )
+                    t_conn.commit()
+                    t_conn.close()
+        except Exception as e:
+            print(f"Async offerings error for {comp_name}: {e}")
+
+    threading.Thread(target=async_enrich_new_contact, args=(contact_id, website, company_name), daemon=True).start()
     
     log_audit('CONTACT_ADD', f"Added contact: {company_name} (ID: {contact_id})")
     flash(f"Vendor partner '{company_name}' successfully added with offerings catalog & logo.", 'success')
@@ -1315,51 +1382,66 @@ def edit_contact(contact_id):
     
     conn = database.get_db_connection()
     cursor = conn.cursor()
+    existing_contact = cursor.execute("SELECT website, company_logo FROM contacts WHERE id = ?", (contact_id,)).fetchone()
+    old_website = existing_contact['website'] if existing_contact else ''
+    has_logo = bool(existing_contact and existing_contact['company_logo'])
+
     cursor.execute('''
     UPDATE contacts 
     SET company_name = ?, name = ?, type = ?, group_name = ?, designation = ?, email = ?, phone = ?, website = ?, address = ?, contact_persons = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
     ''', (company_name, primary_contact["name"], type_, group_name, primary_contact["designation"], primary_contact["email"], primary_contact["phone"], website, address, json.dumps(contacts_list), contact_id))
     
-    # 1. Try fetching company logo on edit
-    logo_filename = download_company_logo(website, contact_id, company_name)
-    if logo_filename:
-        cursor.execute("UPDATE contacts SET company_logo = ? WHERE id = ?", (logo_filename, contact_id))
-        
-    # 2. Refresh offerings if website or company_name is provided
-    if website or company_name:
-        try:
-            from scraper import scrape_oem_website, search_open_internet_offerings
-            scrape_data = scrape_oem_website(website, company_name)
-            scraped_products = scrape_data.get('products', []) if scrape_data else []
-            scraped_services = scrape_data.get('services', []) if scrape_data else []
-            if len(scraped_products) < 3 or len(scraped_services) < 3:
-                open_offerings = search_open_internet_offerings(company_name)
-                for p in open_offerings.get('products', []):
-                    if p not in scraped_products:
-                        scraped_products.append(p)
-                for s in open_offerings.get('services', []):
-                    if s not in scraped_services:
-                        scraped_services.append(s)
-            if scraped_products or scraped_services:
-                summary = scrape_data.get('portfolio_summary', '') if scrape_data else ''
-                if not summary:
-                    from scraper import generate_oem_portfolio_summary
-                    summary = generate_oem_portfolio_summary(company_name, website, scraped_products, scraped_services)
-                cursor.execute(
-                    "UPDATE contacts SET fetched_products = ?, fetched_services = ?, portfolio_summary = ? WHERE id = ?",
-                    (json.dumps(scraped_products[:12]), json.dumps(scraped_services[:12]), summary, contact_id)
-                )
-        except Exception as e:
-            print(f"Error updating offerings on edit for {company_name}: {e}")
-            
-    # Check if direct form summary was edited
     form_summary = request.form.get('portfolio_summary', '').strip()
     if form_summary:
         cursor.execute("UPDATE contacts SET portfolio_summary = ? WHERE id = ?", (form_summary, contact_id))
         
     conn.commit()
     conn.close()
+
+    # Re-fetch logo only if logo is missing or if website was updated
+    website_changed = bool(website and website.strip().lower() != (old_website or '').strip().lower())
+    if not has_logo or website_changed:
+        def async_edit_logo(c_id, web, comp_name):
+            try:
+                l_file = download_company_logo(web, c_id, comp_name)
+                if l_file:
+                    t_conn = database.get_db_connection()
+                    t_conn.execute("UPDATE contacts SET company_logo = ? WHERE id = ?", (l_file, c_id))
+                    t_conn.commit()
+                    t_conn.close()
+            except Exception as e:
+                print(f"Async edit logo fetch error for {comp_name}: {e}")
+        threading.Thread(target=async_edit_logo, args=(contact_id, website, company_name), daemon=True).start()
+
+    # If user explicitly requested catalog refresh, perform in background without blocking response
+    if request.form.get('refresh_catalog') == '1':
+        def async_edit_refresh(c_id, web, comp_name):
+            try:
+                from scraper import scrape_oem_website, search_open_internet_offerings, generate_oem_portfolio_summary
+                scrape_data = scrape_oem_website(web, comp_name)
+                scraped_products = scrape_data.get('products', []) if scrape_data else []
+                scraped_services = scrape_data.get('services', []) if scrape_data else []
+                if len(scraped_products) < 3 or len(scraped_services) < 3:
+                    open_offerings = search_open_internet_offerings(comp_name)
+                    for p in open_offerings.get('products', []):
+                        if p not in scraped_products: scraped_products.append(p)
+                    for s in open_offerings.get('services', []):
+                        if s not in scraped_services: scraped_services.append(s)
+                if scraped_products or scraped_services:
+                    summary = scrape_data.get('portfolio_summary', '') if scrape_data else ''
+                    if not summary:
+                        summary = generate_oem_portfolio_summary(comp_name, web, scraped_products, scraped_services)
+                    t_conn = database.get_db_connection()
+                    t_conn.execute(
+                        "UPDATE contacts SET fetched_products = ?, fetched_services = ?, portfolio_summary = ? WHERE id = ?",
+                        (json.dumps(scraped_products[:12]), json.dumps(scraped_services[:12]), summary, c_id)
+                    )
+                    t_conn.commit()
+                    t_conn.close()
+            except Exception as e:
+                print(f"Async edit catalog refresh error for {comp_name}: {e}")
+        threading.Thread(target=async_edit_refresh, args=(contact_id, website, company_name), daemon=True).start()
     
     log_audit('CONTACT_EDIT', f"Edited details for contact ID: {contact_id}")
     flash('Partner profile and offerings catalog updated successfully.', 'success')
@@ -1395,17 +1477,37 @@ def delete_contact(contact_id):
     return redirect(url_for('dashboard'))
 
 # Serving files from upload folder
-@app.route('/uploads/<filename>')
+@app.route('/uploads/<path:filename>')
 def uploaded_file(filename):
-    # Allow whitelabel branding assets (logo, favicon) without login
-    if filename.startswith('portal_logo_') or filename.startswith('favicon_'):
-        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    # Normalize filename: handle Windows/Unix slashes and strip leading paths
+    clean_name = filename.replace('\\', '/').lstrip('/')
+    if clean_name.startswith('uploads/'):
+        clean_name = clean_name[8:]
         
-    # Other files (visiting cards etc.) require active login session
+    # Allow whitelabel branding assets (logo, favicon) without login
+    if clean_name.startswith('portal_logo_') or clean_name.startswith('favicon_'):
+        safe_path = os.path.join(app.config['UPLOAD_FOLDER'], clean_name)
+        if os.path.exists(safe_path):
+            return send_from_directory(app.config['UPLOAD_FOLDER'], clean_name)
+        base = os.path.basename(clean_name)
+        if os.path.exists(os.path.join(app.config['UPLOAD_FOLDER'], base)):
+            return send_from_directory(app.config['UPLOAD_FOLDER'], base)
+        return send_from_directory('static', 'favicon.svg')
+        
+    # Other files (visiting cards, rfp docs etc.) require active login session
     if not is_logged_in():
         return redirect(url_for('login'))
         
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    safe_path = os.path.join(app.config['UPLOAD_FOLDER'], clean_name)
+    if os.path.exists(safe_path):
+        return send_from_directory(app.config['UPLOAD_FOLDER'], clean_name)
+        
+    base = os.path.basename(clean_name)
+    if os.path.exists(os.path.join(app.config['UPLOAD_FOLDER'], base)):
+        return send_from_directory(app.config['UPLOAD_FOLDER'], base)
+        
+    flash("The requested document or file could not be found.", "error")
+    return redirect(request.referrer or url_for('dashboard'))
 
 # Upload Visiting Card image
 @app.route('/contact/<int:contact_id>/upload-card/<side>', methods=['POST'])
@@ -2669,13 +2771,15 @@ def refresh_web_scrapes(contact_id):
     })
 
 @app.route('/contact/<int:contact_id>/upload-card/delete', methods=['POST'])
+@app.route('/contact/<int:contact_id>/upload-card/<side>/delete', methods=['POST'])
 @login_required
-def delete_visiting_card(contact_id):
+def delete_visiting_card(contact_id, side=None):
     if session.get('role') == 'viewer':
         flash('Access Denied: View-only users cannot delete visiting cards.', 'error')
         return redirect(url_for('contact_detail', contact_id=contact_id))
         
-    side = request.args.get('side', 'front').strip().lower()
+    if not side:
+        side = request.args.get('side', request.form.get('side', 'front')).strip().lower()
     if side not in ['front', 'back']:
         side = 'front'
         
@@ -2866,7 +2970,7 @@ def run_master_sync_thread(user_id, username):
                 except: pass
 
     # Execute concurrently using a ThreadPoolExecutor
-    max_workers = min(15, total) if total > 0 else 1
+    max_workers = min(4, total) if total > 0 else 1 # Capped at 4 workers to protect cPanel LVE & SQLite concurrency
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(sync_single_contact, c): c for c in contacts}
         for future in concurrent.futures.as_completed(futures):
@@ -4239,18 +4343,33 @@ def rfp_detail(rfp_id):
     oems_rows = conn.execute("SELECT DISTINCT company_name FROM contacts WHERE type = 'OEM' ORDER BY company_name").fetchall()
     directory_oems = [r['company_name'] for r in oems_rows if r['company_name']]
     
-    # Fetch BoQ matrix
+    # Fetch BoQ matrix and compute shortlisted OEMs for this RFP
     items_rows = conn.execute("SELECT * FROM rfp_boq_items WHERE rfp_id = ? ORDER BY id ASC", (rfp_id,)).fetchall()
     boq_matrix = []
+    shortlisted_oems_set = set()
     for item in items_rows:
+        sel_oems = item['selected_oems'] or ""
         boq_matrix.append({
             'id': item['id'],
             'item_name': item['item_name'],
             'quantity': item['quantity'],
-            'selected_oems': item['selected_oems'] or "",
+            'selected_oems': sel_oems,
             'oems_doc_status': item['oems_doc_status'] or "",
-            'remarks': item['remarks'] or ""
+            'remarks': item['remarks'] or "",
+            'document_required': item['document_required'] if 'document_required' in item.keys() else "No"
         })
+        if sel_oems:
+            for o in sel_oems.split(','):
+                o_clean = o.strip()
+                if o_clean:
+                    shortlisted_oems_set.add(o_clean)
+                    
+    # Also include any OEM already assigned to a checklist item for this RFP so it doesn't get orphaned
+    for c in checklist:
+        if c['oem_name']:
+            shortlisted_oems_set.add(c['oem_name'].strip())
+            
+    shortlisted_oems = sorted(list(shortlisted_oems_set), key=lambda s: s.lower())
     oems_mapped = []
     
     # Query RFP reminders
@@ -4276,6 +4395,7 @@ def rfp_detail(rfp_id):
         checklist=checklist,
         documents=documents,
         directory_oems=directory_oems,
+        shortlisted_oems=shortlisted_oems,
         boq_matrix=boq_matrix,
         oems_mapped=oems_mapped,
         rfp_reminders=rfp_reminders,
@@ -5076,7 +5196,89 @@ def rfp_export_checklist_csv(rfp_id):
 
 
 
-@app.route('/rfps/<int:rfp_id>/upload', methods=['POST'])
+@app.route('/rfps/<int:rfp_id>/documents/upload-chunk', methods=['POST'])
+@login_required
+def rfp_document_upload_chunk(rfp_id):
+    """
+    Resilient chunked uploader to eliminate Cloudflare 502 Bad Gateway and 
+    cPanel/Apache proxy timeouts on files up to 40MB.
+    """
+    if 'file_chunk' not in request.files:
+        return jsonify({'status': 'error', 'message': 'Missing file chunk payload.'}), 400
+        
+    chunk = request.files['file_chunk']
+    try:
+        chunk_index = int(request.form.get('chunk_index', 0))
+        total_chunks = int(request.form.get('total_chunks', 1))
+    except (TypeError, ValueError):
+        return jsonify({'status': 'error', 'message': 'Invalid chunk indices.'}), 400
+        
+    upload_id = request.form.get('upload_id', '').strip()
+    filename = request.form.get('filename', '').strip()
+    doc_type = request.form.get('doc_type', 'rfp').strip()
+    
+    # Sanitize upload_id
+    if not upload_id or not re.match(r'^[a-zA-Z0-9_\-]+$', upload_id):
+        return jsonify({'status': 'error', 'message': 'Invalid upload session ID.'}), 400
+        
+    if not filename:
+        filename = "attachment.dat"
+        
+    temp_dir = os.path.join(app.config['UPLOAD_FOLDER'], '.chunks')
+    os.makedirs(temp_dir, exist_ok=True)
+    part_filepath = os.path.join(temp_dir, f"rfp_{rfp_id}_{upload_id}.part")
+    
+    try:
+        mode = 'wb' if chunk_index == 0 else 'ab'
+        with open(part_filepath, mode) as f:
+            chunk.save(f)
+            
+        # If this is the final chunk, assemble and finalize
+        if chunk_index == total_chunks - 1:
+            final_size = os.path.getsize(part_filepath)
+            MAX_SIZE = 40 * 1024 * 1024
+            if final_size > MAX_SIZE:
+                if os.path.exists(part_filepath):
+                    os.remove(part_filepath)
+                return jsonify({'status': 'error', 'message': f'Total file size ({final_size / (1024*1024):.2f} MB) exceeds 40 MB limit.'}), 400
+                
+            import uuid, shutil
+            ext = os.path.splitext(filename)[1].lower()
+            safe_filename = f"rfp_{rfp_id}_{uuid.uuid4().hex[:8]}{ext}"
+            final_dest = os.path.join(app.config['UPLOAD_FOLDER'], safe_filename)
+            
+            shutil.move(part_filepath, final_dest)
+            
+            conn = database.get_db_connection()
+            conn.execute("""
+                INSERT INTO rfp_documents (rfp_id, filename, original_name, doc_type, file_size)
+                VALUES (?, ?, ?, ?, ?)
+            """, (rfp_id, safe_filename, filename, doc_type, final_size))
+            conn.commit()
+            conn.close()
+            
+            log_audit('RFP_DOC_UPLOAD', f"Chunked upload completed for {doc_type}: {filename} ({final_size} bytes) on RFP ID: {rfp_id}")
+            return jsonify({
+                'status': 'success',
+                'message': f"Document '{filename}' uploaded successfully.",
+                'filename': filename,
+                'file_size': final_size
+            })
+            
+        return jsonify({
+            'status': 'chunk_saved',
+            'chunk_index': chunk_index,
+            'total_chunks': total_chunks
+        })
+    except Exception as e:
+        if os.path.exists(part_filepath):
+            try:
+                os.remove(part_filepath)
+            except Exception:
+                pass
+        return jsonify({'status': 'error', 'message': f'Server error processing chunk: {str(e)}'}), 500
+
+@app.route('/rfps/<int:rfp_id>/documents/upload', methods=['POST'])
 @login_required
 def rfp_document_upload(rfp_id):
     if 'file' not in request.files:

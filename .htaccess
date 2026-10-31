@@ -1,7 +1,16 @@
 # cPanel Passenger WSGI Apache Routing
 DirectoryIndex passenger_wsgi.py
 
+<IfModule mod_rewrite.c>
 RewriteEngine On
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^(.*)$ passenger_wsgi.py [L]
+
+# Allow direct serving of static assets and uploads if they exist on disk
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ - [L]
+
+# Route all application URLs with Query String Append (QSA) to passenger_wsgi
+RewriteRule ^(.*)$ passenger_wsgi.py [QSA,L]
+</IfModule>
+
+# Disable directory listing
+Options -Indexes

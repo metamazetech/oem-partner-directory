@@ -23,6 +23,153 @@
         }
     </style>
     {% endif %}
+
+    <style>
+        /* BoQ Matrix & Document Checklist Enhancements */
+        .boq-solid-input,
+        .boq-item-qty,
+        .boq-item-name,
+        .boq-item-remarks,
+        .boq-item-doc-required,
+        .dropdown-toggle-btn {
+            background: #0f172a !important;
+            background-color: #0f172a !important;
+            color: #ffffff !important;
+            border: 1px solid rgba(255, 255, 255, 0.22) !important;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35) !important;
+        }
+
+        .boq-solid-input:focus,
+        .boq-item-qty:focus,
+        .boq-item-name:focus,
+        .boq-item-remarks:focus,
+        .boq-item-doc-required:focus {
+            border-color: #6366f1 !important;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3), inset 0 1px 3px rgba(0, 0, 0, 0.35) !important;
+            outline: none !important;
+        }
+
+        .oem-dropdown-menu {
+            background: #0f172a !important;
+            background-color: #0f172a !important;
+            border: 1px solid rgba(99, 102, 241, 0.45) !important;
+            border-radius: 8px !important;
+            box-shadow: 0 16px 36px rgba(0, 0, 0, 0.9), 0 4px 12px rgba(0, 0, 0, 0.6) !important;
+            color: #ffffff !important;
+        }
+
+        .oem-dropdown-menu .checkbox-list label:hover {
+            background: rgba(99, 102, 241, 0.2) !important;
+            border-radius: 4px;
+        }
+
+        .custom-table-container {
+            padding-bottom: 5rem !important;
+        }
+
+        .vertical-scrollable-list,
+        .associated-oems-vertical-list,
+        .oem-doc-checklist-container {
+            display: flex;
+            flex-direction: column !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            max-height: 100px;
+            gap: 0.3rem;
+            padding-right: 4px;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(99, 102, 241, 0.4) rgba(255, 255, 255, 0.03);
+        }
+        .vertical-scrollable-list::-webkit-scrollbar,
+        .associated-oems-vertical-list::-webkit-scrollbar,
+        .oem-doc-checklist-container::-webkit-scrollbar {
+            width: 4px;
+        }
+        .vertical-scrollable-list::-webkit-scrollbar-thumb,
+        .associated-oems-vertical-list::-webkit-scrollbar-thumb,
+        .oem-doc-checklist-container::-webkit-scrollbar-thumb {
+            background: rgba(99, 102, 241, 0.4);
+            border-radius: 4px;
+        }
+        .associated-oem-pill {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.76rem;
+            color: #f1f5f9;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 0.2rem 0.45rem;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .associated-oem-pill:hover {
+            background: rgba(99, 102, 241, 0.15);
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+        .oem-doc-item {
+            display: flex !important;
+            align-items: center !important;
+            gap: 0.45rem !important;
+            font-size: 0.76rem !important;
+            color: #c7d2fe !important;
+            background: rgba(99, 102, 241, 0.08) !important;
+            border: 1px solid rgba(99, 102, 241, 0.2) !important;
+            padding: 0.22rem 0.45rem !important;
+            border-radius: 4px !important;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.2s;
+        }
+        .oem-doc-item:hover {
+            background: rgba(99, 102, 241, 0.18) !important;
+            border-color: rgba(99, 102, 241, 0.4) !important;
+        }
+        .boq-col-remarks,
+        .checklist-col-remarks {
+            transition: all 0.2s ease;
+        }
+
+        .checklist-solid-input {
+            background: #0f172a !important;
+            background-color: #0f172a !important;
+            color: #ffffff !important;
+            border: 1px solid rgba(255, 255, 255, 0.22) !important;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35) !important;
+        }
+        .checklist-solid-input:focus {
+            border-color: #6366f1 !important;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3), inset 0 1px 3px rgba(0, 0, 0, 0.35) !important;
+            outline: none !important;
+        }
+
+        /* Mobile View Optimizations */
+        @media (max-width: 900px) {
+            .grid-layout-sidebar-22-1,
+            .grid-2-col,
+            .grid-layout-sidebar-1-15 {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 1.25rem !important;
+            }
+            .custom-table-container {
+                overflow-x: auto !important;
+                -webkit-overflow-scrolling: touch !important;
+                padding-bottom: 0.5rem;
+            }
+            #boq-matrix-table {
+                min-width: 780px !important;
+            }
+            #tab-checklist table {
+                min-width: 720px !important;
+            }
+            .tab-button {
+                padding: 0.6rem 0.9rem !important;
+                font-size: 0.82rem !important;
+            }
+        }
+    </style>
+
 </head>
 
 <body class="{{ session.get('theme', 'theme-slate-dark') }}">
@@ -306,6 +453,11 @@
                             <h3 style="margin: 0; color: white;">Bill of Quantity (BoQ) OEM Product Mapping Matrix</h3>
                             <p style="margin: 0.25rem 0 0 0; font-size: 0.8rem; color: var(--text-secondary);">Map BoQ items to offerings across multiple OEMs dynamically.</p>
                         </div>
+                        <div style="display: flex; gap: 0.6rem; align-items: center;">
+                            <button type="button" id="toggle-boq-remarks-btn" onclick="toggleBoqRemarksColumn()" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0.85rem; font-size: 0.8rem; border-radius: 6px; border: 1px solid var(--border-glass);" title="Click to show or hide Remarks column">
+                                <span id="boq-remarks-eye-icon">👁️</span> <span id="boq-remarks-btn-text">Show Remarks</span>
+                            </button>
+                        </div>
                     </div>
                     
                     <!-- Matrix Table -->
@@ -313,7 +465,7 @@
                     <table id="boq-matrix-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem; margin-bottom: 1.5rem;">
                         <thead>
                             <tr style="background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--border-glass);">
-                                <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 25%;">
+                                <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 24%;">
                                     <div style="display: flex; align-items: center; gap: 0.5rem;">
                                         <span>BoQ Item / Specification*</span>
                                         <button type="button" onclick="toggleTableSort('boq-matrix-tbody', '.boq-item-name', this)" class="btn btn-secondary btn-sm" style="padding: 0.15rem 0.35rem; font-size: 0.65rem; border-radius: 4px; display: inline-flex; align-items: center; gap: 2px;" title="Sort A-Z / Z-A" data-dir="">
@@ -321,95 +473,113 @@
                                         </button>
                                     </div>
                                 </th>
-                                <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 8%; text-align: center;">Qty*</th>
-                                <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 20%;">Associated OEMs*</th>
-                                <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 20%;">OEM Doc Submission Status</th>
-                                <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 15%;">Remarks</th>
-                                <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 12%;">Document Required</th>
-                                <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 50px; text-align: right;">Del</th>
+                                <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 7%; text-align: center;">Qty*</th>
+                                <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 23%;">Associated OEMs*</th>
+                                <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 23%;">OEM Doc Submission Status</th>
+                                <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 13%;">Document Required</th>
+                                <th class="boq-col-remarks" style="display: none; padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 16%;">Remarks</th>
+                                <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 45px; text-align: right;">Del</th>
                             </tr>
                         </thead>
                         <tbody id="boq-matrix-tbody">
                             {% if boq_matrix %}
                                 {% for item in boq_matrix %}
+                                    {% set selected_oems_list = (item['selected_oems'] or '').split(', ') %}
                                     <tr class="boq-row" style="border-bottom: 1px solid rgba(255,255,255,0.03);">
                                         <td style="padding: 0.5rem 0.25rem;">
-                                            <input type="text" class="form-control boq-item-name" value="{{ item['item_name'] }}" placeholder="e.g. Next-Gen Firewall Layer-7" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem;" required>
+                                            <input type="text" class="form-control boq-item-name boq-solid-input" value="{{ item['item_name'] }}" placeholder="e.g. Next-Gen Firewall Layer-7" style="background: #0f172a !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.22) !important; font-size: 0.85rem; border-radius: 6px; padding: 0.45rem 0.6rem; width: 100%;" required>
                                         </td>
+                                        <!-- Col 2: Qty* (Solid background matching screen) -->
                                         <td style="padding: 0.5rem 0.25rem;">
-                                            <input type="number" class="form-control boq-item-qty" value="{{ item['quantity'] }}" min="1" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem; text-align: center;" required>
+                                            <input type="number" class="form-control boq-item-qty boq-solid-input" value="{{ item['quantity'] }}" min="1" style="background: #0f172a !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.22) !important; font-size: 0.85rem; font-weight: 600; text-align: center; border-radius: 6px; padding: 0.45rem 0.4rem; width: 100%; min-width: 55px;" required>
                                         </td>
+                                        <!-- Col 3: Associated OEMs (Vertical List with Scrollbar, Solid Dropdown Anchored to Button) -->
                                         <td style="padding: 0.5rem 0.25rem; min-width: 180px;">
-                                            <!-- Multi-select dropdown -->
-                                            <div class="oem-selector-dropdown" style="position: relative;">
-                                                <button title="{% if item['selected_oems'] %}{{ item['selected_oems'] }}{% else %}Select OEMs...{% endif %}
-                                                    
-                                                    ▼" type="button" class="form-control dropdown-toggle-btn" onclick="toggleOemDropdown(this)" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem; text-align: left; display: flex; justify-content: space-between; align-items: center; color: white; width: 100%;">
-                                                    <span class="selected-oems-text">
-                                                        {% if item['selected_oems'] %}{{ item['selected_oems'] }}{% else %}Select OEMs...{% endif %}
-                                                    </span>
-                                                    <span>▼</span>
-                                                </button>
-                                                <div class="oem-dropdown-menu" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #1e293b; border: 1px solid var(--border-glass); border-radius: 8px; z-index: 100; max-height: 180px; overflow-y: auto; padding: 0.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
-                                                    <!-- Seeded Directory OEMs -->
-                                                    {% set selected_oems_list = (item['selected_oems'] or '').split(', ') %}
-                                                    
-    <div style="padding: 0.25rem 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 0.5rem; position: sticky; top: 0; background: #1e293b; z-index: 1;">
-        <input type="text" placeholder="Search OEM..." onkeyup="filterOems(this)" onclick="event.stopPropagation()" style="width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">
-    </div>
-
-<div class="checkbox-list">
-                                                        {% for oem in directory_oems %}
-                                                            <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.5rem; color: white; font-size: 0.85rem; cursor: pointer; border-radius: 4px;">
-                                                                <input type="checkbox" class="oem-checkbox" value="{{ oem }}" {% if oem in selected_oems_list %}checked{% endif %} onchange="updateSelectedOemsText(this)">
-                                                                <span>{{ oem }}</span>
-                                                            </label>
-                                                        {% endfor %}
-                                                        <!-- Custom OEMs that were saved but aren't in directory_oems -->
-                                                        {% for oem in selected_oems_list %}
-                                                            {% if oem and oem not in directory_oems %}
+                                            <div class="oem-selector-dropdown">
+                                                <!-- Dropdown Button Anchor -->
+                                                <div class="oem-btn-anchor" style="position: relative; width: 100%;">
+                                                    <button type="button" class="form-control dropdown-toggle-btn boq-solid-input" onclick="toggleOemDropdown(this)" style="background: #0f172a !important; border: 1px solid rgba(255, 255, 255, 0.22) !important; font-size: 0.8rem; padding: 0.4rem 0.6rem; text-align: left; display: flex; justify-content: space-between; align-items: center; color: white; width: 100%; border-radius: 6px; cursor: pointer;">
+                                                        <span class="selected-oems-btn-label">
+                                                            <span class="oem-count-badge" style="background: var(--primary); color: white; padding: 1px 6px; border-radius: 9999px; font-size: 0.68rem; font-weight: 700; margin-right: 0.3rem;">{{ selected_oems_list|select|list|length }}</span>
+                                                            Select OEMs...
+                                                        </span>
+                                                        <span style="font-size: 0.7rem; margin-left: 4px;">▼</span>
+                                                    </button>
+                                                    <!-- Dropdown Menu attached directly to button anchor with solid background -->
+                                                    <div class="oem-dropdown-menu" style="display: none; position: absolute; top: calc(100% + 4px); left: 0; min-width: 280px; max-width: 320px; background: #0f172a !important; border: 1px solid rgba(99, 102, 241, 0.45) !important; border-radius: 8px; z-index: 999999 !important; max-height: 220px; overflow-y: auto; padding: 0.5rem; box-shadow: 0 16px 36px rgba(0,0,0,0.9), 0 4px 12px rgba(0,0,0,0.6);">
+                                                        <div style="padding: 0.25rem 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.12); margin-bottom: 0.5rem; position: sticky; top: 0; background: #0f172a !important; z-index: 2;">
+                                                            <input type="text" placeholder="Search OEM..." onkeyup="filterOems(this)" onclick="event.stopPropagation()" onkeydown="if(event.key==='Enter'){event.preventDefault();}" style="width: 100%; background: #1e293b !important; border: 1px solid rgba(255,255,255,0.22) !important; color: white; padding: 0.3rem 0.55rem; border-radius: 5px; font-size: 0.8rem;">
+                                                        </div>
+                                                        <div class="checkbox-list">
+                                                            {% for oem in directory_oems %}
                                                                 <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.5rem; color: white; font-size: 0.85rem; cursor: pointer; border-radius: 4px;">
-                                                                    <input type="checkbox" class="oem-checkbox" value="{{ oem }}" checked onchange="updateSelectedOemsText(this)">
+                                                                    <input type="checkbox" class="oem-checkbox" value="{{ oem }}" {% if oem in selected_oems_list %}checked{% endif %} onchange="updateSelectedOemsText(this)">
                                                                     <span>{{ oem }}</span>
                                                                 </label>
+                                                            {% endfor %}
+                                                            {% for oem in selected_oems_list %}
+                                                                {% if oem and oem not in directory_oems %}
+                                                                    <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.5rem; color: white; font-size: 0.85rem; cursor: pointer; border-radius: 4px;">
+                                                                        <input type="checkbox" class="oem-checkbox" value="{{ oem }}" checked onchange="updateSelectedOemsText(this)">
+                                                                        <span>{{ oem }}</span>
+                                                                    </label>
+                                                                {% endif %}
+                                                            {% endfor %}
+                                                        </div>
+                                                        <div style="display: flex; gap: 0.25rem; margin-top: 0.5rem; padding: 0.25rem 0.5rem; border-top: 1px solid rgba(255,255,255,0.12); position: sticky; bottom: 0; background: #0f172a !important;">
+                                                            <input type="text" class="custom-oem-input" placeholder="Add custom..." onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomOemCheckbox(this.nextElementSibling);}" style="background: #1e293b !important; border: 1px solid rgba(255,255,255,0.22) !important; border-radius: 4px; padding: 0.25rem 0.45rem; font-size: 0.75rem; color: white; width: 75%;">
+                                                            <button title="Add custom OEM" type="button" class="btn btn-primary btn-sm" onclick="addCustomOemCheckbox(this)" style="padding: 0.25rem 0.55rem; font-size: 0.75rem; border-radius: 4px; font-weight: 700;">+</button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <!-- Vertical Scrollable Associated OEMs List (placed below button anchor) -->
+                                                <div class="associated-oems-vertical-list" style="display: flex; flex-direction: column; overflow-y: auto; max-height: 95px; gap: 0.25rem; margin-top: 0.35rem; width: 100%; padding-right: 4px;">
+                                                    {% if item['selected_oems'] %}
+                                                        {% for oem in selected_oems_list %}
+                                                            {% if oem %}
+                                                                <div class="associated-oem-pill">
+                                                                    <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600;">🏢 {{ oem }}</span>
+                                                                </div>
                                                             {% endif %}
                                                         {% endfor %}
-                                                    </div>
-                                                    <!-- Add custom OEM input -->
-                                                    <div style="display: flex; gap: 0.25rem; margin-top: 0.5rem; padding: 0.25rem 0.5rem; border-top: 1px solid rgba(255,255,255,0.05);">
-                                                        <input type="text" class="custom-oem-input" placeholder="Add custom..." style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-glass); border-radius: 4px; padding: 0.25rem; font-size: 0.75rem; color: white; width: 70%;">
-                                                        <button title="+" type="button" class="btn btn-primary btn-sm" onclick="addCustomOemCheckbox(this)" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; border-radius: 4px;">+</button>
-                                                    </div>
+                                                    {% else %}
+                                                        <span class="no-oem-hint" style="font-size: 0.75rem; color: var(--text-muted); font-style: italic;">None selected</span>
+                                                    {% endif %}
                                                 </div>
                                             </div>
                                         </td>
-                                        <td style="padding: 0.5rem 0.25rem; min-width: 200px;">
-                                            <!-- Document Received Checkboxes list -->
-                                            <div class="oem-doc-checklist-container" style="display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 0.5rem; width: 100%; max-width: 250px; padding-bottom: 4px; white-space: nowrap;">
+                                        <!-- Col 4: OEM Doc Submission Status (Vertical List with Scrollbar) -->
+                                        <td style="padding: 0.5rem 0.25rem; min-width: 190px;">
+                                            <div class="oem-doc-checklist-container" style="display: flex; flex-direction: column; overflow-y: auto; max-height: 95px; gap: 0.3rem; width: 100%; min-width: 170px; padding-right: 4px;">
                                                 {% if item['selected_oems'] %}
                                                     {% set docs_recd_list = (item['oems_doc_status'] or '').split(', ') %}
                                                     {% for oem in selected_oems_list %}
                                                         {% if oem %}
-                                                            <label style="display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.75rem; color: #a5b4fc; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); padding: 0.15rem 0.35rem; border-radius: 4px; cursor: pointer; margin-top: 0.2rem;">
-                                                                <input type="checkbox" class="oem-doc-received-checkbox" value="{{ oem }}" {% if oem in docs_recd_list %}checked{% endif %}>
-                                                                <span>{{ oem }} Doc Recd</span>
+                                                            <label class="oem-doc-item">
+                                                                <input type="checkbox" class="oem-doc-received-checkbox" value="{{ oem }}" {% if oem in docs_recd_list %}checked{% endif %} style="accent-color: var(--primary);">
+                                                                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ oem }} Doc Recd</span>
                                                             </label>
                                                         {% endif %}
                                                     {% endfor %}
+                                                {% else %}
+                                                    <span class="no-doc-hint" style="font-size: 0.75rem; color: var(--text-muted); font-style: italic;">Select OEMs first</span>
                                                 {% endif %}
                                             </div>
                                         </td>
+                                        <!-- Col 5: Document Required -->
                                         <td style="padding: 0.5rem 0.25rem;">
-                                            <input type="text" class="form-control boq-item-remarks" value="{{ item['remarks'] or '' }}" placeholder="Remarks (serves all selected OEMs)..." style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem;">
-                                        </td>
-                                        <td style="padding: 0.5rem 0.25rem;">
-                                            <select class="form-control boq-item-doc-required" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem; padding: 0.4rem 0.6rem;">
+                                            <select class="form-control boq-item-doc-required boq-solid-input" style="background: #0f172a !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.22) !important; font-size: 0.85rem; padding: 0.45rem 0.6rem; border-radius: 6px; width: 100%; cursor: pointer;">
                                                 <option value="Yes" {% if item['document_required'] == 'Yes' %}selected{% endif %}>Yes</option>
                                                 <option value="No" {% if item['document_required'] == 'No' or not item['document_required'] %}selected{% endif %}>No</option>
                                             </select>
                                         </td>
+                                        <!-- Col 6: Remarks (Kept last, hidden until clicked on Title Bar) -->
+                                        <td class="boq-col-remarks" style="display: none; padding: 0.5rem 0.25rem;">
+                                            <input type="text" class="form-control boq-item-remarks boq-solid-input" value="{{ item['remarks'] or '' }}" placeholder="Remarks (serves all selected OEMs)..." style="background: #0f172a !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.22) !important; font-size: 0.85rem; border-radius: 6px; padding: 0.45rem 0.6rem; width: 100%;">
+                                        </td>
+                                        <!-- Col 7: Delete Action -->
                                         <td style="padding: 0.5rem 0.25rem; text-align: right;">
-                                            <button title="️" type="button" onclick="removeBoqRow(this)" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 1.1rem; padding: 0.25rem;">🗑️</button>
+                                            <button title="Delete row" type="button" onclick="removeBoqRow(this)" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 1.1rem; padding: 0.25rem;">🗑️</button>
                                         </td>
                                     </tr>
                                 {% endfor %}
@@ -417,55 +587,68 @@
                                 <!-- Seed one empty row if matrix is empty -->
                                 <tr class="boq-row" style="border-bottom: 1px solid rgba(255,255,255,0.03);">
                                     <td style="padding: 0.5rem 0.25rem;">
-                                        <input type="text" class="form-control boq-item-name" placeholder="e.g. Core Layer-3 Switch" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem;" required>
+                                        <input type="text" class="form-control boq-item-name boq-solid-input" placeholder="e.g. Core Layer-3 Switch" style="background: #0f172a !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.22) !important; font-size: 0.85rem; border-radius: 6px; padding: 0.45rem 0.6rem; width: 100%;" required>
                                     </td>
                                     <td style="padding: 0.5rem 0.25rem;">
-                                        <input type="number" class="form-control boq-item-qty" value="1" min="1" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem; text-align: center;" required>
+                                        <input type="number" class="form-control boq-item-qty boq-solid-input" value="1" min="1" style="background: #0f172a !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.22) !important; font-size: 0.85rem; font-weight: 600; text-align: center; border-radius: 6px; padding: 0.45rem 0.4rem; width: 100%; min-width: 55px;" required>
                                     </td>
+                                    <!-- Col 3: Associated OEMs -->
                                     <td style="padding: 0.5rem 0.25rem; min-width: 180px;">
-                                        <div class="oem-selector-dropdown" style="position: relative;">
-                                            <button title="Select OEMs...
-                                                ▼" type="button" class="form-control dropdown-toggle-btn" onclick="toggleOemDropdown(this)" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem; text-align: left; display: flex; justify-content: space-between; align-items: center; color: white; width: 100%;">
-                                                <span class="selected-oems-text">Select OEMs...</span>
-                                                <span>▼</span>
-                                            </button>
-                                            <div class="oem-dropdown-menu" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #1e293b; border: 1px solid var(--border-glass); border-radius: 8px; z-index: 100; max-height: 180px; overflow-y: auto; padding: 0.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
-                                                
-    <div style="padding: 0.25rem 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 0.5rem; position: sticky; top: 0; background: #1e293b; z-index: 1;">
-        <input type="text" placeholder="Search OEM..." onkeyup="filterOems(this)" onclick="event.stopPropagation()" style="width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">
-    </div>
-
-<div class="checkbox-list">
-                                                    {% for oem in directory_oems %}
-                                                        <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.5rem; color: white; font-size: 0.85rem; cursor: pointer; border-radius: 4px;">
-                                                            <input type="checkbox" class="oem-checkbox" value="{{ oem }}" onchange="updateSelectedOemsText(this)">
-                                                            <span>{{ oem }}</span>
-                                                        </label>
-                                                    {% endfor %}
+                                        <div class="oem-selector-dropdown">
+                                            <!-- Dropdown Button Anchor -->
+                                            <div class="oem-btn-anchor" style="position: relative; width: 100%;">
+                                                <button type="button" class="form-control dropdown-toggle-btn boq-solid-input" onclick="toggleOemDropdown(this)" style="background: #0f172a !important; border: 1px solid rgba(255, 255, 255, 0.22) !important; font-size: 0.8rem; padding: 0.4rem 0.6rem; text-align: left; display: flex; justify-content: space-between; align-items: center; color: white; width: 100%; border-radius: 6px; cursor: pointer;">
+                                                    <span class="selected-oems-btn-label">
+                                                        <span class="oem-count-badge" style="background: var(--primary); color: white; padding: 1px 6px; border-radius: 9999px; font-size: 0.68rem; font-weight: 700; margin-right: 0.3rem;">0</span>
+                                                        Select OEMs...
+                                                    </span>
+                                                    <span style="font-size: 0.7rem; margin-left: 4px;">▼</span>
+                                                </button>
+                                                <!-- Dropdown Menu attached directly to button anchor with solid background -->
+                                                <div class="oem-dropdown-menu" style="display: none; position: absolute; top: calc(100% + 4px); left: 0; min-width: 280px; max-width: 320px; background: #0f172a !important; border: 1px solid rgba(99, 102, 241, 0.45) !important; border-radius: 8px; z-index: 999999 !important; max-height: 220px; overflow-y: auto; padding: 0.5rem; box-shadow: 0 16px 36px rgba(0,0,0,0.9), 0 4px 12px rgba(0,0,0,0.6);">
+                                                    <div style="padding: 0.25rem 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.12); margin-bottom: 0.5rem; position: sticky; top: 0; background: #0f172a !important; z-index: 2;">
+                                                        <input type="text" placeholder="Search OEM..." onkeyup="filterOems(this)" onclick="event.stopPropagation()" onkeydown="if(event.key==='Enter'){event.preventDefault();}" style="width: 100%; background: #1e293b !important; border: 1px solid rgba(255,255,255,0.22) !important; color: white; padding: 0.3rem 0.55rem; border-radius: 5px; font-size: 0.8rem;">
+                                                    </div>
+                                                    <div class="checkbox-list">
+                                                        {% for oem in directory_oems %}
+                                                            <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.5rem; color: white; font-size: 0.85rem; cursor: pointer; border-radius: 4px;">
+                                                                <input type="checkbox" class="oem-checkbox" value="{{ oem }}" onchange="updateSelectedOemsText(this)">
+                                                                <span>{{ oem }}</span>
+                                                            </label>
+                                                        {% endfor %}
+                                                    </div>
+                                                    <div style="display: flex; gap: 0.25rem; margin-top: 0.5rem; padding: 0.25rem 0.5rem; border-top: 1px solid rgba(255,255,255,0.12); position: sticky; bottom: 0; background: #0f172a !important;">
+                                                        <input type="text" class="custom-oem-input" placeholder="Add custom..." onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomOemCheckbox(this.nextElementSibling);}" style="background: #1e293b !important; border: 1px solid rgba(255,255,255,0.22) !important; border-radius: 4px; padding: 0.25rem 0.45rem; font-size: 0.75rem; color: white; width: 75%;">
+                                                        <button title="Add custom OEM" type="button" class="btn btn-primary btn-sm" onclick="addCustomOemCheckbox(this)" style="padding: 0.25rem 0.55rem; font-size: 0.75rem; border-radius: 4px; font-weight: 700;">+</button>
+                                                    </div>
                                                 </div>
-                                                <div style="display: flex; gap: 0.25rem; margin-top: 0.5rem; padding: 0.25rem 0.5rem; border-top: 1px solid rgba(255,255,255,0.05);">
-                                                    <input type="text" class="custom-oem-input" placeholder="Add custom..." style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-glass); border-radius: 4px; padding: 0.25rem; font-size: 0.75rem; color: white; width: 70%;">
-                                                    <button title="+" type="button" class="btn btn-primary btn-sm" onclick="addCustomOemCheckbox(this)" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; border-radius: 4px;">+</button>
-                                                </div>
+                                            </div>
+                                            <!-- Vertical Scrollable Associated OEMs List (placed below button anchor) -->
+                                            <div class="associated-oems-vertical-list" style="display: flex; flex-direction: column; overflow-y: auto; max-height: 95px; gap: 0.25rem; margin-top: 0.35rem; width: 100%; padding-right: 4px;">
+                                                <span class="no-oem-hint" style="font-size: 0.75rem; color: var(--text-muted); font-style: italic;">None selected</span>
                                             </div>
                                         </div>
                                     </td>
-                                    <td style="padding: 0.5rem 0.25rem; min-width: 200px;">
-                                        <!-- Document Received Checkboxes list -->
-                                        <div class="oem-doc-checklist-container" style="display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 0.5rem; width: 100%; max-width: 250px; padding-bottom: 4px; white-space: nowrap;">
+                                    <!-- Col 4: OEM Doc Submission Status -->
+                                    <td style="padding: 0.5rem 0.25rem; min-width: 190px;">
+                                        <div class="oem-doc-checklist-container" style="display: flex; flex-direction: column; overflow-y: auto; max-height: 95px; gap: 0.3rem; width: 100%; min-width: 170px; padding-right: 4px;">
+                                            <span class="no-doc-hint" style="font-size: 0.75rem; color: var(--text-muted); font-style: italic;">Select OEMs first</span>
                                         </div>
                                     </td>
+                                    <!-- Col 5: Document Required -->
                                     <td style="padding: 0.5rem 0.25rem;">
-                                        <input type="text" class="form-control boq-item-remarks" placeholder="Remarks (serves all selected OEMs)..." style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem;">
-                                    </td>
-                                    <td style="padding: 0.5rem 0.25rem;">
-                                        <select class="form-control boq-item-doc-required" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem; padding: 0.4rem 0.6rem;">
+                                        <select class="form-control boq-item-doc-required boq-solid-input" style="background: #0f172a !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.22) !important; font-size: 0.85rem; padding: 0.45rem 0.6rem; border-radius: 6px; width: 100%; cursor: pointer;">
                                             <option value="Yes">Yes</option>
                                             <option value="No" selected>No</option>
                                         </select>
                                     </td>
+                                    <!-- Col 6: Remarks -->
+                                    <td class="boq-col-remarks" style="display: none; padding: 0.5rem 0.25rem;">
+                                        <input type="text" class="form-control boq-item-remarks boq-solid-input" placeholder="Remarks (serves all selected OEMs)..." style="background: #0f172a !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.22) !important; font-size: 0.85rem; border-radius: 6px; padding: 0.45rem 0.6rem; width: 100%;">
+                                    </td>
+                                    <!-- Col 7: Delete Action -->
                                     <td style="padding: 0.5rem 0.25rem; text-align: right;">
-                                        <button title="️" type="button" onclick="removeBoqRow(this)" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 1.1rem; padding: 0.25rem;">🗑️</button>
+                                        <button title="Delete row" type="button" onclick="removeBoqRow(this)" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 1.1rem; padding: 0.25rem;">🗑️</button>
                                     </td>
                                 </tr>
                             {% endif %}
@@ -587,6 +770,9 @@
                                 <a title="Export Checklist CSV" href="{{ url_for('rfp_export_checklist_csv', rfp_id=rfp['id']) }}" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem; border-radius: 6px; padding: 0.45rem 0.85rem; font-size: 0.78rem; text-decoration: none;">
                                     📥 Export Checklist CSV
                                 </a>
+                                <button type="button" id="toggle-checklist-remarks-btn" onclick="toggleChecklistRemarksColumn()" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0.85rem; font-size: 0.78rem; border-radius: 6px; border: 1px solid var(--border-glass);" title="Click to show or hide Remarks column">
+                                    <span id="checklist-remarks-eye-icon">👁️</span> <span id="checklist-remarks-btn-text">Show Remarks</span>
+                                </button>
                             </div>
                         </div>
                         <div class="custom-table-container">
@@ -605,7 +791,7 @@
                                     <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 15%;">Associated OEM</th>
                                     <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 15%;">Uploaded Doc</th>
                                     <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 10%; text-align: center;">Status</th>
-                                    <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 17%;">Remarks</th>
+                                    <th class="checklist-col-remarks" style="display: none; padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 17%;">Remarks</th>
                                     <th style="padding: 0.75rem; color: var(--text-secondary); font-weight: 700; width: 4%; text-align: right;">Del</th>
                                 </tr>
                             </thead>
@@ -628,19 +814,23 @@
                                                 {% else %}
                                                     <form action="{{ url_for('rfp_checklist_upload_format', rfp_id=rfp['id'], item_id=item['id']) }}" method="POST" enctype="multipart/form-data" style="margin: 0;">
                                                         <input type="file" name="format_file" onchange="this.form.submit()" style="display: none;" id="format-file-{{ item['id'] }}">
-                                                        <button title="Upload format" type="button" onclick="document.getElementById('format-file-{{ item['id'] }}').click()" class="btn btn-secondary btn-sm" style="font-size: 0.7rem; padding: 0.25rem 0.5rem; background: transparent; border-color: rgba(255,255,255,0.15); color: var(--text-secondary);">📁 Upload format</button>
+                                                        <button title="Upload format" type="button" onclick="document.getElementById('format-file-{{ item['id'] }}').click()" class="btn btn-secondary btn-sm checklist-solid-input" style="font-size: 0.7rem; padding: 0.25rem 0.5rem; background: #0f172a !important; border: 1px solid rgba(255, 255, 255, 0.22) !important; color: white;">📁 Upload format</button>
                                                     </form>
                                                 {% endif %}
                                             </td>
                                             <td style="padding: 0.75rem;">
-                                                <select onchange="updateChecklistOem({{ item['id'] }}, this.value)" class="form-control" style="font-size: 0.75rem; padding: 0.25rem; background: rgba(15,23,42,0.6); color: white; border: 1px solid var(--border-glass); border-radius: 4px; width: 100%; margin-bottom: 0.35rem;">
+                                                <select onchange="updateChecklistOem({{ item['id'] }}, this.value)" class="form-control checklist-oem-select checklist-solid-input" data-selected="{{ item['oem_name'] or '' }}" style="font-size: 0.78rem; padding: 0.35rem 0.5rem; background: #0f172a !important; color: white !important; border: 1px solid rgba(255, 255, 255, 0.22) !important; border-radius: 6px; width: 100%; margin-bottom: 0.35rem; cursor: pointer;">
                                                     <option value="">-- None --</option>
-                                                    {% for oem in directory_oems %}
-                                                        <option value="{{ oem }}" {% if item['oem_name'] == oem %}selected{% endif %}>{{ oem }}</option>
-                                                    {% endfor %}
+                                                    {% if shortlisted_oems %}
+                                                        {% for oem in shortlisted_oems %}
+                                                            <option value="{{ oem }}" {% if item['oem_name'] == oem %}selected{% endif %}>{{ oem }}</option>
+                                                        {% endfor %}
+                                                    {% else %}
+                                                        <option value="" disabled>(No OEMs shortlisted on BoQ Matrix yet)</option>
+                                                    {% endif %}
                                                 </select>
                                                 <form action="{{ url_for('rfp_checklist_clone', rfp_id=rfp['id'], item_id=item['id']) }}" method="POST" style="margin: 0; text-align: center;">
-                                                    <button type="submit" class="btn btn-secondary btn-sm" style="font-size: 0.68rem; padding: 0.15rem 0.45rem; width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.25rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px;" title="Add another OEM for this document type">
+                                                    <button type="submit" class="btn btn-secondary btn-sm checklist-solid-input" style="font-size: 0.68rem; padding: 0.2rem 0.45rem; width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.25rem; background: #0f172a !important; border: 1px solid rgba(255, 255, 255, 0.22) !important; border-radius: 4px; color: white;" title="Add another OEM for this document type">
                                                         ➕ Add More
                                                     </button>
                                                 </form>
@@ -667,8 +857,8 @@
                                                     {{ item['status'] }}
                                                 </button>
                                             </td>
-                                            <td style="padding: 0.75rem;">
-                                                <input type="text" onblur="updateChecklistRemarks({{ item['id'] }}, this.value)" class="form-control" value="{{ item['remarks'] or '' }}" placeholder="Remarks..." style="font-size: 0.75rem; padding: 0.25rem 0.5rem; background: rgba(255,255,255,0.02); border: 1px solid var(--border-glass); color: white; border-radius: 4px; width: 100%;">
+                                            <td class="checklist-col-remarks" style="display: none; padding: 0.75rem;">
+                                                <input type="text" onblur="updateChecklistRemarks({{ item['id'] }}, this.value)" class="form-control checklist-solid-input" value="{{ item['remarks'] or '' }}" placeholder="Remarks..." style="font-size: 0.78rem; padding: 0.35rem 0.55rem; background: #0f172a !important; border: 1px solid rgba(255, 255, 255, 0.22) !important; color: white !important; border-radius: 6px; width: 100%;">
                                             </td>
                                             <td style="padding: 0.75rem; text-align: right;">
                                                 <form action="{{ url_for('rfp_checklist_delete', rfp_id=rfp['id'], item_id=item['id']) }}" method="POST" style="margin: 0;" onsubmit="return confirmDeleteMatch(event, 'Checklist row for {{ item['doc_name'] }}');">
@@ -693,30 +883,34 @@
                         <form action="{{ url_for('rfp_checklist_add', rfp_id=rfp['id']) }}" method="POST" enctype="multipart/form-data">
                             <div class="form-group" style="margin-bottom: 1rem;">
                                 <label class="form-label" for="doc_name">Document Name*</label>
-                                <input type="text" id="doc_name" name="doc_name" class="form-control" placeholder="e.g. EMD Bank Guarantee" required style="background: rgba(15,23,42,0.6); color: white;">
+                                <input type="text" id="doc_name" name="doc_name" class="form-control checklist-solid-input" placeholder="e.g. EMD Bank Guarantee" required style="background: #0f172a !important; color: white !important; border: 1px solid rgba(255, 255, 255, 0.22) !important; border-radius: 6px;">
                             </div>
                             <div class="form-group" style="margin-bottom: 1rem;">
                                 <label class="form-label" for="doc_description">Short Description</label>
-                                <input type="text" id="doc_description" name="doc_description" class="form-control" placeholder="e.g. BG of value INR 50,000" style="background: rgba(15,23,42,0.6); color: white;">
+                                <input type="text" id="doc_description" name="doc_description" class="form-control checklist-solid-input" placeholder="e.g. BG of value INR 50,000" style="background: #0f172a !important; color: white !important; border: 1px solid rgba(255, 255, 255, 0.22) !important; border-radius: 6px;">
                             </div>
                             <div class="form-group" style="margin-bottom: 1rem;">
                                 <label class="form-label" for="oem_name_select">Associate OEM</label>
-                                <select id="oem_name_select" name="oem_name" class="form-control" style="background: rgba(15,23,42,0.6); color: white;">
+                                <select id="oem_name_select" name="oem_name" class="form-control checklist-oem-select checklist-solid-input" style="background: #0f172a !important; color: white !important; border: 1px solid rgba(255, 255, 255, 0.22) !important; border-radius: 6px; cursor: pointer;">
                                     <option value="">-- None --</option>
-                                    {% for oem in directory_oems %}
-                                        <option value="{{ oem }}">{{ oem }}</option>
-                                    {% endfor %}
+                                    {% if shortlisted_oems %}
+                                        {% for oem in shortlisted_oems %}
+                                            <option value="{{ oem }}">{{ oem }}</option>
+                                        {% endfor %}
+                                    {% else %}
+                                        <option value="" disabled>(No OEMs shortlisted on BoQ Matrix yet)</option>
+                                    {% endif %}
                                 </select>
                             </div>
                             <div class="form-group" style="margin-bottom: 1rem;">
                                 <label class="form-label" for="format_file_input">Upload Format Template (Optional)</label>
-                                <input type="file" id="format_file_input" name="format_file" class="form-control" style="background: rgba(15,23,42,0.6); color: white; font-size: 0.8rem;">
+                                <input type="file" id="format_file_input" name="format_file" class="form-control checklist-solid-input" style="background: #0f172a !important; color: white !important; border: 1px solid rgba(255, 255, 255, 0.22) !important; border-radius: 6px; font-size: 0.8rem;">
                             </div>
                             <div class="form-group" style="margin-bottom: 1.25rem;">
                                 <label class="form-label" for="remarks_input">Remarks (Optional)</label>
-                                <input type="text" id="remarks_input" name="remarks" class="form-control" placeholder="e.g. Awaiting OEM signature" style="background: rgba(15,23,42,0.6); color: white; font-size: 0.85rem;">
+                                <input type="text" id="remarks_input" name="remarks" class="form-control checklist-solid-input" placeholder="e.g. Awaiting OEM signature" style="background: #0f172a !important; color: white !important; border: 1px solid rgba(255, 255, 255, 0.22) !important; border-radius: 6px; font-size: 0.85rem;">
                             </div>
-                            <button title="Add to Checklist" type="submit" class="btn btn-primary" style="width: 100%; padding: 0.5rem; font-size: 0.85rem;">Add to Checklist</button>
+                            <button title="Add to Checklist" type="submit" class="btn btn-primary" style="width: 100%; padding: 0.55rem; font-size: 0.88rem; font-weight: 600;">Add to Checklist</button>
                         </form>
                     </div>
                     
@@ -799,7 +993,7 @@
                         <h3 style="margin-top: 0; margin-bottom: 0.5rem; color: white;">Upload Bid Attachment</h3>
                         <p style="margin: 0 0 1.25rem 0; font-size: 0.78rem; color: var(--text-secondary);">Supported: .DOC, .DOCX, .PDF, .XLS, .XLSX, .ZIP, .RAR, etc. (Max File Size: **40 MB**)</p>
                         
-                        <form id="rfp-upload-form" action="{{ url_for('rfp_document_upload', rfp_id=rfp['id']) }}" method="POST" enctype="multipart/form-data">
+                        <form id="rfp-upload-form" action="{{ url_for('rfp_document_upload', rfp_id=rfp['id']) }}" method="POST" enctype="multipart/form-data" onsubmit="return handleRfpChunkedUpload(event);">
                             <div class="form-group" style="margin-bottom: 1rem;">
                                 <label class="form-label" for="doc_type">Document Type Category</label>
                                 <select id="doc_type" name="doc_type" class="form-control" style="background: rgba(15,23,42,0.6); color: white;">
@@ -809,13 +1003,28 @@
                                 </select>
                             </div>
                             
-                            <div class="form-group" style="margin-bottom: 1.5rem;">
+                            <div class="form-group" style="margin-bottom: 1.25rem;">
                                 <label class="form-label" for="rfp-file-input">Select File Attachment</label>
                                 <input type="file" id="rfp-file-input" name="file" class="form-control" required onchange="checkFileSize(this)">
                                 <span id="file-size-warning" style="display: none; font-size: 0.78rem; color: #f87171; margin-top: 0.35rem; font-weight: 600;">⚠️ Selected file is larger than 40 MB. Upload will be rejected.</span>
                             </div>
+
+                            <!-- Real-time Chunked Upload Progress Bar (Bypasses Cloudflare 502 Bad Gateway) -->
+                            <div id="upload-progress-container" style="display: none; margin-bottom: 1.25rem; background: rgba(15, 23, 42, 0.8); border: 1px solid var(--border-glass); border-radius: 8px; padding: 0.85rem;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.82rem; margin-bottom: 0.4rem;">
+                                    <span id="upload-progress-status" style="color: white; font-weight: 600;">Uploading in safe chunks...</span>
+                                    <span id="upload-progress-percent" style="color: var(--primary); font-weight: 700;">0%</span>
+                                </div>
+                                <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.08); border-radius: 9999px; overflow: hidden;">
+                                    <div id="upload-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #6366f1, #10b981); transition: width 0.2s;"></div>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-muted); margin-top: 0.35rem;">
+                                    <span id="upload-progress-details">0 MB / 0 MB</span>
+                                    <span id="upload-progress-chunks">Chunk 0/0</span>
+                                </div>
+                            </div>
                             
-                            <button title="Upload File Attachment" type="submit" class="btn btn-primary" style="width: 100%; padding: 0.6rem; font-size: 0.88rem;">Upload File Attachment</button>
+                            <button title="Upload File Attachment" id="rfp-upload-submit-btn" type="submit" class="btn btn-primary" style="width: 100%; padding: 0.6rem; font-size: 0.88rem;">Upload File Attachment</button>
                         </form>
                     </div>
                     
@@ -1023,6 +1232,11 @@
             });
             
             localStorage.setItem('activeRfpTab', tabId);
+
+            // Automatically sync shortlisted OEMs to Document Checklist when switching tabs
+            if (tabId === 'tab-checklist' && typeof syncShortlistedOemsToChecklist === 'function') {
+                syncShortlistedOemsToChecklist();
+            }
         }
 
         function switchTab(evt, tabId) {
@@ -1031,6 +1245,7 @@
         
         // Restore active tab on load
         document.addEventListener('DOMContentLoaded', () => {
+            if (typeof syncShortlistedOemsToChecklist === 'function') syncShortlistedOemsToChecklist();
             const activeTab = localStorage.getItem('activeRfpTab');
             if (activeTab && document.getElementById(activeTab)) {
                 selectTab(activeTab);
@@ -1093,144 +1308,142 @@
         
         // 4. BoQ OEM Matrix Interactive Spreadsheet Handler
         window.DIRECTORY_OEMS = {{ directory_oems|tojson }};
-        
-        function addBoqRow() {
-            const tbody = document.getElementById('boq-matrix-tbody');
-            const newRow = document.createElement('tr');
-            newRow.className = 'boq-row';
-            newRow.style.borderBottom = '1px solid rgba(255,255,255,0.03)';
-            
-            let checkboxesHtml = '';
-            (window.DIRECTORY_OEMS || []).forEach(oem => {
-                checkboxesHtml += `
-                    <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.5rem; color: white; font-size: 0.85rem; cursor: pointer; border-radius: 4px;">
-                        <input type="checkbox" class="oem-checkbox" value="${oem}" onchange="updateSelectedOemsText(this)">
-                        <span>${oem}</span>
-                    </label>
-                `;
+        let boqRemarksVisible = false;
+
+        // Toggle Remarks column visibility
+        function toggleBoqRemarksColumn() {
+            boqRemarksVisible = !boqRemarksVisible;
+            const remarksCols = document.querySelectorAll('.boq-col-remarks');
+            remarksCols.forEach(col => {
+                col.style.display = boqRemarksVisible ? 'table-cell' : 'none';
             });
-            
-            newRow.innerHTML = `
-                <td style="padding: 0.5rem 0.25rem;">
-                    <input type="text" class="form-control boq-item-name" placeholder="e.g. Next-Gen Firewall Layer-7" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem;" required>
-                </td>
-                <td style="padding: 0.5rem 0.25rem;">
-                    <input type="number" class="form-control boq-item-qty" value="1" min="1" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem; text-align: center;" required>
-                </td>
-                <td style="padding: 0.5rem 0.25rem; min-width: 180px;">
-                    <div class="oem-selector-dropdown" style="position: relative;">
-                        <button title="Select OEMs...
-                            ▼" type="button" class="form-control dropdown-toggle-btn" onclick="toggleOemDropdown(this)" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem; text-align: left; display: flex; justify-content: space-between; align-items: center; color: white; width: 100%;">
-                            <span class="selected-oems-text">Select OEMs...</span>
-                            <span>▼</span>
-                        </button>
-                        <div class="oem-dropdown-menu" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #1e293b; border: 1px solid var(--border-glass); border-radius: 8px; z-index: 100; max-height: 180px; overflow-y: auto; padding: 0.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
-                            
-    <div style="padding: 0.25rem 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 0.5rem; position: sticky; top: 0; background: #1e293b; z-index: 1;">
-        <input type="text" placeholder="Search OEM..." onkeyup="filterOems(this)" onclick="event.stopPropagation()" style="width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">
-    </div>
-
-<div class="checkbox-list">
-                                ${checkboxesHtml}
-                            </div>
-                            <div style="display: flex; gap: 0.25rem; margin-top: 0.5rem; padding: 0.25rem 0.5rem; border-top: 1px solid rgba(255,255,255,0.05);">
-                                <input type="text" class="custom-oem-input" placeholder="Add custom..." style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-glass); border-radius: 4px; padding: 0.25rem; font-size: 0.75rem; color: white; width: 70%;">
-                                <button title="+" type="button" class="btn btn-primary btn-sm" onclick="addCustomOemCheckbox(this)" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; border-radius: 4px;">+</button>
-                            </div>
-                        </div>
-                    </div>
-                </td>
-                <td style="padding: 0.5rem 0.25rem; min-width: 200px;">
-                    <!-- Document Received Checkboxes list -->
-                    <div class="oem-doc-checklist-container" style="display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 0.5rem; width: 100%; max-width: 250px; padding-bottom: 4px; white-space: nowrap;">
-                    </div>
-                </td>
-                <td style="padding: 0.5rem 0.25rem;">
-                    <input type="text" class="form-control boq-item-remarks" placeholder="Remarks (serves all selected OEMs)..." style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem;">
-                </td>
-                <td style="padding: 0.5rem 0.25rem;">
-                    <select class="form-control boq-item-doc-required" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05); font-size: 0.85rem; padding: 0.4rem 0.6rem;">
-                        <option value="Yes">Yes</option>
-                        <option value="No" selected>No</option>
-                    </select>
-                </td>
-                <td style="padding: 0.5rem 0.25rem; text-align: right;">
-                    <button title="️" type="button" onclick="removeBoqRow(this)" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 1.1rem; padding: 0.25rem;">🗑️</button>
-                </td>
-            `;
-            tbody.appendChild(newRow);
-        }
-        
-        function removeBoqRow(btn) {
-            const row = btn.closest('.boq-row');
-            if (row) {
-                row.remove();
+            const textSpan = document.getElementById('boq-remarks-btn-text');
+            const eyeIcon = document.getElementById('boq-remarks-eye-icon');
+            const btn = document.getElementById('toggle-boq-remarks-btn');
+            if (boqRemarksVisible) {
+                if (textSpan) textSpan.innerText = 'Hide Remarks';
+                if (eyeIcon) eyeIcon.innerText = '🙈';
+                if (btn) {
+                    btn.classList.remove('btn-secondary');
+                    btn.classList.add('btn-primary');
+                }
+            } else {
+                if (textSpan) textSpan.innerText = 'Show Remarks';
+                if (eyeIcon) eyeIcon.innerText = '👁️';
+                if (btn) {
+                    btn.classList.remove('btn-primary');
+                    btn.classList.add('btn-secondary');
+                }
             }
         }
-        
+
+        // Dropdown open/close handler with row z-index elevation and search focus
         function toggleOemDropdown(btn) {
-            const menu = btn.nextElementSibling;
+            const anchor = btn.closest('.oem-btn-anchor') || btn.closest('.oem-selector-dropdown');
+            const menu = anchor ? anchor.querySelector('.oem-dropdown-menu') : null;
+            const currentRow = btn.closest('tr');
+            
             if (menu) {
-                document.querySelectorAll('.oem-dropdown-menu').forEach(m => {
-                    if (m !== menu) m.style.display = 'none';
-                });
-                menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
-            }
-        }
-
-        document.addEventListener('click', function(e) {
-            if (!e.target.closest('.oem-selector-dropdown')) {
+                const isCurrentlyOpen = (menu.style.display === 'block');
+                
+                // Close all other open dropdowns and reset their row z-index
                 document.querySelectorAll('.oem-dropdown-menu').forEach(m => {
                     m.style.display = 'none';
+                    const r = m.closest('tr');
+                    if (r) {
+                        r.style.zIndex = '';
+                        r.style.position = '';
+                    }
+                });
+                
+                if (!isCurrentlyOpen) {
+                    menu.style.display = 'block';
+                    if (currentRow) {
+                        currentRow.style.zIndex = '99999';
+                        currentRow.style.position = 'relative';
+                    }
+                    // Focus the search input automatically
+                    const searchInput = menu.querySelector('input[type="text"]');
+                    if (searchInput) {
+                        setTimeout(() => searchInput.focus(), 60);
+                    }
+                }
+            }
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.oem-btn-anchor') && !e.target.closest('.oem-selector-dropdown')) {
+                document.querySelectorAll('.oem-dropdown-menu').forEach(m => {
+                    m.style.display = 'none';
+                    const r = m.closest('tr');
+                    if (r) {
+                        r.style.zIndex = '';
+                        r.style.position = '';
+                    }
                 });
             }
         });
 
+        // Dynamically update Vertical Lists with Scrollbar
         function updateSelectedOemsText(checkbox) {
             const dropdown = checkbox.closest('.oem-selector-dropdown');
+            if (!dropdown) return;
             const row = dropdown.closest('tr');
             const checked = dropdown.querySelectorAll('.oem-checkbox:checked');
-            const toggleText = dropdown.querySelector('.selected-oems-text');
+            const badge = dropdown.querySelector('.oem-count-badge');
             
-            const names = Array.from(checked).map(cb => cb.value);
+            const names = Array.from(checked).map(cb => cb.value.trim()).filter(Boolean);
             
-            if (names.length === 0) {
-                toggleText.innerText = 'Select OEMs...';
-            } else {
-                toggleText.innerText = names.join(', ');
+            if (badge) {
+                badge.innerText = names.length;
             }
             
-            // Rebuild document received checklist dynamically
-            const container = row.querySelector('.oem-doc-checklist-container');
-            if (container) {
-                const checkedDocs = new Set();
-                container.querySelectorAll('.oem-doc-received-checkbox:checked').forEach(cb => {
-                    checkedDocs.add(cb.value);
-                });
-                
-                container.innerHTML = '';
-                names.forEach(oem => {
-                    const isChecked = checkedDocs.has(oem) ? 'checked' : '';
-                    const label = document.createElement('label');
-                    label.style.display = 'inline-flex';
-                    label.style.alignItems = 'center';
-                    label.style.gap = '0.3rem';
-                    label.style.fontSize = '0.75rem';
-                    label.style.color = '#a5b4fc';
-                    label.style.background = 'rgba(255,255,255,0.03)';
-                    label.style.border = '1px solid rgba(255,255,255,0.05)';
-                    label.style.padding = '0.15rem 0.35rem';
-                    label.style.borderRadius = '4px';
-                    label.style.cursor = 'pointer';
-                    label.style.marginTop = '0.2rem';
+            // Col 3: Rebuild Associated OEMs Vertical List
+            const oemsList = dropdown.querySelector('.associated-oems-vertical-list');
+            if (oemsList) {
+                oemsList.innerHTML = '';
+                if (names.length === 0) {
+                    oemsList.innerHTML = '<span class="no-oem-hint" style="font-size: 0.75rem; color: var(--text-muted); font-style: italic;">None selected</span>';
+                } else {
+                    names.forEach(oem => {
+                        const pill = document.createElement('div');
+                        pill.className = 'associated-oem-pill';
+                        pill.innerHTML = `<span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600;">🏢 ${oem}</span>`;
+                        oemsList.appendChild(pill);
+                    });
+                }
+            }
+            
+            // Col 4: Rebuild OEM Doc Submission Status Vertical Checklist
+            if (row) {
+                const docContainer = row.querySelector('.oem-doc-checklist-container');
+                if (docContainer) {
+                    const checkedDocs = new Set();
+                    docContainer.querySelectorAll('.oem-doc-received-checkbox:checked').forEach(cb => {
+                        checkedDocs.add(cb.value.trim());
+                    });
                     
-                    label.innerHTML = `
-                        <input type="checkbox" class="oem-doc-received-checkbox" value="${oem}" ${isChecked}>
-                        <span>${oem} Doc Recd</span>
-                    `;
-                    container.appendChild(label);
-                });
+                    docContainer.innerHTML = '';
+                    if (names.length === 0) {
+                        docContainer.innerHTML = '<span class="no-doc-hint" style="font-size: 0.75rem; color: var(--text-muted); font-style: italic;">Select OEMs first</span>';
+                    } else {
+                        names.forEach(oem => {
+                            const isChecked = checkedDocs.has(oem) ? 'checked' : '';
+                            const label = document.createElement('label');
+                            label.className = 'oem-doc-item';
+                            label.innerHTML = `
+                                <input type="checkbox" class="oem-doc-received-checkbox" value="${oem}" ${isChecked} style="accent-color: var(--primary);">
+                                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${oem} Doc Recd</span>
+                            `;
+                            docContainer.appendChild(label);
+                        });
+                    }
+                }
             }
+
+            // Sync with Document Checklist dropdowns
+            syncShortlistedOemsToChecklist();
         }
 
         function addCustomOemCheckbox(btn) {
@@ -1262,7 +1475,99 @@
                 input.value = '';
             }
         }
-        
+
+        // Dynamically add a BoQ row with solid backgrounds and anchored dropdown
+        function addBoqRow() {
+            const tbody = document.getElementById('boq-matrix-tbody');
+            const newRow = document.createElement('tr');
+            newRow.className = 'boq-row';
+            newRow.style.borderBottom = '1px solid rgba(255,255,255,0.03)';
+            
+            let checkboxesHtml = '';
+            (window.DIRECTORY_OEMS || []).forEach(oem => {
+                checkboxesHtml += `
+                    <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.5rem; color: white; font-size: 0.85rem; cursor: pointer; border-radius: 4px;">
+                        <input type="checkbox" class="oem-checkbox" value="${oem}" onchange="updateSelectedOemsText(this)">
+                        <span>${oem}</span>
+                    </label>
+                `;
+            });
+            
+            const remarksStyle = boqRemarksVisible ? 'table-cell' : 'none';
+            
+            newRow.innerHTML = `
+                <td style="padding: 0.5rem 0.25rem;">
+                    <input type="text" class="form-control boq-item-name boq-solid-input" placeholder="e.g. Next-Gen Firewall Layer-7" style="background: #0f172a !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.22) !important; font-size: 0.85rem; border-radius: 6px; padding: 0.45rem 0.6rem; width: 100%;" required>
+                </td>
+                <!-- Col 2: Qty* (Solid background matching screen) -->
+                <td style="padding: 0.5rem 0.25rem;">
+                    <input type="number" class="form-control boq-item-qty boq-solid-input" value="1" min="1" style="background: #0f172a !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.22) !important; font-size: 0.85rem; font-weight: 600; text-align: center; border-radius: 6px; padding: 0.45rem 0.4rem; width: 100%; min-width: 55px;" required>
+                </td>
+                <!-- Col 3: Associated OEMs (Vertical List with Scrollbar, Solid Dropdown Anchored to Button) -->
+                <td style="padding: 0.5rem 0.25rem; min-width: 180px;">
+                    <div class="oem-selector-dropdown">
+                        <!-- Dropdown Button Anchor -->
+                        <div class="oem-btn-anchor" style="position: relative; width: 100%;">
+                            <button type="button" class="form-control dropdown-toggle-btn boq-solid-input" onclick="toggleOemDropdown(this)" style="background: #0f172a !important; border: 1px solid rgba(255, 255, 255, 0.22) !important; font-size: 0.8rem; padding: 0.4rem 0.6rem; text-align: left; display: flex; justify-content: space-between; align-items: center; color: white; width: 100%; border-radius: 6px; cursor: pointer;">
+                                <span class="selected-oems-btn-label">
+                                    <span class="oem-count-badge" style="background: var(--primary); color: white; padding: 1px 6px; border-radius: 9999px; font-size: 0.68rem; font-weight: 700; margin-right: 0.3rem;">0</span>
+                                    Select OEMs...
+                                </span>
+                                <span style="font-size: 0.7rem; margin-left: 4px;">▼</span>
+                            </button>
+                            <!-- Dropdown Menu attached directly to button anchor with solid background -->
+                            <div class="oem-dropdown-menu" style="display: none; position: absolute; top: calc(100% + 4px); left: 0; min-width: 280px; max-width: 320px; background: #0f172a !important; border: 1px solid rgba(99, 102, 241, 0.45) !important; border-radius: 8px; z-index: 999999 !important; max-height: 220px; overflow-y: auto; padding: 0.5rem; box-shadow: 0 16px 36px rgba(0,0,0,0.9), 0 4px 12px rgba(0,0,0,0.6);">
+                                <div style="padding: 0.25rem 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.12); margin-bottom: 0.5rem; position: sticky; top: 0; background: #0f172a !important; z-index: 2;">
+                                    <input type="text" placeholder="Search OEM..." onkeyup="filterOems(this)" onclick="event.stopPropagation()" onkeydown="if(event.key==='Enter'){event.preventDefault();}" style="width: 100%; background: #1e293b !important; border: 1px solid rgba(255,255,255,0.22) !important; color: white; padding: 0.3rem 0.55rem; border-radius: 5px; font-size: 0.8rem;">
+                                </div>
+                                <div class="checkbox-list">
+                                    ${checkboxesHtml}
+                                </div>
+                                <div style="display: flex; gap: 0.25rem; margin-top: 0.5rem; padding: 0.25rem 0.5rem; border-top: 1px solid rgba(255,255,255,0.12); position: sticky; bottom: 0; background: #0f172a !important;">
+                                    <input type="text" class="custom-oem-input" placeholder="Add custom..." onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomOemCheckbox(this.nextElementSibling);}" style="background: #1e293b !important; border: 1px solid rgba(255,255,255,0.22) !important; border-radius: 4px; padding: 0.25rem 0.45rem; font-size: 0.75rem; color: white; width: 75%;">
+                                    <button title="Add custom OEM" type="button" class="btn btn-primary btn-sm" onclick="addCustomOemCheckbox(this)" style="padding: 0.25rem 0.55rem; font-size: 0.75rem; border-radius: 4px; font-weight: 700;">+</button>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Vertical Scrollable Associated OEMs List (placed below button anchor) -->
+                        <div class="associated-oems-vertical-list" style="display: flex; flex-direction: column; overflow-y: auto; max-height: 95px; gap: 0.25rem; margin-top: 0.35rem; width: 100%; padding-right: 4px;">
+                            <span class="no-oem-hint" style="font-size: 0.75rem; color: var(--text-muted); font-style: italic;">None selected</span>
+                        </div>
+                    </div>
+                </td>
+                <!-- Col 4: OEM Doc Submission Status (Vertical List with Scrollbar) -->
+                <td style="padding: 0.5rem 0.25rem; min-width: 190px;">
+                    <div class="oem-doc-checklist-container" style="display: flex; flex-direction: column; overflow-y: auto; max-height: 95px; gap: 0.3rem; width: 100%; min-width: 170px; padding-right: 4px;">
+                        <span class="no-doc-hint" style="font-size: 0.75rem; color: var(--text-muted); font-style: italic;">Select OEMs first</span>
+                    </div>
+                </td>
+                <!-- Col 5: Document Required -->
+                <td style="padding: 0.5rem 0.25rem;">
+                    <select class="form-control boq-item-doc-required boq-solid-input" style="background: #0f172a !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.22) !important; font-size: 0.85rem; padding: 0.45rem 0.6rem; border-radius: 6px; width: 100%; cursor: pointer;">
+                        <option value="Yes">Yes</option>
+                        <option value="No" selected>No</option>
+                    </select>
+                </td>
+                <!-- Col 6: Remarks (Kept last, hidden until clicked on Title Bar) -->
+                <td class="boq-col-remarks" style="display: ${remarksStyle}; padding: 0.5rem 0.25rem;">
+                    <input type="text" class="form-control boq-item-remarks boq-solid-input" placeholder="Remarks (serves all selected OEMs)..." style="background: #0f172a !important; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.22) !important; font-size: 0.85rem; border-radius: 6px; padding: 0.45rem 0.6rem; width: 100%;">
+                </td>
+                <!-- Col 7: Delete Action -->
+                <td style="padding: 0.5rem 0.25rem; text-align: right;">
+                    <button title="Delete row" type="button" onclick="removeBoqRow(this)" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 1.1rem; padding: 0.25rem;">🗑️</button>
+                </td>
+            `;
+            tbody.appendChild(newRow);
+        }
+
+        function removeBoqRow(btn) {
+            const row = btn.closest('.boq-row');
+            if (row) {
+                row.remove();
+                syncShortlistedOemsToChecklist();
+            }
+        }
+
         function saveBoqMatrix() {
             const rows = document.querySelectorAll('.boq-row');
             const items = [];
@@ -1282,14 +1587,14 @@
                     validationFailed = true;
                     return;
                 } else {
-                    nameInput.style.borderColor = 'rgba(255,255,255,0.05)';
+                    nameInput.style.borderColor = 'rgba(255,255,255,0.22)';
                 }
                 
                 const checkedCbs = row.querySelectorAll('.oem-checkbox:checked');
-                const selected_oems = Array.from(checkedCbs).map(cb => cb.value).join(', ');
+                const selected_oems = Array.from(checkedCbs).map(cb => cb.value.trim()).filter(Boolean).join(', ');
                 
                 const checkedDocs = row.querySelectorAll('.oem-doc-received-checkbox:checked');
-                const oems_doc_status = Array.from(checkedDocs).map(cb => cb.value).join(', ');
+                const oems_doc_status = Array.from(checkedDocs).map(cb => cb.value.trim()).filter(Boolean).join(', ');
                 
                 const remarksInput = row.querySelector('.boq-item-remarks');
                 const remarks = remarksInput ? remarksInput.value.trim() : '';
@@ -1316,8 +1621,10 @@
             const url = `${window.RFP_BASE_URL}/${window.RFP_ID}/save-boq`;
             
             const saveBtn = document.querySelector('button[onclick="saveBoqMatrix()"]');
-            saveBtn.disabled = true;
-            saveBtn.innerHTML = 'Saving Matrix Grid...';
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = 'Saving Matrix Grid...';
+            }
             
             fetch(url, {
                 method: 'POST',
@@ -1326,22 +1633,189 @@
             })
             .then(res => res.json())
             .then(data => {
-                saveBtn.disabled = false;
-                saveBtn.innerHTML = '💾 Save Matrix Grid';
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = '💾 Save Matrix Grid';
+                }
                 if (data.status === 'success') {
                     alert('BoQ OEM Matrix successfully updated!');
+                    syncShortlistedOemsToChecklist();
                 } else {
                     alert('Error saving matrix: ' + data.message);
                 }
             })
             .catch(err => {
-                saveBtn.disabled = false;
-                saveBtn.innerHTML = '💾 Save Matrix Grid';
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = '💾 Save Matrix Grid';
+                }
                 alert('Error updating matrix connection.');
                 console.error(err);
             });
         }
-        
+
+        // Dynamically sync shortlisted OEMs from BoQ Matrix to Document Checklist dropdowns
+        function syncShortlistedOemsToChecklist() {
+            const allCheckedOems = new Set();
+            document.querySelectorAll('#boq-matrix-tbody .oem-checkbox:checked').forEach(cb => {
+                const val = cb.value.trim();
+                if (val) allCheckedOems.add(val);
+            });
+            
+            const sortedOems = Array.from(allCheckedOems).sort((a, b) => a.localeCompare(b, undefined, {sensitivity: 'base'}));
+            
+            // 1. Update checklist table dropdowns
+            document.querySelectorAll('.checklist-oem-select').forEach(sel => {
+                const currentVal = sel.value || sel.getAttribute('data-selected') || '';
+                sel.innerHTML = '<option value="">-- None --</option>';
+                if (sortedOems.length === 0) {
+                    const opt = document.createElement('option');
+                    opt.value = "";
+                    opt.disabled = true;
+                    opt.innerText = '(No OEMs shortlisted on BoQ Matrix yet)';
+                    sel.appendChild(opt);
+                } else {
+                    sortedOems.forEach(oem => {
+                        const opt = document.createElement('option');
+                        opt.value = oem;
+                        opt.innerText = oem;
+                        if (oem === currentVal) opt.selected = true;
+                        sel.appendChild(opt);
+                    });
+                }
+                if (currentVal && !sortedOems.includes(currentVal)) {
+                    const opt = document.createElement('option');
+                    opt.value = currentVal;
+                    opt.innerText = currentVal;
+                    opt.selected = true;
+                    sel.appendChild(opt);
+                }
+            });
+            
+            // 2. Update Add Document Form OEM dropdown
+            const addSelect = document.getElementById('oem_name_select');
+            if (addSelect) {
+                const currentVal = addSelect.value;
+                addSelect.innerHTML = '<option value="">-- None --</option>';
+                if (sortedOems.length === 0) {
+                    const opt = document.createElement('option');
+                    opt.value = "";
+                    opt.disabled = true;
+                    opt.innerText = '(No OEMs shortlisted on BoQ Matrix yet)';
+                    addSelect.appendChild(opt);
+                } else {
+                    sortedOems.forEach(oem => {
+                        const opt = document.createElement('option');
+                        opt.value = oem;
+                        opt.innerText = oem;
+                        if (oem === currentVal) opt.selected = true;
+                        addSelect.appendChild(opt);
+                    });
+                }
+            }
+        }
+
+        // Resilient Chunked File Uploader to bypass Cloudflare 502 Bad Gateway
+        async function handleRfpChunkedUpload(e) {
+            e.preventDefault();
+            const fileInput = document.getElementById('rfp-file-input');
+            const docTypeSelect = document.getElementById('doc_type');
+            const submitBtn = document.getElementById('rfp-upload-submit-btn');
+            
+            if (!fileInput.files || fileInput.files.length === 0) {
+                alert("Please select a file to upload.");
+                return false;
+            }
+            
+            const file = fileInput.files[0];
+            const MAX_SIZE = 40 * 1024 * 1024; // 40MB
+            if (file.size > MAX_SIZE) {
+                alert(`File size exceeds 40 MB limit (${(file.size / (1024*1024)).toFixed(2)} MB).`);
+                return false;
+            }
+            
+            const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB slices
+            const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+            const uploadId = 'up_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+            const docType = docTypeSelect ? docTypeSelect.value : 'rfp';
+            
+            const progressContainer = document.getElementById('upload-progress-container');
+            const progressBar = document.getElementById('upload-progress-bar');
+            const progressPercent = document.getElementById('upload-progress-percent');
+            const progressStatus = document.getElementById('upload-progress-status');
+            const progressDetails = document.getElementById('upload-progress-details');
+            const progressChunks = document.getElementById('upload-progress-chunks');
+            
+            if (progressContainer) progressContainer.style.display = 'block';
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerText = 'Uploading in safe chunks...';
+            }
+            
+            const uploadChunkUrl = `${window.RFP_BASE_URL}/${window.RFP_ID}/documents/upload-chunk`;
+            const totalMb = (file.size / (1024 * 1024)).toFixed(2);
+            
+            for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+                const start = chunkIndex * CHUNK_SIZE;
+                const end = Math.min(start + CHUNK_SIZE, file.size);
+                const chunkBlob = file.slice(start, end);
+                
+                const formData = new FormData();
+                formData.append('file_chunk', chunkBlob, file.name);
+                formData.append('chunk_index', chunkIndex);
+                formData.append('total_chunks', totalChunks);
+                formData.append('upload_id', uploadId);
+                formData.append('filename', file.name);
+                formData.append('doc_type', docType);
+                
+                const uploadedMb = (end / (1024 * 1024)).toFixed(2);
+                const pct = Math.round(((chunkIndex + 1) / totalChunks) * 100);
+                
+                if (progressStatus) progressStatus.innerText = `Uploading chunk ${chunkIndex + 1} of ${totalChunks}...`;
+                if (progressPercent) progressPercent.innerText = `${pct}%`;
+                if (progressBar) progressBar.style.width = `${pct}%`;
+                if (progressDetails) progressDetails.innerText = `${uploadedMb} MB / ${totalMb} MB`;
+                if (progressChunks) progressChunks.innerText = `Chunk ${chunkIndex + 1}/${totalChunks}`;
+                
+                try {
+                    const resp = await fetch(uploadChunkUrl, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (!resp.ok) {
+                        const errData = await resp.json().catch(() => ({}));
+                        throw new Error(errData.message || `Upload failed with HTTP ${resp.status}`);
+                    }
+                    
+                    const result = await resp.json();
+                    if (chunkIndex === totalChunks - 1) {
+                        if (progressStatus) {
+                            progressStatus.innerText = '✅ Upload completed successfully! Refreshing...';
+                            progressStatus.style.color = '#34d399';
+                        }
+                        if (progressBar) progressBar.style.width = '100%';
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 500);
+                        return true;
+                    }
+                } catch (err) {
+                    console.error('Chunk upload error:', err);
+                    if (progressStatus) {
+                        progressStatus.innerText = '❌ Upload failed: ' + err.message;
+                        progressStatus.style.color = '#f87171';
+                    }
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerText = 'Retry Upload';
+                    }
+                    alert('Upload error: ' + err.message + '\nPlease retry.');
+                    return false;
+                }
+            }
+        }
+
         function confirmDeleteMatch(event, itemName) {
             event.preventDefault();
             const answer = prompt(`⚠️ WARNING: You are deleting: "${itemName}"\n\nThis action cannot be undone. To confirm, please type "DELETE" in the box below:`);
@@ -1351,6 +1825,34 @@
             } else {
                 alert("❌ Deletion cancelled. Confirmation word did not match.");
                 return false;
+            }
+        }
+
+        let checklistRemarksVisible = false;
+
+        function toggleChecklistRemarksColumn() {
+            checklistRemarksVisible = !checklistRemarksVisible;
+            const remarksCols = document.querySelectorAll('.checklist-col-remarks');
+            remarksCols.forEach(col => {
+                col.style.display = checklistRemarksVisible ? 'table-cell' : 'none';
+            });
+            const textSpan = document.getElementById('checklist-remarks-btn-text');
+            const eyeIcon = document.getElementById('checklist-remarks-eye-icon');
+            const btn = document.getElementById('toggle-checklist-remarks-btn');
+            if (checklistRemarksVisible) {
+                if (textSpan) textSpan.innerText = 'Hide Remarks';
+                if (eyeIcon) eyeIcon.innerText = '🙈';
+                if (btn) {
+                    btn.classList.remove('btn-secondary');
+                    btn.classList.add('btn-primary');
+                }
+            } else {
+                if (textSpan) textSpan.innerText = 'Show Remarks';
+                if (eyeIcon) eyeIcon.innerText = '👁️';
+                if (btn) {
+                    btn.classList.remove('btn-primary');
+                    btn.classList.add('btn-secondary');
+                }
             }
         }
 

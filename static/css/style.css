@@ -3206,3 +3206,98 @@ body, aside, main, .glass-card, input, select, textarea, button, .btn {
         to { opacity: 1; transform: translateY(0); }
     }
 }
+
+
+/* ========================================================
+   GLOBAL SOLID DROPDOWN & SELECT THEME (Match Screen Color)
+   ======================================================== */
+select,
+select.form-control,
+.form-control select,
+.custom-select-trigger,
+.searchable-select-input,
+#type-filter,
+#group-filter,
+.checklist-oem-select {
+    background: #0f172a !important;
+    background-color: #0f172a !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(255, 255, 255, 0.22) !important;
+    border-radius: 8px !important;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35) !important;
+}
+
+select:hover,
+select.form-control:hover,
+.custom-select-trigger:hover,
+.searchable-select-input:hover {
+    border-color: rgba(255, 255, 255, 0.38) !important;
+}
+
+select:focus,
+select.form-control:focus,
+.custom-select-trigger:focus,
+.searchable-select-input:focus {
+    border-color: #6366f1 !important;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3), inset 0 1px 3px rgba(0, 0, 0, 0.35) !important;
+    outline: none !important;
+}
+
+/* Force solid background on all dropdown options in all browsers */
+select option,
+select.form-control option,
+optgroup {
+    background: #0f172a !important;
+    background-color: #0f172a !important;
+    color: #ffffff !important;
+    padding: 0.5rem 0.75rem !important;
+}
+
+select option:checked,
+select option:hover,
+select option:focus {
+    background: #6366f1 !important;
+    background-color: #6366f1 !important;
+    color: #ffffff !important;
+}
+
+/* Global solid dropdown menus: solid background, crisp border, high shadow & z-index */
+#actions-dropdown-menu,
+#add-partner-dropdown-menu,
+.custom-select-options,
+.searchable-select-menu,
+.oem-dropdown-menu,
+.dropdown-menu {
+    background: #0f172a !important;
+    background-color: #0f172a !important;
+    border: 1px solid rgba(99, 102, 241, 0.45) !important;
+    border-radius: 8px !important;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.9), 0 4px 12px rgba(0, 0, 0, 0.6) !important;
+    color: #ffffff !important;
+    z-index: 999999 !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+/* Disable glass-card top gradient pseudo-element for dropdown menus */
+#actions-dropdown-menu::before,
+#add-partner-dropdown-menu::before,
+.custom-select-options::before,
+.searchable-select-menu::before,
+.oem-dropdown-menu::before {
+    display: none !important;
+}
+
+#actions-dropdown-menu .btn,
+#add-partner-dropdown-menu .btn {
+    border-radius: 6px !important;
+    transition: background 0.15s ease, color 0.15s ease !important;
+}
+
+#actions-dropdown-menu .btn:hover,
+#add-partner-dropdown-menu .btn:hover,
+.custom-select-option-item:hover,
+.searchable-select-item:hover {
+    background: rgba(99, 102, 241, 0.22) !important;
+    color: #ffffff !important;
+}

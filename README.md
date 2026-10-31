@@ -1,10 +1,15 @@
-# OEM Partner Directory & Enterprise Portal (v6.6)
+# OEM Partner Directory & Enterprise Portal (v6.7)
 *Also known as the NextNode Yellow Pages & Enterprise Workspace*
 
 The OEM Partner Directory is a comprehensive, self-hosted enterprise portal unifying contact management, a searchable **Bank of OEMs & Solutions Catalog**, RFP/Tender tracking, automated news aggregation, team chat, timesheet & HRMS productivity, offline engineering calculations, and hardware system building into a single, beautifully responsive platform.
 
 ## 🚀 Key Features
 
+*   **🛡️ cPanel Production Stability & Zero-Timeout Architecture (v6.7):** Instant non-blocking database transactions (< 20ms) for partner creation and edits, asynchronous daemon enrichment, `PRAGMA busy_timeout = 30000`, and throttled workers eliminating 503 Service Unavailable errors on cPanel Apache/Passenger WSGI environments.
+*   **🎨 High-Resolution OEM Logo Auto-Fetcher (95.9% Coverage):** Multi-tier brand CDN integration (Unavatar, FaviconKit 144px, GStatic FaviconV2, Google 128px, DuckDuckGo) with deep domain sanitization and direct homepage HTML scraping fallback (`apple-touch-icon`, `og:image`, `logo img`), achieving 95.9% verified logo coverage across all vendors.
+*   **📊 BoQ OEM Product Mapping Matrix & Document Checklist:** Header-toggleable remarks column (`toggleBoqRemarksColumn` / `toggleChecklistRemarksColumn`), anchored vertical scrollable OEM lists, and shortlisted OEM filtering on the RFP Document Checklist.
+*   **⚡ Resilient Chunked Document Uploader (< 40MB):** 2MB sliced file uploading (`/rfps/<rfp_id>/documents/upload-chunk`) eliminating Cloudflare 502 Bad Gateway and cPanel gateway timeouts on files up to 40MB.
+*   **🌑 Solid Dark Slate UI & Anchored Menus:** Uniform dark slate (`#0f172a`) styling across all `<select>`, `<option>`, `Qty*`, `⚙️ More`, and `➕ Add Partner` dropdown menus.
 *   **🏛️ Bank of OEMs Universal Search & Solutions Catalog (v6.6):** Universal directory search matching across company names, products, services, category domains, and catalog summaries. Features pre-sales enterprise synonym expansion (e.g. `cctv`, `storage`, `firewall`, `edr`, `switch`, `ups`, `server`, `backup`), rich OEM Bank cards with `🎯 Matched Products:` and `🎯 Matched Services:` chips, 1-click topic search pills, and partner type filters (`[All Types]`, `[OEM]`, `[Distributor]`).
 *   **📋 Solutions Portfolio 10–15 Line Catalog Overview:** Dense, pre-sales actionable catalog overviews detailing hardware models, platform series, appliance form factors, software licensing packages, hypervisor/cloud interoperability, engineering services, multi-tier SLAs (24/7/365, 4-hour on-site replacement), and RFP commercial compliance. Features inline live editing with instant AJAX persistence and audit logging.
 *   **🔄 Automated Master Offerings Refresh:** One-click master sync in Admin Panel that concurrently crawls partner websites and open internet sources to refresh products, services, and re-generate tailored catalog summaries for all existing partners.

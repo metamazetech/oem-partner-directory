@@ -11,6 +11,7 @@ def get_db_connection():
     conn.execute("PRAGMA synchronous = NORMAL")
     conn.execute("PRAGMA cache_size = -64000") # 64MB memory cache
     conn.execute("PRAGMA temp_store = MEMORY")
+    conn.execute("PRAGMA busy_timeout = 30000") # Wait up to 30s instead of locking immediately
     conn.row_factory = sqlite3.Row
     return conn
 

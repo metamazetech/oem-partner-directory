@@ -1,5 +1,36 @@
 # OEM Portal Changelog
 
+## [v6.7.0] - 2026-10-31
+### Added
+- **BoQ OEM Product Mapping Matrix Enhancements**:
+  - **Remarks Column Toggle**: BoQ Product Mapping Matrix remarks column relocated to the last column and hidden by default, accessible via a toggle button (`toggleBoqRemarksColumn`) on the card header.
+  - **Vertical Associated OEMs List**: Displayed in an anchored vertical scrollable list with custom styled scrollbars.
+  - **Solid Dark Theme Styling**: Enforced solid dark slate `#0f172a` styling across all `<select>` inputs, `<option>` elements, `Qty*` fields, `⚙️ More` actions dropdown (`#actions-dropdown-menu`), and `➕ Add Partner` menu (`#add-partner-dropdown-menu`).
+- **RFP Document Checklist Upgrades**:
+  - **Shortlisted OEMs Scope**: Filtered Document Checklist to display only OEMs that are actively shortlisted in the BoQ OEM Product Mapping Matrix.
+  - **Vertical Doc Submission Status**: Converted OEM Doc Submission Status into a clean vertical list with custom scrollbars.
+  - **Checklist Remarks Toggle**: Added header toggle button (`toggleChecklistRemarksColumn`) to show/hide the checklist remarks column cleanly.
+- **Resilient Chunked Uploader (< 40MB)**:
+  - Slices large document uploads into 2MB chunks sent to `/rfps/<rfp_id>/documents/upload-chunk`, completely eliminating Cloudflare 502 Bad Gateway and cPanel gateway timeouts on files up to 40MB.
+  - Real-time progress bar UI with automatic server-side chunk assembly and verification.
+- **High-Resolution OEM Logo Auto-Fetching (95.9% Total Database Coverage)**:
+  - Deep domain and subdomain sanitization: strips trailing punctuation, quotes, and angle brackets (e.g. `asimindia.com'`, `barco.com>`) and extracts root parent domains (`in.panasonic.com` $\rightarrow$ `panasonic.com`).
+  - Multi-tier brand CDN integration: Unavatar API, FaviconKit (144px), GStatic FaviconV2, Google 128px, and DuckDuckGo.
+  - Direct homepage HTML scraping fallback (`<link rel="apple-touch-icon">`, `<link rel="icon">`, `<meta property="og:image">`, `<img ...logo...>`).
+  - Verified database coverage increased to 188 / 196 partners (95.9%).
+
+### Fixed
+- **Elimination of `503 Service Unavailable` on cPanel**:
+  - **Immediate DB Commit (< 20ms)**: Adding or editing vendor contacts now writes to SQLite and immediately commits in under 20 milliseconds, releasing write locks instantly. Response times dropped from ~40s to **19ms**.
+  - **Asynchronous Background Enrichment**: Scraping offerings and downloading logos are now offloaded to daemon threads with separate database connections, preventing Apache/Passenger gateway timeouts.
+  - **SQLite Concurrency Defense**: Configured `PRAGMA busy_timeout = 30000` in `database.py` so concurrent database accesses wait smoothly instead of raising `database is locked`.
+  - **Master Sync Worker Throttle**: Reduced master sync concurrency from 15 to 4 workers to stay safely within CloudLinux LVE memory and process limits.
+- **Elimination of `404 Not Found` Errors**:
+  - **Multi-Segment Upload Route**: Upgraded `@app.route('/uploads/<path:filename>')` with automatic path normalization (stripping leading slashes, redundant `uploads/` prefixes, and fallback searching by base filename) so nested file paths and formatted documents never 404.
+  - **Dual Visiting Card Delete Routes**: Added support for both `@app.route('/contact/<id>/upload-card/delete')` (query-string) and `@app.route('/contact/<id>/upload-card/<side>/delete')` (path-based).
+  - **Apache Rewrite QSA**: Added `[QSA,L]` (Query String Append) and static file direct passthrough in `.htaccess`.
+  - **Graceful Error Handlers**: Added `@app.errorhandler(404)` and `@app.errorhandler(413)` handlers with clean flash alert messages and redirects.
+
 ## [v6.6.0] - 2026-10-28
 ### Added
 - **Bank of OEMs Universal Search Engine**:
